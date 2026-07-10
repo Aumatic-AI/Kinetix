@@ -1,0 +1,46 @@
+// ElevenLabs TTS and Voice Cloning API
+
+export class ElevenLabsService {
+  private static API_BASE = "https://api.elevenlabs.io/v1";
+
+  private static getHeaders() {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) throw new Error("ELEVENLABS_API_KEY is missing");
+
+    return {
+      "xi-api-key": apiKey,
+      "Content-Type": "application/json"
+    };
+  }
+
+  /**
+   * Generate Text-to-Speech audio
+   */
+  static async generateSpeech(text: string, voiceId: string = "21m00Tcm4TlvDq8ikWAM") {
+    try {
+      const response = await fetch(`${this.API_BASE}/text-to-speech/${voiceId}`, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: JSON.stringify({
+          text,
+          model_id: "eleven_monolingual_v1",
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75
+          }
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`ElevenLabs API Error: ${response.statusText}`);
+      }
+
+      // Returns the raw audio buffer
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (error) {
+      console.error("ElevenLabs TTS Error:", error);
+      throw error;
+    }
+  }
+}

@@ -1,0 +1,54 @@
+export const ROUTES = {
+  AUTH: {
+    LOGIN: "/login",
+  },
+  DASHBOARD: {
+    HOME: "/dashboard",
+  },
+  META_ADS: {
+    OVERVIEW: "/meta-ads",
+    CREATE: "/meta-ads/create",
+    APPROVAL: "/meta-ads/approval",
+    CAMPAIGNS: "/meta-ads/campaigns",
+    LIVE_CAMPAIGNS: "/meta-ads/live-campaigns",
+    REPORTS: "/meta-ads/reports",
+    REPORT_ANALYSIS: "/meta-ads/report-analysis",
+    LEADS: "/meta-ads/leads",
+  },
+  NEWSLETTER: {
+    DASHBOARD: "/newsletter",
+    GENERATE: "/newsletter/generate",
+    CAMPAIGNS: "/newsletter/campaigns",
+    HISTORY: "/newsletter/history",
+    SERVICES: "/newsletter/services",
+  },
+  OUTREACH: {
+    DASHBOARD: "/outreach",
+    MESSAGES: "/outreach/messages",
+    ANALYTICS: "/outreach/analytics",
+    SCRAPER: "/outreach/scraper",
+    SCRAPER_HISTORY: "/outreach/scraper-history",
+    RESET_STATUS: "/outreach/reset-status",
+  },
+  VOICE: {
+    OVERVIEW: "/voice",
+    AGENTS: "/voice/agents",
+    KNOWLEDGE_BASE: "/voice/knowledge-base",
+    CALLS: "/voice/calls",
+    ANALYTICS: "/voice/analytics",
+  },
+  SOCIAL: {
+    OVERVIEW: "/social",
+    POSTS: "/social/posts",
+    MEDIA: "/social/media",
+    CALENDAR: "/social/calendar",
+    ANALYTICS: "/social/analytics",
+  },
+  SETTINGS: {
+    WORKSPACE: "/settings/workspace",
+    USERS: "/settings/users",
+    CONNECTED_ACCOUNTS: "/settings/connected-accounts",
+    AI_PROVIDERS: "/settings/ai-providers",
+    BILLING: "/settings/billing",
+  },
+} as const;
