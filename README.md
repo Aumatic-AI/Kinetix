@@ -31,9 +31,9 @@ Open `.env.local` and fill in your actual Supabase credentials. You can find the
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (Required for the seed script)
 
-### 3. Database Setup (Supabase)
+### 3. Database Setup (Supabase & Prisma)
 
-We manage our database schema using Supabase Migrations.
+We manage our database schema using Supabase Migrations, but we use **Prisma** as our ORM to interact with the database from our Next.js application.
 
 **Step 3a: Login to Supabase CLI**
 ```bash
@@ -41,15 +41,22 @@ npx supabase login
 ```
 
 **Step 3b: Link your project**
-Find your Reference ID in your Supabase dashboard URL (e.g., `https://supabase.com/dashboard/project/<REFERENCE_ID>`).
+Find your Reference ID in your Supabase dashboard URL.
 ```bash
 npx supabase link --project-ref <YOUR_REFERENCE_ID>
 ```
 
 **Step 3c: Push the Schema**
-Push all local migrations to your remote Supabase database to construct the tables (like `brands`, `ad_campaigns`, `newsletter_subscribers`, etc.):
+Push all local migrations to your remote Supabase database:
 ```bash
 npx supabase db push
+```
+
+**Step 3d: Sync Prisma Schema**
+We need to generate our Prisma client based on the Supabase schema. Make sure you add `DATABASE_URL` and `DIRECT_URL` to your `.env.local` using the Supabase connection strings, then run:
+```bash
+npx prisma db pull
+npx prisma generate
 ```
 
 ### 4. Start the Development Server

@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import { PrimarySidebar } from "@/components/layout/PrimarySidebar";
 import { SecondarySidebar } from "@/components/layout/SecondarySidebar";
 import { Navbar } from "@/components/layout/Navbar";
+import { BackgroundJobsWidget } from "@/components/global/BackgroundJobsWidget";
+import { GlobalJobTracker } from "@/components/global/GlobalJobTracker";
 import { ProductModule } from "@/types";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -35,6 +37,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </main>
       </div>
+
+      <BackgroundJobsWidget />
+      <GlobalJobTracker />
     </div>
   );
 }
