@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     }
 
     // 1. Fetch Competitor to get their meta_page_id or website
-    const { data: competitor, error: fetchError } = await supabase
+    const { data: competitor, error: fetchError } = await (supabase as any)
       .from('competitors')
       .select('*')
       .eq('id', competitorId)
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     // Note: The specific actor ID and input schema depends on the exact Apify actor used
     // We assume a standard Meta Ad Library scraper actor
     const apifyInput = {
-      pageUrl: competitor.meta_page_id ? `https://www.facebook.com/${competitor.meta_page_id}` : competitor.website_url,
+      pageUrl: (competitor as any).meta_page_id ? `https://www.facebook.com/${(competitor as any).meta_page_id}` : `https://www.facebook.com/${(competitor as any).name}`,
       maxItems: 50,
     };
 
@@ -42,13 +42,13 @@ export async function POST(req: Request) {
     const { data: job, error: insertError } = await supabase
       .from('scrape_jobs')
       .insert({
-        brand_id: competitor.brand_id,
-        competitor_id: competitor.id,
+        brand_id: (competitor as any).brand_id,
+        competitor_id: (competitor as any).id,
         actor_id: 'apify/facebook-ads-scraper',
         apify_run_id: scrapeResult.runId,
         status: 'running',
         started_at: new Date().toISOString()
-      })
+      } as any)
       .select()
       .single();
 
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to record scrape job' }, { status: 500 });
     }
 
-    return NextResponse.json({ jobId: job.id, apifyRunId: scrapeResult.runId, status: 'running' });
+    return NextResponse.json({ jobId: (job as any)?.id, apifyRunId: scrapeResult.runId, status: 'running' });
   } catch (error: any) {
     console.error("Scrape Route Error:", error);
     return NextResponse.json({ error: error.message || 'Internal server error' }, { status: 500 });

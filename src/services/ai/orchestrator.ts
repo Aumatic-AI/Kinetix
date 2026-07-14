@@ -5,8 +5,9 @@ import { FalService } from './providers/fal';
 import { ElevenLabsService } from './providers/elevenlabs';
 import { KlingService } from './providers/kling';
 import { ReplicateProvider } from './providers/replicate';
+import { KieService } from './providers/kie';
 
-export type ModelProvider = 'openai' | 'gemini' | 'runway' | 'fal' | 'elevenlabs' | 'kling' | 'replicate';
+export type ModelProvider = 'openai' | 'gemini' | 'runway' | 'fal' | 'elevenlabs' | 'kling' | 'replicate' | 'kie';
 export type TaskType = 'text' | 'image' | 'video' | 'analysis' | 'audio';
 
 export class AIOrchestrator {
@@ -24,10 +25,12 @@ export class AIOrchestrator {
           
       case 'video':
         if (provider === 'kling') return KlingService.textToVideo(prompt);
+        if (provider === 'kie') return KieService.generateVideo(prompt, options?.imageUrls, options?.aspectRatio, options?.duration);
         return RunwayService.generateGen3Video(prompt);
         
       case 'image':
         if (provider === 'replicate') return this.replicateProvider.runModel("stability-ai/sdxl", { prompt });
+        if (provider === 'kie') return KieService.generateImage(prompt, options?.imageSize);
         return FalService.generateFluxImage(prompt);
         
       case 'audio':

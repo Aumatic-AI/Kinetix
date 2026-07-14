@@ -7,8 +7,8 @@ export const ROUTES = {
   },
   META_ADS: {
     OVERVIEW: "/meta-ads",
-    CREATE: "/meta-ads/create",
-    APPROVAL: "/meta-ads/approval",
+    AD_LIBRARY: "/meta-ads/ad-library",
+    COMPETITORS: "/meta-ads/competitors",
     CAMPAIGNS: "/meta-ads/campaigns",
     LIVE_CAMPAIGNS: "/meta-ads/live-campaigns",
     REPORTS: "/meta-ads/reports",

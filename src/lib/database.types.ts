@@ -48,6 +48,59 @@ export interface Database {
         Insert: { id?: string; name: string }
         Update: { id?: string; name?: string }
       }
+      meta_ad_creatives: {
+        Row: {
+          id: string
+          brand_id: string
+          type: 'image' | 'video' | string | null
+          status: 'pending' | 'review' | 'approved' | 'failed' | string | null
+          idea_prompt: string | null
+          duration: string | null
+          video_style: string | null
+          audio_style: string | null
+          language: string | null
+          character_type: string | null
+          voice_id: string | null
+          ad_script: Json | null
+          media_urls: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          brand_id: string
+          type?: 'image' | 'video' | string | null
+          status?: 'pending' | 'review' | 'approved' | 'failed' | string | null
+          idea_prompt?: string | null
+          duration?: string | null
+          video_style?: string | null
+          audio_style?: string | null
+          language?: string | null
+          character_type?: string | null
+          voice_id?: string | null
+          ad_script?: Json | null
+          media_urls?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          brand_id?: string
+          type?: 'image' | 'video' | string | null
+          status?: 'pending' | 'review' | 'approved' | 'failed' | string | null
+          idea_prompt?: string | null
+          duration?: string | null
+          video_style?: string | null
+          audio_style?: string | null
+          language?: string | null
+          character_type?: string | null
+          voice_id?: string | null
+          ad_script?: Json | null
+          media_urls?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

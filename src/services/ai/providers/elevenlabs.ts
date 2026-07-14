@@ -23,10 +23,11 @@ export class ElevenLabsService {
         headers: this.getHeaders(),
         body: JSON.stringify({
           text,
-          model_id: "eleven_monolingual_v1",
+          model_id: "eleven_flash_v2_5",
           voice_settings: {
             stability: 0.5,
-            similarity_boost: 0.75
+            similarity_boost: 0.8,
+            style: 0.5
           }
         })
       });

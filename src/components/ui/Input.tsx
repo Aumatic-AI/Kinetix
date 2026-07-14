@@ -7,10 +7,11 @@ import { Eye, EyeOff } from "lucide-react";
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   // If true, enables the toggle for password visibility
   isPassword?: boolean;
+  error?: boolean;
 }
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, isPassword, ...props }, ref) => {
+  ({ className, type, isPassword, error, ...props }, ref) => {
     const [showPassword, setShowPassword] = React.useState(false);
     
     // Determine the actual type based on the toggle state
@@ -21,10 +22,11 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         <input
           type={actualType}
           className={cn(
-            "flex h-10 w-full rounded-md border border-default bg-background px-3 py-2 text-sm transition-colors",
+            "flex h-[46px] w-full rounded-lg border border-border bg-background px-4 text-sm transition-colors",
             "file:border-none file:bg-transparent file:text-sm file:font-medium",
-            "placeholder:text-muted-foreground focus:outline-none focus:ring-0",
+            "placeholder:text-muted-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20",
             "disabled:cursor-not-allowed disabled:opacity-50",
+            error && "border-danger focus:border-danger focus:ring-danger/20",
             className
           )}
           style={{ paddingRight: isPassword ? '40px' : undefined }}
