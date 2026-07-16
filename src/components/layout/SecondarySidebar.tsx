@@ -15,7 +15,7 @@ export function SecondarySidebar({ currentModule, currentPath }: SecondarySideba
   if (items.length === 0) return null;
 
   return (
-    <aside className="w-56 h-full bg-surface border-r border-border flex flex-col flex-shrink-0 z-base animate-slide-in">
+    <aside className="w-56 h-full bg-background border-r border-border flex flex-col flex-shrink-0 z-base animate-slide-in">
       <div className="h-14 px-4 flex items-center border-b border-border flex-shrink-0">
         <h2 className="font-semibold text-sm text-text">
           {moduleInfo?.name || ""}

@@ -14,7 +14,7 @@ export function PrimarySidebar({ currentModule, hasSecondary }: PrimarySidebarPr
     <>
       <div className={`${isDashboard ? "w-64" : "w-16"} flex-shrink-0 h-full bg-surface z-base transition-all`} />
       
-      <aside className={`fixed left-0 top-15 ${isDashboard ? "w-64" : "w-16 hover:w-64"} h-[calc(100vh-58px)] bg-surface flex flex-col z-50 transition-all overflow-hidden group border-r border-border`}>
+      <aside className={`fixed left-0 top-15 ${isDashboard ? "w-64" : "w-16 hover:w-64"} h-[calc(100vh-58px)] bg-background flex flex-col z-50 transition-all overflow-hidden group border-r border-border`}>
         <nav className="flex flex-col gap-1 w-full px-3 py-4">
           {PRIMARY_NAV_ITEMS.map((item) => {
             const isActive = currentModule === item.module;

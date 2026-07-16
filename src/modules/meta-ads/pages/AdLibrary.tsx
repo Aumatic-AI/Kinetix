@@ -11,19 +11,36 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { useMetaAdCreatives, useUpdateMetaAdCreative, useDeleteMetaAdCreative, metaAdsKeys } from "../hooks/useMetaAds";
+import { useMetaAdCreatives, useUpdateMetaAdCreative, useDeleteMetaAdCreative, useRetryMetaAdCreative, metaAdsKeys } from "../hooks/useMetaAds";
 import { MetaAdCreative } from "../types/meta-ads.types";
 
 export function AdLibrary() {
   const { data: ads = [], isLoading: loading } = useMetaAdCreatives();
   const updateMutation = useUpdateMetaAdCreative();
   const deleteMutation = useDeleteMetaAdCreative();
+  const retryMutation = useRetryMetaAdCreative();
   const queryClient = useQueryClient();
 
   const [filter, setFilter] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAd, setSelectedAd] = useState<MetaAdCreative | null>(null);
+  const [prefillValues, setPrefillValues] = useState<{ type?: "video" | "image"; duration?: string; idea?: string; service?: string } | undefined>();
   const supabase = createClient();
+
+  // Auto-open Create Ad, pre-filled, when arriving from the Competitors
+  // page's "Create Ad" action on a ready-to-launch script.
+  useEffect(() => {
+    const raw = window.sessionStorage.getItem("kinetix_prefill_ad");
+    if (raw) {
+      try {
+        setPrefillValues(JSON.parse(raw));
+        setIsModalOpen(true);
+      } catch {
+        // ignore malformed payload
+      }
+      window.sessionStorage.removeItem("kinetix_prefill_ad");
+    }
+  }, []);
 
   useEffect(() => {
     const channel = supabase
@@ -55,11 +72,16 @@ export function AdLibrary() {
     await deleteMutation.mutateAsync(id);
   };
 
+  const handleRetry = async (id: string) => {
+    await retryMutation.mutateAsync(id);
+  };
+
   const statusCounts = {
     all: ads.length,
     approved: ads.filter((a) => a.status === "approved").length,
-    pending: ads.filter((a) => a.status === "pending").length,
+    pending: ads.filter((a) => a.status === "pending" || a.status === "processing").length,
     review: ads.filter((a) => a.status === "review").length,
+    failed: ads.filter((a) => a.status === "failed").length,
   };
 
   if (loading) {
@@ -101,6 +123,9 @@ export function AdLibrary() {
           <h2 className="text-2xl font-bold text-text">Ad Creatives</h2>
           <p className="text-sm text-muted mt-1">
             {statusCounts.all} total · {statusCounts.approved} approved · {statusCounts.pending} generating
+            {statusCounts.failed > 0 && (
+              <span className="text-danger font-semibold"> · {statusCounts.failed} failed</span>
+            )}
           </p>
         </div>
         <Button onClick={() => setIsModalOpen(true)} icon={<Plus className="w-4 h-4" />}>
@@ -113,13 +138,15 @@ export function AdLibrary() {
       {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
         {filteredAds.map((ad, idx) => (
-          <AdCreativeCard 
-            key={ad.id} 
-            ad={ad} 
-            index={idx} 
-            onSelect={setSelectedAd} 
-            onApprove={handleApprove} 
-            onDelete={handleDelete} 
+          <AdCreativeCard
+            key={ad.id}
+            ad={ad}
+            index={idx}
+            onSelect={setSelectedAd}
+            onApprove={handleApprove}
+            onDelete={handleDelete}
+            onRetry={handleRetry}
+            isRetrying={retryMutation.isPending && retryMutation.variables === ad.id}
           />
         ))}
       </div>
@@ -149,10 +176,11 @@ export function AdLibrary() {
         </motion.div>
       )}
 
-      <CreateAdModal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
+      <CreateAdModal
+        isOpen={isModalOpen}
+        onClose={() => { setIsModalOpen(false); setPrefillValues(undefined); }}
         onSuccess={() => queryClient.invalidateQueries({ queryKey: metaAdsKeys.creatives() })}
+        initialValues={prefillValues}
       />
 
       <AdDetailsModal ad={selectedAd} onClose={() => setSelectedAd(null)} />

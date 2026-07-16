@@ -32,7 +32,7 @@ export class KieService {
   /**
    * Triggers an Image Generation Task and returns the raw jobId
    */
-  static async createImageTask(prompt: string, imageSize: "9:16" | "4:5" = "4:5") {
+  static async createImageTask(prompt: string, imageSize: "9:16" | "4:5" | "16:9" | "1:1" = "4:5") {
     const response = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
       method: "POST",
       headers: {

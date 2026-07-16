@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { inngest } from "@/services/inngest/client";
 import { createClient } from "@/lib/supabase/server";
 import { SupabaseClient } from "@supabase/supabase-js";
-import { Database } from "@/lib/database.types";
+import { Database } from "@/types/supabase";
 
 export async function POST(request: Request) {
   try {
@@ -16,17 +16,24 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+    if (!body.service) {
+      return NextResponse.json(
+        { error: "Missing required field: service" },
+        { status: 400 }
+      );
+    }
 
-    const { data: brand } = await supabase.from("brands").select("id").limit(1).single();
-    if (!brand) throw new Error("No brand found");
+    const { data: business } = await supabase.from("businesses").select("id").limit(1).single();
+    if (!business) throw new Error("No business found");
 
     // Create database record first
     const { data: creative, error } = await supabase
       .from('meta_ad_creatives')
       .insert({
-        brand_id: brand.id,
+        business_id: business.id,
         type: 'video',
         idea_prompt: body.ideaPrompt,
+        service: body.service,
         duration: body.duration,
         video_style: body.videoStyle,
         audio_style: body.audioStyle,
@@ -50,8 +57,9 @@ export async function POST(request: Request) {
         videoStyle: body.videoStyle,
         language: body.language,
         ideaPrompt: body.ideaPrompt,
+        service: body.service,
         creativeId: creative.id,
-        brandId: brand.id
+        businessId: business.id
       }
     });
 

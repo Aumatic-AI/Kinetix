@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Play, Check, Clock, Video, Image as ImageIcon, Sparkles, Eye, Rocket, Trash2 } from "lucide-react";
+import { Play, Check, Clock, Video, Image as ImageIcon, Sparkles, Eye, Rocket, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { MetaAdCreative } from "../types/meta-ads.types";
 
@@ -10,9 +10,11 @@ interface AdCreativeCardProps {
   onSelect: (ad: MetaAdCreative) => void;
   onApprove: (id: string) => void;
   onDelete: (id: string) => void;
+  onRetry: (id: string) => void;
+  isRetrying?: boolean;
 }
 
-export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete }: AdCreativeCardProps) {
+export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRetry, isRetrying }: AdCreativeCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -93,6 +95,11 @@ export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete }: AdC
               <Clock size={10} /> Review
             </span>
           )}
+          {ad.status === "failed" && (
+            <span className="px-1.5 py-0.5 rounded bg-background/90 backdrop-blur-md border border-danger/30 text-danger text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+              <AlertTriangle size={10} /> Failed
+            </span>
+          )}
         </div>
       </div>
 
@@ -140,11 +147,32 @@ export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete }: AdC
                   Approve
                 </Button>
               </>
+            ) : ad.status === "failed" ? (
+              <>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1 h-7 text-[11px]"
+                  onClick={() => onSelect(ad)}
+                >
+                  Details
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  className="flex-1 shadow-sm h-7 text-[11px] gap-1"
+                  onClick={() => onRetry(ad.id)}
+                  disabled={isRetrying}
+                  icon={<RefreshCw className={`w-3 h-3 ${isRetrying ? "animate-spin" : ""}`} />}
+                >
+                  {isRetrying ? "Retrying..." : "Retry"}
+                </Button>
+              </>
             ) : (
               <>
-                <Button 
-                  variant="secondary" 
-                  size="sm" 
+                <Button
+                  variant="secondary"
+                  size="sm"
                   className="flex-1 h-7 text-[11px]"
                   onClick={() => onSelect(ad)}
                 >

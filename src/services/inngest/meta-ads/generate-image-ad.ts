@@ -15,39 +15,46 @@ export const generateImageAd = inngest.createFunction(
     triggers: [{ event: "meta-ads/generate-image" }]
   },
   async ({ event, step }) => {
-    const { ideaPrompt, creativeId, brandId } = event.data;
-    
+    const { ideaPrompt, service, creativeId, businessId } = event.data;
+
     if (!creativeId) throw new Error("No creativeId provided");
 
     try {
-      // 1. Fetch intelligence (mocking or getting recent)
+      // 1. Fetch business context + intelligence (competitor + self-ad reports)
       const intelligence = await step.run("fetch-intelligence", async () => {
-        const { data: compData } = await supabase
-          .from("meta_ad_intelligence")
+        const { data: businessData } = await supabase
+          .from("businesses")
           .select("*")
-          .eq("brand_id", brandId)
+          .eq("id", businessId)
+          .single();
+
+        const { data: compData } = await supabase
+          .from("ad_analysis_reports")
+          .select("*")
+          .eq("business_id", businessId)
           .eq("report_type", "competitor")
           .order("created_at", { ascending: false })
           .limit(1)
           .single();
-          
+
         const { data: selfData } = await supabase
-          .from("meta_ad_intelligence")
+          .from("ad_analysis_reports")
           .select("*")
-          .eq("brand_id", brandId)
+          .eq("business_id", businessId)
           .eq("report_type", "self")
           .order("created_at", { ascending: false })
           .limit(1)
           .single();
 
         return {
+          business: businessData || {},
           competitor: compData?.insights || {},
-          brand: selfData?.insights || {}
+          self: selfData?.insights || {}
         };
       });
 
       // 2. Generate prompt
-      const prompt = getImageAdPrompt(intelligence, { ideaPrompt });
+      const prompt = getImageAdPrompt(intelligence, { ideaPrompt, service });
       
       // 3. Generate script via LLM
       const scriptJson = await step.run("generate-script", async () => {

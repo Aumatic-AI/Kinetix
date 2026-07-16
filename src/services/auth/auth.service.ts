@@ -28,6 +28,38 @@ export class AuthService {
   }
 
   /**
+   * Creates a new account. Profile creation and enrollment into the
+   * single business are handled automatically by database triggers
+   * (on_auth_user_created, on_profile_created_join_business) — nothing
+   * else needs to happen here.
+   */
+  async signUp(supabase: SupabaseClient, email: string, password: string, fullName: string) {
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { full_name: fullName },
+        },
+      });
+
+      if (error) {
+        logger.warn('Sign up attempt failed', { error: error.message, email });
+        return { success: false, error: error.message };
+      }
+
+      // If email confirmation is required, Supabase returns a user but no session.
+      const needsEmailConfirmation = !data.session;
+
+      logger.info('User successfully signed up', { userId: data.user?.id, needsEmailConfirmation });
+      return { success: true, data, needsEmailConfirmation };
+    } catch (error: any) {
+      logger.error('Unexpected error during sign up', { error: error.message });
+      return { success: false, error: 'An unexpected error occurred. Please try again.' };
+    }
+  }
+
+  /**
    * Logs out the current user and clears the session.
    */
   async logout(supabase: SupabaseClient) {

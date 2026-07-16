@@ -49,6 +49,13 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
     module: "metaAds",
   },
   {
+    id: "social",
+    label: "Social Media",
+    href: ROUTES.SOCIAL.OVERVIEW,
+    icon: Share2,
+    module: "social",
+  },
+  {
     id: "newsletter",
     label: "Newsletter",
     href: ROUTES.NEWSLETTER.DASHBOARD,
@@ -68,13 +75,6 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
     href: ROUTES.VOICE.OVERVIEW,
     icon: Mic,
     module: "voice",
-  },
-  {
-    id: "social",
-    label: "Social Media",
-    href: ROUTES.SOCIAL.OVERVIEW,
-    icon: Share2,
-    module: "social",
   },
   {
     id: "settings",
@@ -138,6 +138,12 @@ export const SECONDARY_NAV_ITEMS: Record<
       label: "Lead Responses",
       href: ROUTES.META_ADS.LEADS,
       icon: Users,
+    },
+    {
+      id: "ma-account",
+      label: "Ad Account",
+      href: ROUTES.META_ADS.AD_ACCOUNT,
+      icon: Link,
     },
   ],
   newsletter: [
@@ -238,6 +244,12 @@ export const SECONDARY_NAV_ITEMS: Record<
       label: "Overview",
       href: ROUTES.SOCIAL.OVERVIEW,
       icon: LayoutDashboard,
+    },
+    {
+      id: "sm-accounts",
+      label: "Connected Accounts",
+      href: ROUTES.SOCIAL.CONNECTED_ACCOUNTS,
+      icon: Link,
     },
     {
       id: "sm-posts",

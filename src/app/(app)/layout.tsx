@@ -6,6 +6,7 @@ import { SecondarySidebar } from "@/components/layout/SecondarySidebar";
 import { Navbar } from "@/components/layout/Navbar";
 import { BackgroundJobsWidget } from "@/components/global/BackgroundJobsWidget";
 import { GlobalJobTracker } from "@/components/global/GlobalJobTracker";
+import { SessionBootstrap } from "@/components/providers/SessionBootstrap";
 import { ProductModule } from "@/types";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -22,6 +23,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
+      <SessionBootstrap />
       <Navbar />
       
       <div className="flex flex-1 overflow-hidden">

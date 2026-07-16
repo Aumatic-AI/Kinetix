@@ -17,39 +17,46 @@ export const generateVideoAd = inngest.createFunction(
     triggers: [{ event: "meta-ads/generate-video" }]
   },
   async ({ event, step }) => {
-    const { ideaPrompt, duration, audioStyle, character, voiceId, videoStyle, language, creativeId, brandId } = event.data;
-    
+    const { ideaPrompt, duration, audioStyle, character, voiceId, videoStyle, language, service, creativeId, businessId } = event.data;
+
     if (!creativeId) throw new Error("No creativeId provided");
 
     try {
-      // 1. Fetch intelligence
+      // 1. Fetch business context + intelligence (competitor + self-ad reports)
       const intelligence = await step.run("fetch-intelligence", async () => {
-        const { data: compData } = await supabase
-          .from("meta_ad_intelligence")
+        const { data: businessData } = await supabase
+          .from("businesses")
           .select("*")
-          .eq("brand_id", brandId)
+          .eq("id", businessId)
+          .single();
+
+        const { data: compData } = await supabase
+          .from("ad_analysis_reports")
+          .select("*")
+          .eq("business_id", businessId)
           .eq("report_type", "competitor")
           .order("created_at", { ascending: false })
           .limit(1)
           .single();
-          
+
         const { data: selfData } = await supabase
-          .from("meta_ad_intelligence")
+          .from("ad_analysis_reports")
           .select("*")
-          .eq("brand_id", brandId)
+          .eq("business_id", businessId)
           .eq("report_type", "self")
           .order("created_at", { ascending: false })
           .limit(1)
           .single();
 
         return {
+          business: businessData || {},
           competitor: compData?.insights || {},
-          brand: selfData?.insights || {}
+          self: selfData?.insights || {}
         };
       });
 
       // 2. Generate script via LLM
-      const prompt = getVideoAdScriptPrompt(intelligence, { ideaPrompt, duration, audioStyle, videoStyle, character });
+      const prompt = getVideoAdScriptPrompt(intelligence, { ideaPrompt, duration, audioStyle, videoStyle, character, service });
       const scriptJson = await step.run("generate-script", async () => {
         const response = await aiOrchestrator.executeTask('text', prompt, 'openai');
         const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
@@ -58,7 +65,7 @@ export const generateVideoAd = inngest.createFunction(
 
       // 3. Generate Visual Prompts via LLM
       const visualPromptsJson = await step.run("generate-visual-prompts", async () => {
-        const vpPrompt = getVisualPromptsPrompt(scriptJson.script, { character, videoStyle, duration });
+        const vpPrompt = getVisualPromptsPrompt(scriptJson.script, { character, videoStyle, duration, service }, intelligence.business);
         const response = await aiOrchestrator.executeTask('text', vpPrompt, 'openai');
         const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
         return JSON.parse(jsonStr);
@@ -71,11 +78,11 @@ export const generateVideoAd = inngest.createFunction(
           const audioBuffer = await ElevenLabsService.generateSpeech(fullScript, voiceId);
           
           // Upload to Supabase
-          const fileName = `${brandId}/meta-ads/audio/${creativeId}_${Date.now()}.mp3`;
-          const { error } = await supabase.storage.from("brand_media").upload(fileName, audioBuffer, { contentType: "audio/mpeg" });
+          const fileName = `${businessId}/meta-ads/audio/${creativeId}_${Date.now()}.mp3`;
+          const { error } = await supabase.storage.from("business_media").upload(fileName, audioBuffer, { contentType: "audio/mpeg" });
           if (error) throw new Error("Audio upload failed: " + error.message);
-          
-          const { data } = supabase.storage.from("brand_media").getPublicUrl(fileName);
+
+          const { data } = supabase.storage.from("business_media").getPublicUrl(fileName);
           return { url: data.publicUrl, isGenerated: true };
         }
         return { url: null, isGenerated: false }; // Background music only, or no voiceId
@@ -91,10 +98,14 @@ export const generateVideoAd = inngest.createFunction(
         return ids;
       });
 
-      // 6. Poll for all images completion
+      // 6. Poll for all images completion. Up to 8 scene images generate in
+      // parallel on Kie's side, so completion time varies per-scene — give
+      // slower/queued scenes enough room (~4.5 min total) rather than a
+      // tight budget tuned for a single image.
       let imagesDone = false;
       let imgAttempts = 0;
-      while (!imagesDone && imgAttempts < 8) {
+      const MAX_IMAGE_ATTEMPTS = 12;
+      while (!imagesDone && imgAttempts < MAX_IMAGE_ATTEMPTS) {
         await step.sleep(`wait-image-${imgAttempts}`, imgAttempts === 0 ? "30s" : "20s");
         const pollResult = await step.run(`check-image-status-${imgAttempts}`, async () => {
           let pending = false;
@@ -107,7 +118,7 @@ export const generateVideoAd = inngest.createFunction(
                 imageJobIds[i].url = r.resultUrls?.[0] || r.urls?.[0] || null;
               } catch (e) { pending = true; }
             } else if (status.state === "failed" || status.state === "error") {
-              throw new Error(`Kie Image Failed`);
+              throw new Error(`Kie Image Failed for scene ${i + 1} (job ${imageJobIds[i].id}): ${JSON.stringify(status)}`);
             } else { pending = true; }
           }
           return { imageJobIds, allComplete: !pending };
@@ -116,7 +127,10 @@ export const generateVideoAd = inngest.createFunction(
         imagesDone = pollResult.allComplete;
         imgAttempts++;
       }
-      if (!imagesDone) throw new Error("Image Generation Timed Out");
+      if (!imagesDone) {
+        const stuck = imageJobIds.filter((j) => !j.url).map((j) => `scene ${j.scene} (job ${j.id})`);
+        throw new Error(`Image Generation Timed Out after ${MAX_IMAGE_ATTEMPTS} attempts. Still pending: ${stuck.join(", ")}`);
+      }
 
       // 7. Trigger Videos in Parallel using Generated Images
       const videoJobIds = await step.run("trigger-videos", async () => {
@@ -124,15 +138,21 @@ export const generateVideoAd = inngest.createFunction(
         for (const imgJob of imageJobIds) {
            const cinematicPrompt = `${imgJob.prompt} Cinematic medical tourism ad, warm 3200K golden-hour color grade, bold golds and deep teals, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image. Facial expression from the input image must be preserved exactly throughout the entire clip.`;
            const jobId = await KieService.createVideoTask(cinematicPrompt, [imgJob.url as string], "9:16", "4");
-           ids.push({ id: jobId, url: null as string | null });
+           ids.push({ id: jobId, url: null as string | null, scene: imgJob.scene });
         }
         return ids;
       });
 
-      // 8. Poll for all videos completion
+      // 8. Poll for all videos completion. Seedance (image-to-video) is
+      // markedly slower and more variable per-clip than the image model,
+      // especially with up to 8 clips generating in parallel on Kie's side
+      // — a clip that's still queued at minute 6 is common, not stuck, so
+      // this needs a much longer budget than the image polling above
+      // (~40s + 24*30s ≈ 12.5 min) before we give up on it.
       let videosDone = false;
       let vidAttempts = 0;
-      while (!videosDone && vidAttempts < 12) {
+      const MAX_VIDEO_ATTEMPTS = 25;
+      while (!videosDone && vidAttempts < MAX_VIDEO_ATTEMPTS) {
         await step.sleep(`wait-video-${vidAttempts}`, vidAttempts === 0 ? "40s" : "30s");
         const pollResult = await step.run(`check-video-status-${vidAttempts}`, async () => {
           let pending = false;
@@ -145,7 +165,7 @@ export const generateVideoAd = inngest.createFunction(
                 videoJobIds[i].url = r.resultUrls?.[0] || r.urls?.[0] || null;
               } catch (e) { pending = true; }
             } else if (status.state === "failed" || status.state === "error") {
-              throw new Error(`Kie Video Failed`);
+              throw new Error(`Kie Video Failed for scene ${videoJobIds[i].scene} (job ${videoJobIds[i].id}): ${JSON.stringify(status)}`);
             } else { pending = true; }
           }
           return { videoJobIds, allComplete: !pending };
@@ -154,7 +174,10 @@ export const generateVideoAd = inngest.createFunction(
         videosDone = pollResult.allComplete;
         vidAttempts++;
       }
-      if (!videosDone) throw new Error("Video Generation Timed Out");
+      if (!videosDone) {
+        const stuck = videoJobIds.filter((j) => !j.url).map((j) => `scene ${j.scene} (job ${j.id})`);
+        throw new Error(`Video Generation Timed Out after ${MAX_VIDEO_ATTEMPTS} attempts. Still pending: ${stuck.join(", ")}`);
+      }
 
       const clipUrls = videoJobIds.map(j => j.url).filter(Boolean) as string[];
 
@@ -224,24 +247,23 @@ export const generateVideoAd = inngest.createFunction(
       const finalSupabaseUrl = await step.run("upload-stitched-video", async () => {
         const { FFmpegService } = await import("../../video/ffmpeg");
         
-        // Fetch the video buffer using the service's auth token
+        // Fetch the video buffer using the service's auth headers
         const response = await fetch(stitchedVideoUrl, {
-          // @ts-ignore - access private auth token for this internal step
-          headers: { "Authorization": FFmpegService.AUTH_TOKEN }
+          headers: FFmpegService.getHeaders()
         });
 
         if (!response.ok) throw new Error(`Failed to download stitched video: ${response.status}`);
         
         const videoBuffer = await response.arrayBuffer();
         
-        const fileName = `${brandId}/meta-ads/videos/${creativeId}_${Date.now()}.mp4`;
+        const fileName = `${businessId}/meta-ads/videos/${creativeId}_${Date.now()}.mp4`;
         const { error } = await supabase.storage
-          .from("brand_media")
+          .from("business_media")
           .upload(fileName, videoBuffer, { contentType: "video/mp4" });
-          
+
         if (error) throw new Error("Video upload to Supabase failed: " + error.message);
-        
-        const { data } = supabase.storage.from("brand_media").getPublicUrl(fileName);
+
+        const { data } = supabase.storage.from("business_media").getPublicUrl(fileName);
         return data.publicUrl;
       });
 

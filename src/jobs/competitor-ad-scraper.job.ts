@@ -1,98 +1,32 @@
 import { inngest } from "@/services/inngest/client";
 import { ApifyService } from "@/services/apify";
-import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
+import { aiOrchestrator } from "@/services/ai/orchestrator";
+import { generateCompetitorAnalysisPrompt } from "@/services/prompts/competitor-analysis.prompt";
+import { processCompetitorAds, trimForPrompt } from "@/services/ai/competitor-ad-processor";
 import { createClient } from "@supabase/supabase-js";
-import crypto from "crypto";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-// --- Pre-Processing Heuristics (n8n port) ---
-function extractText(val: any): string {
-  if (!val) return "";
-  if (typeof val === "string") return val;
-  if (val?.markup?.["__html"]) return val.markup["__html"];
-  if (val?.text) return val.text;
-  if (val?.paragraph_text) return val.paragraph_text;
-  for (const k of ["content", "message", "description", "copy"]) {
-    if (typeof val[k] === "string") return val[k];
-  }
-  return "";
-}
-
-function cleanHtml(val: any): string {
-  return extractText(val)
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&#39;/g, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function getFramework(text: string): string {
-  const t = text.toLowerCase();
-  const h = (r: RegExp) => r.test(t);
-
-  const problem = h(/expensive|can't afford|waiting list|pain|scared|afraid|nervous|avoid|embarrassed|hiding/);
-  const solution = h(/solution|we handle|we arrange|we include|book|free consult|get started|check eligibility/);
-  const proof = h(/jci|accredited|harvard|trusted|certified|years|patients|★|stars|rated|award/);
-  const urgency = h(/limited|only|today|now|hurry|last|few spots|this month|slots|filling fast/);
-  const savings = h(/save|saving|less than|compared to canada|vs canada|\$\d+|\d+%|affordable|fraction/);
-  const cta = h(/book|call|dm|click|visit|reserve|apply|get started|check|free quote|free consult/);
-
-  if (savings && cta) return "Cost-Savings";
-  if (problem && solution && cta) return "PAS";
-  if (proof && cta) return "HSC";
-  if (urgency && cta) return "HUC";
-  if (cta) return "Direct";
-  return "Awareness";
-}
-
-function getAngles(text: string): string[] {
-  const t = text.toLowerCase();
-  const out = [];
-  if (/save|saving|\d+%\s*less|affordable|fraction|canada.*cost|vs canada|\$\d+\s*(vs|compared)/i.test(t)) out.push("cost-savings");
-  if (/jci|accredited|harvard|johns hopkins|certified|licensed|trusted|years|patients|★|4\.\d|5\.0/i.test(t)) out.push("trust/proof");
-  if (/limited|only|today|now|hurry|last chance|few slots|this month|filling fast/i.test(t)) out.push("urgency");
-  if (/safe|hygiene|steril|clean|modern|state\.of\.the\.art|approved|standard/i.test(t)) out.push("safety");
-  if (/transform|new smile|new you|dream|always wanted|changed|confidence|finally/i.test(t)) out.push("transformation");
-  if (/before|after|healed|result|look at|months later/i.test(t)) out.push("before/after");
-  if (/vip|transfer|hotel|accommodation|pickup|package|all\.inclusive|we handle/i.test(t)) out.push("concierge/vip");
-  if (/canada|ontario|bc|alberta|toronto|vancouver|calgary|canadian/i.test(t)) out.push("local/canada");
-  if (/scared|nervous|afraid|worried|what if|is it safe|abroad/i.test(t)) out.push("fear-removal");
-  if (/implant|crown|veneer|smile|teeth|dental/i.test(t)) out.push("dental");
-  if (/hair|transplant|fue|dhi|sapphire|hairline|bald/i.test(t)) out.push("hair");
-  return out.length ? out : ["general"];
-}
-
-function scoreAd(text: string): number {
-  let s = 0;
-  if (text.length > 30) s += 2;
-  if (text.length > 100) s += 1;
-  if (/\$\d+|\d+%/.test(text)) s += 1; // price specificity
-  if (/jci|accredited|harvard|certified/i.test(text)) s += 1; // trust signal
-  if (/free consult|free quote|check eligib/i.test(text)) s += 1; // low-friction CTA
-  if (/canada|ontario|bc|alberta/i.test(text)) s += 1; // local targeting
-  return Math.min(s, 10);
-}
-// ------------------------------------------
+// Ported from the legacy n8n workflow (toga Research analysis for ads.json).
+// Real, working Apify actor for the Facebook Ads Library — not the
+// placeholder actor id this job called before.
+const FACEBOOK_ADS_LIBRARY_ACTOR = "curious_coder~facebook-ads-library-scraper";
 
 export const competitorAdScraperJob = inngest.createFunction(
   { id: "jobs-competitor-ad-scraper", triggers: [{ cron: "0 0 * * 0" }] },
   async ({ step }: any) => {
-    const brands = await step.run("fetch-brands", async () => {
-      const { data } = await supabase.from("brands").select("*");
+    const businesses = await step.run("fetch-businesses", async () => {
+      const { data } = await supabase.from("businesses").select("*");
       return data || [];
     });
 
-    for (const brand of brands) {
+    for (const business of businesses) {
       await step.sendEvent("trigger-scrape", {
         name: "jobs/competitor-ad-scraper",
-        data: { brandId: brand.id },
+        data: { businessId: business.id },
       });
     }
   }
@@ -104,80 +38,121 @@ export const competitorAdScraperWorker = inngest.createFunction(
     triggers: [{ event: "jobs/competitor-ad-scraper" }],
   },
   async ({ event, step }: any) => {
-    const { brandId } = event.data;
+    const { businessId } = event.data;
 
-    const brandConfig = await step.run("fetch-config", async () => {
-      const { data } = await supabase.from("brands").select("*").eq("id", brandId).single();
+    const business = await step.run("fetch-config", async () => {
+      const { data } = await supabase.from("businesses").select("*").eq("id", businessId).single();
       return data;
     });
 
-    if (!brandConfig) return;
+    if (!business) return;
 
-    // Use dynamic multi-tenant config or fallback
-    let keywordsString = brandConfig.name || "Competitor";
-    if (brandConfig.competitor_keywords && Array.isArray(brandConfig.competitor_keywords) && brandConfig.competitor_keywords.length > 0) {
-      keywordsString = brandConfig.competitor_keywords.join(",");
-    } else if (typeof brandConfig.competitor_keywords === 'string') {
-      keywordsString = brandConfig.competitor_keywords;
-    }
+    const countries: string[] = Array.isArray(business.target_countries) && business.target_countries.length > 0
+      ? business.target_countries
+      : ["US"];
+    const keywords: string[] = Array.isArray(business.competitor_keywords) && business.competitor_keywords.length > 0
+      ? business.competitor_keywords
+      : [business.industry || business.name];
+    const scrapeConfig = business.settings?.competitor_scrape || {};
+    const onlyActive = scrapeConfig.only_active ?? true;
+    const maxAds = scrapeConfig.max_ads || 100;
+    const sortBy = scrapeConfig.sort || "impressions_desc";
+
+    // Build one Facebook Ads Library URL per country x keyword pair, and the
+    // Apify request body — same shape the legacy n8n workflow sent this actor.
+    const runInputs = { countries, keywords, only_active: onlyActive, max_ads: maxAds, sort: sortBy };
 
     const datasetId = await step.run("trigger-apify", async () => {
-      const result = await ApifyService.runActor("apify/facebook-ads-scraper", {
-        searchTerms: keywordsString,
-        limit: 50,
+      const urls: { url: string }[] = [];
+      for (const country of countries) {
+        for (const keyword of keywords) {
+          const encodedKeyword = encodeURIComponent(keyword);
+          urls.push({
+            url: `https://www.facebook.com/ads/library/?active_status=${onlyActive ? "active" : "all"}&ad_type=all&country=${country}&q=${encodedKeyword}&search_type=keyword_unordered&media_type=all`,
+          });
+        }
+      }
+
+      const result = await ApifyService.runActor(FACEBOOK_ADS_LIBRARY_ACTOR, {
+        count: maxAds,
+        scrapeAdDetails: true,
+        "scrapePageAds.activeStatus": onlyActive ? "active" : "all",
+        "scrapePageAds.countryCode": countries[0],
+        "scrapePageAds.sortBy": sortBy,
+        urls,
       });
       return result.datasetId;
     });
 
     await step.sleep("wait-for-scraper", "5m");
 
-    const scrapedAds = await step.run("fetch-apify-results", async () => {
+    // Full ad-processing pipeline — relevance filter, copy extraction, type
+    // detection, framework/angle tagging, scoring, competitor grouping,
+    // market-wide stats, gap detection. Everything here is in-memory only;
+    // see docs/ai_pipelines/intelligence_engine.md for why nothing is persisted.
+    const trimmed = await step.run("process-ads", async () => {
       const items = await ApifyService.getDatasetItems(datasetId);
-      return items.map((item: any) => ({
-        text: cleanHtml(item.primaryText),
-        media: item.mediaUrl,
-        format: item.format,
-        competitor: item.pageName,
-      }));
+      const result = processCompetitorAds(items, {
+        name: business.name,
+        competitorKeywords: keywords,
+        targetCountries: countries,
+      });
+      return { result, trimmed: trimForPrompt(result) };
     });
 
-    await step.run("save-scraped-ads", async () => {
-      for (const ad of scrapedAds) {
-        if (!ad.text && !ad.media) continue;
-        
-        const fingerprint = crypto
-          .createHash("sha256")
-          .update(`${ad.text}${ad.media}`)
-          .digest("hex");
+    if (!trimmed.result.all_ads.length) return;
 
-        const existing = await MetaAdsService.getCompetitorAdByFingerprint(supabase, brandId, fingerprint);
+    await step.run("generate-insight", async () => {
+      const adScriptTopics = Array.isArray(business.ad_script_topics) && business.ad_script_topics.length > 0
+        ? business.ad_script_topics
+        : [{ topic: "General Offer Awareness", format: "Image Ad" }];
 
-        // Run Pre-processing heuristics
-        const framework = getFramework(ad.text);
-        const angles = getAngles(ad.text);
-        const score = scoreAd(ad.text);
+      const prompt = generateCompetitorAnalysisPrompt({
+        businessName: business.name,
+        industry: business.industry,
+        businessVoice: business.business_voice,
+        coreOfferings: business.core_offerings,
+        targetAudience: business.target_audience,
+        targetCountries: countries,
+        adScriptTopics: adScriptTopics,
+        competitors: trimmed.trimmed.competitors,
+        topAds: trimmed.trimmed.top_ads,
+        marketSummary: trimmed.trimmed.summary,
+        gaps: trimmed.trimmed.gaps,
+      });
 
-        if (existing) {
-          await supabase.from("meta_competitor_ads").update({
-            seen_count: existing.seen_count + 1,
-            last_seen_at: new Date().toISOString(),
-            score,
-            framework,
-            emotional_angles: angles
-          }).eq("id", existing.id);
-        } else {
-          await supabase.from("meta_competitor_ads").insert({
-            brand_id: brandId,
-            competitor: ad.competitor || "Unknown",
-            fingerprint,
-            ad_text: ad.text,
-            media_url: ad.media,
-            format: ad.format,
-            score,
-            framework,
-            emotional_angles: angles
-          });
-        }
+      const responseText = (await aiOrchestrator.executeTask("analysis", prompt.user, "openai", { systemPrompt: prompt.system })) as string;
+
+      try {
+        const jsonStr = responseText.replace(/```json\n?|\n?```/g, "").trim();
+        const report = JSON.parse(jsonStr);
+
+        // The AI can't know the real time — the system stamps this itself.
+        delete report.generated_at;
+
+        await supabase.from("ad_analysis_reports").insert({
+          business_id: businessId,
+          report_type: "competitor",
+          insights: {
+            ...report,
+            meta: {
+              ...trimmed.result.meta,
+              generated_at: new Date().toISOString(),
+              run_inputs: runInputs,
+              // Only the aggregate stats actually shown on the Competitors
+              // page (Market Snapshot chart + stat callouts) — the full
+              // per-competitor breakdown and top-ad gallery were dropped
+              // from the UI, so they're not persisted either.
+              market_stats: {
+                formats: trimmed.result.summary.formats,
+                top_angles: trimmed.result.summary.top_angles,
+                longevity: trimmed.result.summary.longevity,
+              },
+            },
+          },
+        });
+      } catch (e) {
+        console.error("Failed to parse competitor analysis AI response into JSON", e);
       }
     });
   }

@@ -1,9 +1,11 @@
 /**
  * FFmpeg Service Wrapper
- * 
+ *
  * Interacts with the external api.upload-post.com FFmpeg rendering API.
  * This can be reused across any module to stitch, transcode, or edit videos.
  */
+
+import { env } from "@/config/env";
 
 interface FFmpegJobOptions {
   files: string[];
@@ -19,14 +21,14 @@ interface FFmpegJobStatus {
 
 export class FFmpegService {
   private static API_URL = "https://api.upload-post.com/api/uploadposts/ffmpeg";
-  
-  // NOTE: In production, this should be moved to process.env.FFMPEG_API_KEY
-  private static AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InRvZ2FoZWFsdGhhaUBnbWFpbC5jb20iLCJleHAiOjQ5Mjc4NzM4MzEsImp0aSI6ImIxNmIyODcxLWZiN2YtNDIxMy05ZDAxLTAxYzJmYjRhYzk5NiJ9.9J0iWq4HFCpGSVoCGY6OB5Zg-uj4vW51mshJCd_rNPI";
 
-  private static getHeaders() {
+  static getHeaders() {
+    if (!env.FFMPEG_API_KEY) {
+      throw new Error("FFMPEG_API_KEY is not set");
+    }
     return {
       "Content-Type": "application/json",
-      "Authorization": this.AUTH_TOKEN
+      "Authorization": env.FFMPEG_API_KEY
     };
   }
 

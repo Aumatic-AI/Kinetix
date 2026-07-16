@@ -16,6 +16,22 @@ const envSchema = z.object({
   KLING_API_KEY: z.string().optional(),
   APIFY_API_TOKEN: z.string().optional(),
 
+  // Social platform OAuth (Connected Accounts) — each is optional until the
+  // corresponding developer app is registered on that platform's console.
+  FACEBOOK_CLIENT_ID: z.string().optional(),
+  FACEBOOK_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  X_CLIENT_ID: z.string().optional(),
+  X_CLIENT_SECRET: z.string().optional(),
+  LINKEDIN_CLIENT_ID: z.string().optional(),
+  LINKEDIN_CLIENT_SECRET: z.string().optional(),
+  TIKTOK_CLIENT_KEY: z.string().optional(),
+  TIKTOK_CLIENT_SECRET: z.string().optional(),
+
+  // Video processing
+  FFMPEG_API_KEY: z.string().optional(),
+
   // Email
   RESEND_API_KEY: z.string().optional(),
   EMAIL_FROM_ADDRESS: z.string().email().optional(),
@@ -45,6 +61,19 @@ const _env = envSchema.safeParse({
   STABILITY_API_KEY: process.env.STABILITY_API_KEY,
   KLING_API_KEY: process.env.KLING_API_KEY,
   APIFY_API_TOKEN: process.env.APIFY_API_TOKEN,
+
+  FACEBOOK_CLIENT_ID: process.env.FACEBOOK_CLIENT_ID,
+  FACEBOOK_CLIENT_SECRET: process.env.FACEBOOK_CLIENT_SECRET,
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+  X_CLIENT_ID: process.env.X_CLIENT_ID,
+  X_CLIENT_SECRET: process.env.X_CLIENT_SECRET,
+  LINKEDIN_CLIENT_ID: process.env.LINKEDIN_CLIENT_ID,
+  LINKEDIN_CLIENT_SECRET: process.env.LINKEDIN_CLIENT_SECRET,
+  TIKTOK_CLIENT_KEY: process.env.TIKTOK_CLIENT_KEY,
+  TIKTOK_CLIENT_SECRET: process.env.TIKTOK_CLIENT_SECRET,
+
+  FFMPEG_API_KEY: process.env.FFMPEG_API_KEY,
 
   RESEND_API_KEY: process.env.RESEND_API_KEY,
   EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,

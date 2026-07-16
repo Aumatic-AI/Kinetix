@@ -243,4 +243,52 @@ export class MetaSocialService {
       throw error;
     }
   }
+
+  /**
+   * Publish a photo post to a Facebook Page. `/feed` only accepts a
+   * text/link post — attaching an actual image requires this endpoint.
+   */
+  static async publishFacebookPhoto(options: { pageId: string; pageAccessToken: string; imageUrl: string; caption?: string }) {
+    try {
+      const { pageId, pageAccessToken, imageUrl, caption } = options;
+      const params = new URLSearchParams({ access_token: pageAccessToken, url: imageUrl });
+      if (caption) params.append("caption", caption);
+
+      const response = await fetch(`${this.GRAPH_URL}/${pageId}/photos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params.toString(),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(`Facebook Photo Publish Error: ${JSON.stringify(data)}`);
+      return data;
+    } catch (error) {
+      console.error("Facebook Photo Publish Error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Publish a video post to a Facebook Page. Same gap as photos — `/feed`
+   * has no video attachment support.
+   */
+  static async publishFacebookVideo(options: { pageId: string; pageAccessToken: string; videoUrl: string; description?: string }) {
+    try {
+      const { pageId, pageAccessToken, videoUrl, description } = options;
+      const params = new URLSearchParams({ access_token: pageAccessToken, file_url: videoUrl });
+      if (description) params.append("description", description);
+
+      const response = await fetch(`${this.GRAPH_URL}/${pageId}/videos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: params.toString(),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(`Facebook Video Publish Error: ${JSON.stringify(data)}`);
+      return data;
+    } catch (error) {
+      console.error("Facebook Video Publish Error:", error);
+      throw error;
+    }
+  }
 }

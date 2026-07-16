@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { X, Video, Image as ImageIcon, Music, Mic, Sparkles, Send, Tag, Monitor, User, Mic2, UploadCloud, File, Trash2, CheckCircle2, Wand2, MessageSquare, Clock, Globe } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
@@ -24,12 +24,22 @@ const VOICE_OPTIONS = {
   ]
 };
 
-export function CreateAdModal({ isOpen, onClose, onSuccess }: { isOpen: boolean; onClose: () => void; onSuccess?: () => void }) {
+const SERVICE_OPTIONS = ["Hair Transplant", "Dental Implants", "Rhinoplasty"];
+
+interface CreateAdModalInitialValues {
+  type?: "video" | "image";
+  duration?: string;
+  idea?: string;
+  service?: string;
+}
+
+export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { isOpen: boolean; onClose: () => void; onSuccess?: () => void; initialValues?: CreateAdModalInitialValues }) {
   // Tabs state
   const [activeTab, setActiveTab] = useState("generate");
 
   // AI Generate state
   const [type, setType] = useState("video");
+  const [service, setService] = useState("");
   const [duration, setDuration] = useState("28 seconds");
   const [audioStyle, setAudioStyle] = useState("Background Music");
   const [character, setCharacter] = useState<"male"|"female">("male");
@@ -40,6 +50,23 @@ export function CreateAdModal({ isOpen, onClose, onSuccess }: { isOpen: boolean;
   const [idea, setIdea] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
+
+  // Pre-fill from an external source (e.g. "Create Ad" from a Competitors
+  // page ready-to-launch script) when the modal opens with initialValues set.
+  useEffect(() => {
+    if (isOpen && initialValues) {
+      if (initialValues.type) setType(initialValues.type);
+      if (initialValues.duration) setDuration(initialValues.duration);
+      if (initialValues.idea) setIdea(initialValues.idea);
+      if (initialValues.service) setService(initialValues.service);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialValues]);
+
+  // AI idea generation state
+  const [isGeneratingIdea, setIsGeneratingIdea] = useState(false);
+  const [generatedIdeas, setGeneratedIdeas] = useState<{ id: number; type: string; angle: string; idea: string }[] | null>(null);
+  const [ideaError, setIdeaError] = useState("");
 
   // Upload state
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -56,9 +83,9 @@ export function CreateAdModal({ isOpen, onClose, onSuccess }: { isOpen: boolean;
     setIsSubmitting(true);
     try {
       const endpoint = type === "video" ? "/api/meta-ads/generate/video" : "/api/meta-ads/generate/image";
-      const payload = type === "video" 
-        ? { duration, audioStyle, character, voiceId, videoStyle, language, ideaPrompt: idea }
-        : { ideaPrompt: idea };
+      const payload = type === "video"
+        ? { duration, audioStyle, character, voiceId, videoStyle, language, ideaPrompt: idea, service }
+        : { ideaPrompt: idea, service };
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -69,11 +96,37 @@ export function CreateAdModal({ isOpen, onClose, onSuccess }: { isOpen: boolean;
         if (onSuccess) onSuccess();
         onClose();
         setIdea("");
+        setService("");
+        setGeneratedIdeas(null);
+        setIdeaError("");
       }
     } catch (e) {
       console.error(e);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleGenerateIdeas = async () => {
+    if (!idea.trim() || isGeneratingIdea) return;
+    setIsGeneratingIdea(true);
+    setIdeaError("");
+    try {
+      const response = await fetch("/api/meta-ads/generate-idea", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idea, type, duration, audioStyle, videoStyle, character, service }),
+      });
+      const data = await response.json();
+      if (response.ok && Array.isArray(data.ideas) && data.ideas.length > 0) {
+        setGeneratedIdeas(data.ideas);
+      } else {
+        setIdeaError(data.error || "No ideas returned. Try rephrasing your idea.");
+      }
+    } catch (e) {
+      setIdeaError("Failed to generate ideas. Please try again.");
+    } finally {
+      setIsGeneratingIdea(false);
     }
   };
 
@@ -90,14 +143,14 @@ export function CreateAdModal({ isOpen, onClose, onSuccess }: { isOpen: boolean;
     setIsUploading(true);
     setUploadError("");
     try {
-      const { data: brandData } = await supabase.from("brands").select("id").limit(1).single();
-      const brandId = brandData?.id;
-      if (!brandId) throw new Error("No brand found");
+      const { data: businessData } = await supabase.from("businesses").select("id").limit(1).single();
+      const businessId = businessData?.id;
+      if (!businessId) throw new Error("No business found");
 
-      const fileName = `${brandId}/meta-ads/uploads/${Date.now()}_${uploadFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
-      
+      const fileName = `${businessId}/meta-ads/uploads/${Date.now()}_${uploadFile.name.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
+
       const { data: storageData, error: storageError } = await supabase.storage
-        .from("brand_media")
+        .from("business_media")
         .upload(fileName, uploadFile, {
           cacheControl: '3600',
           upsert: false
@@ -106,13 +159,13 @@ export function CreateAdModal({ isOpen, onClose, onSuccess }: { isOpen: boolean;
       if (storageError) throw new Error(storageError.message);
 
       const { data: publicUrlData } = supabase.storage
-        .from("brand_media")
+        .from("business_media")
         .getPublicUrl(fileName);
 
       const isVideo = uploadFile.type.startsWith("video/");
 
       await createMutation.mutateAsync({
-        brand_id: brandId,
+        business_id: businessId,
         type: isVideo ? "video" : "image",
         media_urls: [publicUrlData.publicUrl],
         status: "approved", // Automatically approve direct uploads
@@ -149,7 +202,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess }: { isOpen: boolean;
         onOpenChange={(open, event, reason) => { 
           // Base UI passes reason as 3rd arg. If it's a click outside, ignore it to fix the dropdown bug.
           if (reason === 'backdropClick') return;
-          if (!open) { setIdea(""); onClose(); } 
+          if (!open) { setIdea(""); setService(""); setGeneratedIdeas(null); setIdeaError(""); onClose(); }
         }}
       >
         <DialogContent 
@@ -213,6 +266,21 @@ export function CreateAdModal({ isOpen, onClose, onSuccess }: { isOpen: boolean;
                     <ImageIcon className="w-4 h-4 shrink-0" /> Static Image
                   </button>
                 </div>
+              </section>
+
+              {/* Service Selection */}
+              <section>
+                <Label className="mb-2 block text-sm font-semibold">SERVICE<span className="text-red-500">*</span></Label>
+                <Select value={service} onValueChange={setService}>
+                  <SelectTrigger className="w-full bg-background border-default rounded-lg">
+                    <SelectValue placeholder="Select a service" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SERVICE_OPTIONS.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </section>
 
               {type === "video" && (
@@ -315,13 +383,47 @@ export function CreateAdModal({ isOpen, onClose, onSuccess }: { isOpen: boolean;
 
               {/* Story Description */}
               <section>
-                <Label className="mb-2 block text-sm font-semibold">SCRIPT<span className="text-red-500">*</span></Label>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="mb-0 block text-sm font-semibold">SCRIPT<span className="text-red-500">*</span></Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateIdeas}
+                    disabled={!idea.trim() || isGeneratingIdea}
+                    className="h-7 px-3 rounded-md text-xs"
+                    icon={isGeneratingIdea ? <div className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  >
+                    {isGeneratingIdea ? "Generating..." : "Generate Ideas"}
+                  </Button>
+                </div>
                 <Textarea
                   value={idea}
-                  onChange={(e) => setIdea(e.target.value)}
+                  onChange={(e) => { setIdea(e.target.value); if (generatedIdeas) setGeneratedIdeas(null); }}
                   placeholder={type === "video" ? "Describe your video concept, offer, or story angle..." : "Describe your image concept, offer, or visual angle..."}
                   className="!p-4 min-h-[120px]"
                 />
+                {ideaError && (
+                  <p className="text-xs font-medium text-danger mt-2">{ideaError}</p>
+                )}
+                {generatedIdeas && generatedIdeas.length > 0 && (
+                  <div className="mt-4 flex flex-col gap-2.5 p-4 rounded-xl border border-primary/20 bg-primary-subtle/40">
+                    <div className="text-xs font-bold text-primary uppercase tracking-wide">✨ AI Generated Ideas — Click to use</div>
+                    <div className="flex flex-col gap-2">
+                      {generatedIdeas.map((ideaObj, i) => (
+                        <button
+                          type="button"
+                          key={`${ideaObj.id}-${i}`}
+                          onClick={() => { setIdea(ideaObj.idea); setGeneratedIdeas(null); }}
+                          className="text-left p-3 rounded-lg border border-default bg-background hover:border-primary hover:bg-primary-subtle/60 transition-all text-sm text-text leading-relaxed"
+                        >
+                          <span className="block text-[10px] font-bold uppercase tracking-wide text-muted mb-1">{ideaObj.angle.replace(/_/g, " ")}</span>
+                          {ideaObj.idea}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </section>
               </div>
             ) : (
@@ -400,7 +502,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess }: { isOpen: boolean;
             {activeTab === "generate" ? (
               <Button
                 onClick={handleGenerateSubmit}
-                disabled={isSubmitting || !idea.trim()}
+                disabled={isSubmitting || !idea.trim() || !service}
                 className="px-8 rounded-lg font-bold shadow-md"
                 icon={isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-5 h-5" />}
               >

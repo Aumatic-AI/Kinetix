@@ -1,12 +1,14 @@
 export const ROUTES = {
   AUTH: {
     LOGIN: "/login",
+    SIGNUP: "/signup",
   },
   DASHBOARD: {
     HOME: "/dashboard",
   },
   META_ADS: {
     OVERVIEW: "/meta-ads",
+    AD_ACCOUNT: "/meta-ads/account",
     AD_LIBRARY: "/meta-ads/ad-library",
     COMPETITORS: "/meta-ads/competitors",
     CAMPAIGNS: "/meta-ads/campaigns",
@@ -39,6 +41,7 @@ export const ROUTES = {
   },
   SOCIAL: {
     OVERVIEW: "/social",
+    CONNECTED_ACCOUNTS: "/social/connected-accounts",
     POSTS: "/social/posts",
     MEDIA: "/social/media",
     CALENDAR: "/social/calendar",

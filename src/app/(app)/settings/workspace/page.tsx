@@ -9,7 +9,7 @@ export default function SettingsWorkspacePage() {
   const [countries, setCountries] = useState("CA, US");
   const [keywords, setKeywords] = useState("hair transplant turkey, dental implants turkey");
   const [industry, setIndustry] = useState("Medical Tourism");
-  const [brandVoice, setBrandVoice] = useState("Warm, professional, trustworthy — never fear-mongering.");
+  const [businessVoice, setBusinessVoice] = useState("Warm, professional, trustworthy — never fear-mongering.");
   const [coreOfferings, setCoreOfferings] = useState("Save 60-80% vs Canadian prices");
   
   const [isSaving, setIsSaving] = useState(false);
@@ -24,12 +24,12 @@ export default function SettingsWorkspacePage() {
     <div className="max-w-4xl space-y-8 pb-10">
       <div>
         <h1 className="text-2xl font-bold text-text">Workspace Settings</h1>
-        <p className="text-sm text-text/60 mt-1">Configure your brand and competitive intelligence parameters.</p>
+        <p className="text-sm text-text/60 mt-1">Configure your business and competitive intelligence parameters.</p>
       </div>
 
       <div className="bg-surface border border-border rounded-xl p-6 space-y-6">
         <div>
-          <h2 className="text-lg font-semibold text-text">Brand Identity</h2>
+          <h2 className="text-lg font-semibold text-text">Business Identity</h2>
           <p className="text-sm text-text/60">This context will be injected into all AI generations.</p>
         </div>
 
@@ -53,12 +53,12 @@ export default function SettingsWorkspacePage() {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-text mb-1 block">Brand Voice Guidelines</label>
-            <Textarea 
-              value={brandVoice} 
-              onChange={(e) => setBrandVoice(e.target.value)} 
+            <label className="text-sm font-medium text-text mb-1 block">Business Voice Guidelines</label>
+            <Textarea
+              value={businessVoice}
+              onChange={(e) => setBusinessVoice(e.target.value)}
               className="min-h-[100px]"
-              placeholder="Describe how the AI should write on behalf of your brand."
+              placeholder="Describe how the AI should write on behalf of your business."
             />
           </div>
         </div>

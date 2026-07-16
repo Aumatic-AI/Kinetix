@@ -19,9 +19,9 @@ export class AIOrchestrator {
     switch (taskType) {
       case 'text':
       case 'analysis':
-        return provider === 'gemini' 
-          ? GeminiService.generateTextPro(prompt) 
-          : OpenAIService.generateText(prompt);
+        return provider === 'gemini'
+          ? GeminiService.generateTextPro(prompt)
+          : OpenAIService.generateText(prompt, options?.systemPrompt);
           
       case 'video':
         if (provider === 'kling') return KlingService.textToVideo(prompt);

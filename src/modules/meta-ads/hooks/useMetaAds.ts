@@ -57,3 +57,22 @@ export function useDeleteMetaAdCreative() {
     },
   });
 }
+
+export function useRetryMetaAdCreative() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch("/api/meta-ads/retry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to retry generation");
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: metaAdsKeys.creatives() });
+    },
+  });
+}
