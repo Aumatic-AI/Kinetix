@@ -23,6 +23,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Only failed posts can be retried" }, { status: 400 });
     }
 
+    // Text posts are generated synchronously — a "failed" row only ever
+    // means the *publish* attempt failed, never generation, so there's
+    // nothing to regenerate. Just clear it back to draft so it can be
+    // published again from the Posts grid.
+    if (posts[0].format === "text") {
+      await supabase.from("social_posts").update({ status: "draft", error_message: null }).in("id", body.socialPostIds);
+      return NextResponse.json({ success: true, message: "Ready to publish again" });
+    }
+
     const inputs: any = posts[0].generation_inputs || {};
     if (!inputs.ideaPrompt) {
       return NextResponse.json({ error: "This post has no stored generation inputs to retry from." }, { status: 400 });

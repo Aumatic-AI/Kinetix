@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { MessageCircle, Repeat2, Heart, ChartNoAxesColumn, Share2 } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { PlatformPreviewProps } from "./types";
@@ -13,13 +14,15 @@ export function XPreview({ account, caption, mediaUrl, mediaType }: PlatformPrev
             <span className="text-[#71767b]">· 1m</span>
           </div>
           <p className="text-[14px] whitespace-pre-wrap mt-0.5 leading-snug">{caption}</p>
-          <div className="mt-2.5 rounded-2xl overflow-hidden border border-[#2f3336]">
-            {mediaType === "video" ? (
-              <video src={mediaUrl} className="w-full max-h-[420px] object-contain bg-black" controls />
-            ) : (
-              <img src={mediaUrl} alt="" className="w-full max-h-[420px] object-cover" />
-            )}
-          </div>
+          {mediaUrl && (
+            <div className="mt-2.5 rounded-2xl overflow-hidden border border-[#2f3336]">
+              {mediaType === "video" ? (
+                <video src={mediaUrl} className="w-full max-h-[420px] object-contain bg-black" controls />
+              ) : (
+                <Image src={mediaUrl} alt="" width={1080} height={1350} className="w-full h-auto max-h-[420px] object-cover" />
+              )}
+            </div>
+          )}
           <div className="flex justify-between max-w-[80%] mt-2.5 text-[#71767b]">
             <MessageCircle className="w-[17px] h-[17px]" />
             <Repeat2 className="w-[17px] h-[17px]" />

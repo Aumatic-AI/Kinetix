@@ -31,10 +31,9 @@ export function SecondarySidebar({ currentModule, currentPath }: SecondarySideba
             <Link
               key={item.id}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${isActive
-                ? "bg-primary-subtle text-primary font-semibold"
-                : "text-muted hover:bg-secondary-hover hover:text-text"
-                }`}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-muted ${
+                isActive ? "bg-secondary-hover" : "hover:bg-secondary-hover hover:text-text"
+              }`}
             >
               <Icon size={16} />
               {item.label}

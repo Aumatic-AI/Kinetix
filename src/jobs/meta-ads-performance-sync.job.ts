@@ -21,25 +21,14 @@ export const metaAdsPerformanceSyncJob = inngest.createFunction(
 
     for (const business of businesses) {
       await step.run(`sync-ads-${business.id}`, async () => {
-        // Prefer a real connected ad account; fall back to env vars for
-        // dev/testing when no platform_connections row exists yet.
-        const { data: connection } = await supabase
-          .from("platform_connections")
-          .select("*")
-          .eq("business_id", business.id)
-          .eq("platform", "facebook")
-          .eq("account_kind", "ad_account")
-          .eq("status", "connected")
-          .maybeSingle();
-
-        // NOTE: access_token_ref is a placeholder for the eventual Supabase
-        // Vault reference (see docs/architecture/system_design.md) — Vault
-        // isn't wired up yet, so this column currently holds the raw token.
-        const accessToken = connection?.access_token_ref || process.env.META_ACCESS_TOKEN;
-        const adAccountId = connection?.external_id || process.env.META_AD_ACCOUNT_ID;
+        // Single-tenant: one Meta System User token + ad account id, set
+        // once as env vars — same as the legacy project, no per-business
+        // OAuth connection to look up.
+        const accessToken = process.env.META_ACCESS_TOKEN;
+        const adAccountId = process.env.META_AD_ACCOUNT_ID;
 
         if (!accessToken || !adAccountId) {
-          console.log(`Business ${business.id} has no connected Meta ad account and no META_ACCESS_TOKEN/META_AD_ACCOUNT_ID fallback — skipping.`);
+          console.log(`META_ACCESS_TOKEN/META_AD_ACCOUNT_ID not configured — skipping business ${business.id}.`);
           return;
         }
 

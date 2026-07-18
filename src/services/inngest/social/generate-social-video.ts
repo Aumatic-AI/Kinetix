@@ -1,11 +1,13 @@
 import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
-import { getSocialVideoScriptPrompt, getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../ai/prompts/social-media";
-import { getVisualPromptsPrompt } from "../../ai/prompts/meta-ads";
+import { getSocialVideoScriptPrompt, getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../../prompts/social-media";
+import { getVisualPromptsPrompt } from "../../../prompts/meta-ads";
 import { KieService } from "../../ai/providers/kie";
 import { ElevenLabsService } from "../../ai/providers/elevenlabs";
-import { FFmpegService } from "../../video/ffmpeg";
+import { FFmpegService } from "../../ffmpeg";
+import { submitSceneStitchJob, downloadAndStoreVideo } from "../../ffmpeg/stitch-scenes";
+import { SOCIAL_CHARACTER_REFERENCE } from "../../ai/character-references";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -95,13 +97,23 @@ export const generateSocialVideo = inngest.createFunction(
       const imageJobIds = await step.run("trigger-images", async () => {
         const ids = [];
         for (const vp of visualPromptsJson.visual_prompts) {
-          const jobId = await KieService.createImageTask(vp.prompt, "9:16");
-          ids.push({ id: jobId, url: null as string | null, scene: vp.scene, prompt: vp.video_scenario });
+          const jobId = await KieService.createImageTask(vp.prompt, "9:16", SOCIAL_CHARACTER_REFERENCE);
+          ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
         }
         return ids;
       });
 
-      // 6. Poll images (same budget as the proven Meta Ads job)
+      // 6. Poll images (same budget as the proven Meta Ads job). Kie's real
+      // terminal-failure state is "fail" (its docs list waiting/queuing/
+      // generating/success/fail) — an earlier version of this code checked
+      // for "failed"/"error", which never matches, so a scene Kie had
+      // already rejected (e.g. a content-safety hold on the reference-image
+      // + prompt combo, plausible for medical-procedure scenes) looked
+      // identical to one still queued and got polled all the way to the
+      // timeout below instead of being caught immediately. Once a real
+      // "fail" is seen, retrying the exact same reference-image-conditioned
+      // request would likely fail the same way, so fall back once to plain
+      // text-to-image for just that scene.
       let imagesDone = false;
       let imgAttempts = 0;
       const MAX_IMAGE_ATTEMPTS = 12;
@@ -109,41 +121,53 @@ export const generateSocialVideo = inngest.createFunction(
         await step.sleep(`wait-image-${imgAttempts}`, imgAttempts === 0 ? "30s" : "20s");
         const pollResult = await step.run(`check-image-status-${imgAttempts}`, async () => {
           let pending = false;
-          for (let i = 0; i < imageJobIds.length; i++) {
-            if (imageJobIds[i].url) continue;
-            const status = await KieService.checkSingleTaskStatus(imageJobIds[i].id);
+          for (const job of imageJobIds) {
+            if (job.url) continue;
+            const status = await KieService.checkSingleTaskStatus(job.id);
+            job.state = status.state; // waiting / queuing / generating / success / fail — visible in the step output for debugging
             if (status.state === "success") {
               try {
                 const r = JSON.parse(status.resultJson);
-                imageJobIds[i].url = r.resultUrls?.[0] || r.urls?.[0] || null;
-              } catch { pending = true; }
-            } else if (status.state === "failed" || status.state === "error") {
-              throw new Error(`Kie Image Failed for scene ${i + 1} (job ${imageJobIds[i].id}): ${JSON.stringify(status)}`);
-            } else { pending = true; }
+                job.url = r.resultUrls?.[0] || r.urls?.[0] || null;
+              } catch { /* malformed result — treated as still-pending below */ }
+              if (!job.url) pending = true;
+            } else if (status.state === "fail") {
+              console.error(`Kie image generation failed for scene ${job.scene} (job ${job.id}): ${status.failMsg || status.failCode || "no reason given"}`);
+              if (!job.fellBack) {
+                job.id = await KieService.createImageTask(job.imagePrompt, "9:16");
+                job.fellBack = true;
+              } else {
+                throw new Error(`Kie rejected scene ${job.scene} twice (job ${job.id}): ${status.failMsg || "no reason given"}`);
+              }
+              pending = true;
+            } else {
+              pending = true; // waiting / queuing / generating — normal, keep polling
+            }
           }
           return { imageJobIds, allComplete: !pending };
         });
-        for (let i = 0; i < imageJobIds.length; i++) { imageJobIds[i].url = pollResult.imageJobIds[i].url; }
+        for (let i = 0; i < imageJobIds.length; i++) { imageJobIds[i] = pollResult.imageJobIds[i]; }
         imagesDone = pollResult.allComplete;
         imgAttempts++;
       }
       if (!imagesDone) {
-        const stuck = imageJobIds.filter((j) => !j.url).map((j) => `scene ${j.scene}`);
-        throw new Error(`Image Generation Timed Out. Still pending: ${stuck.join(", ")}`);
+        const stuck = imageJobIds.filter((j) => !j.url).map((j) => `scene ${j.scene} (job ${j.id})`);
+        throw new Error(`Image Generation Timed Out after ${MAX_IMAGE_ATTEMPTS} attempts. Still pending: ${stuck.join(", ")}`);
       }
 
       // 7. Trigger per-scene videos (image-to-video)
       const videoJobIds = await step.run("trigger-videos", async () => {
         const ids = [];
         for (const imgJob of imageJobIds) {
-          const cinematicPrompt = `${imgJob.prompt} Cinematic social content, natural color grade, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image.`;
+          const cinematicPrompt = `${imgJob.videoScenario} Cinematic social content, natural color grade, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image.`;
           const jobId = await KieService.createVideoTask(cinematicPrompt, [imgJob.url as string], "9:16", "4");
-          ids.push({ id: jobId, url: null as string | null, scene: imgJob.scene });
+          ids.push({ id: jobId, url: null as string | null, scene: imgJob.scene, cinematicPrompt, sourceImageUrl: imgJob.url as string, resubmitted: false, state: null as string | null });
         }
         return ids;
       });
 
-      // 8. Poll videos (same generous budget as the proven Meta Ads job)
+      // 8. Poll videos (same generous budget as the proven Meta Ads job).
+      // Same "fail" detection fix as the image poll above.
       let videosDone = false;
       let vidAttempts = 0;
       const MAX_VIDEO_ATTEMPTS = 25;
@@ -151,54 +175,45 @@ export const generateSocialVideo = inngest.createFunction(
         await step.sleep(`wait-video-${vidAttempts}`, vidAttempts === 0 ? "40s" : "30s");
         const pollResult = await step.run(`check-video-status-${vidAttempts}`, async () => {
           let pending = false;
-          for (let i = 0; i < videoJobIds.length; i++) {
-            if (videoJobIds[i].url) continue;
-            const status = await KieService.checkSingleTaskStatus(videoJobIds[i].id);
+          for (const job of videoJobIds) {
+            if (job.url) continue;
+            const status = await KieService.checkSingleTaskStatus(job.id);
+            job.state = status.state; // waiting / queuing / generating / success / fail — visible in the step output for debugging
             if (status.state === "success") {
               try {
                 const r = JSON.parse(status.resultJson);
-                videoJobIds[i].url = r.resultUrls?.[0] || r.urls?.[0] || null;
-              } catch { pending = true; }
-            } else if (status.state === "failed" || status.state === "error") {
-              throw new Error(`Kie Video Failed for scene ${videoJobIds[i].scene} (job ${videoJobIds[i].id}): ${JSON.stringify(status)}`);
-            } else { pending = true; }
+                job.url = r.resultUrls?.[0] || r.urls?.[0] || null;
+              } catch { /* malformed result — treated as still-pending below */ }
+              if (!job.url) pending = true;
+            } else if (status.state === "fail") {
+              console.error(`Kie video generation failed for scene ${job.scene} (job ${job.id}): ${status.failMsg || status.failCode || "no reason given"}`);
+              if (!job.resubmitted) {
+                job.id = await KieService.createVideoTask(job.cinematicPrompt, [job.sourceImageUrl], "9:16", "4");
+                job.resubmitted = true;
+              } else {
+                throw new Error(`Kie rejected video for scene ${job.scene} twice (job ${job.id}): ${status.failMsg || "no reason given"}`);
+              }
+              pending = true;
+            } else {
+              pending = true; // waiting / queuing / generating — normal, keep polling
+            }
           }
           return { videoJobIds, allComplete: !pending };
         });
-        for (let i = 0; i < videoJobIds.length; i++) { videoJobIds[i].url = pollResult.videoJobIds[i].url; }
+        for (let i = 0; i < videoJobIds.length; i++) { videoJobIds[i] = pollResult.videoJobIds[i]; }
         videosDone = pollResult.allComplete;
         vidAttempts++;
       }
       if (!videosDone) {
-        const stuck = videoJobIds.filter((j) => !j.url).map((j) => `scene ${j.scene}`);
-        throw new Error(`Video Generation Timed Out. Still pending: ${stuck.join(", ")}`);
+        const stuck = videoJobIds.filter((j) => !j.url).map((j) => `scene ${j.scene} (job ${j.id})`);
+        throw new Error(`Video Generation Timed Out after ${MAX_VIDEO_ATTEMPTS} attempts. Still pending: ${stuck.join(", ")}`);
       }
 
       const clipUrls = videoJobIds.map((j) => j.url).filter(Boolean) as string[];
 
       // 9. Stitch via FFmpeg
       const finalVideoUrl = await step.run("stitch-video", async () => {
-        const CLIP_DURATION = 4;
-        const outputDuration = clipUrls.length * CLIP_DURATION;
-
-        const videoInputFlags = clipUrls.map((_, i) => `-i {input${i}}`).join(" ");
-        const inputs = `${videoInputFlags} -i {input${clipUrls.length}}`;
-
-        const filterParts: string[] = [];
-        clipUrls.forEach((_, i) => {
-          filterParts.push(`[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24[v${i}]`);
-        });
-        const concatInputs = clipUrls.map((_, i) => `[v${i}]`).join("");
-        filterParts.push(`${concatInputs}concat=n=${clipUrls.length}:v=1:a=0,format=yuv420p[v]`);
-        const filterComplex = filterParts.join(",");
-
-        const fullCommand = `ffmpeg -y ${inputs} -filter_complex "${filterComplex}" -map "[v]" -map ${clipUrls.length}:a -t ${outputDuration.toFixed(2)} -c:v libx264 -preset superfast -crf 23 -c:a aac -b:a 192k -ar 44100 -ac 2 -avoid_negative_ts make_zero -movflags +faststart {output}`;
-
-        return await FFmpegService.submitJob({
-          files: [...clipUrls, audioResult.url],
-          command: fullCommand,
-          outputExtension: "mp4",
-        });
+        return submitSceneStitchJob({ clipUrls, audioUrl: audioResult.url });
       });
 
       // 10. Poll stitching
@@ -225,15 +240,8 @@ export const generateSocialVideo = inngest.createFunction(
 
       // 11. Download stitched video + save as a media_assets row
       const stored = await step.run("store-media-asset", async () => {
-        const response = await fetch(stitchedVideoUrl, { headers: FFmpegService.getHeaders() });
-        if (!response.ok) throw new Error(`Failed to download stitched video: ${response.status}`);
-        const videoBuffer = await response.arrayBuffer();
-
         const fileName = `${businessId}/social/videos/${Date.now()}.mp4`;
-        const { error } = await supabase.storage.from("business_media").upload(fileName, videoBuffer, { contentType: "video/mp4" });
-        if (error) throw new Error("Video upload to Supabase failed: " + error.message);
-
-        const { data: publicUrlData } = supabase.storage.from("business_media").getPublicUrl(fileName);
+        const { publicUrl, sizeBytes } = await downloadAndStoreVideo(supabase, { sourceUrl: stitchedVideoUrl, storagePath: fileName });
 
         const { data: asset, error: assetError } = await supabase
           .from("media_assets")
@@ -244,9 +252,9 @@ export const generateSocialVideo = inngest.createFunction(
             bucket: "business_media",
             storage_path: fileName,
             mime_type: "video/mp4",
-            size_bytes: videoBuffer.byteLength,
+            size_bytes: sizeBytes,
             duration_seconds: clipUrls.length * 4,
-            metadata: { publicUrl: publicUrlData.publicUrl, script: scriptJson.script, ideaPrompt, videoStyle, language, service, backgroundSong },
+            metadata: { publicUrl, script: scriptJson.script, ideaPrompt, videoStyle, language, service, backgroundSong },
           })
           .select()
           .single();
@@ -269,6 +277,7 @@ export const generateSocialVideo = inngest.createFunction(
                 status: "draft",
                 media_asset_id: stored.assetId,
                 caption: platformCaption?.text || captionMeta?.caption || "",
+                title: platformCaption?.title || null,
                 generation_inputs: { ideaPrompt, captionMeta, script: scriptJson.script },
               })
               .eq("id", socialPostIds[i]);

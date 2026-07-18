@@ -1,7 +1,7 @@
 import { inngest } from "@/services/inngest/client";
 import { ApifyService } from "@/services/apify";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
-import { generateCompetitorAnalysisPrompt } from "@/services/prompts/competitor-analysis.prompt";
+import { generateCompetitorAnalysisPrompt } from "@/prompts/competitor-analysis";
 import { processCompetitorAds, trimForPrompt } from "@/services/ai/competitor-ad-processor";
 import { createClient } from "@supabase/supabase-js";
 

@@ -7,14 +7,11 @@ export const ROUTES = {
     HOME: "/dashboard",
   },
   META_ADS: {
-    OVERVIEW: "/meta-ads",
+    DASHBOARD: "/meta-ads",
     AD_ACCOUNT: "/meta-ads/account",
     AD_LIBRARY: "/meta-ads/ad-library",
-    COMPETITORS: "/meta-ads/competitors",
     CAMPAIGNS: "/meta-ads/campaigns",
-    LIVE_CAMPAIGNS: "/meta-ads/live-campaigns",
     REPORTS: "/meta-ads/reports",
-    REPORT_ANALYSIS: "/meta-ads/report-analysis",
     LEADS: "/meta-ads/leads",
   },
   NEWSLETTER: {
@@ -40,12 +37,9 @@ export const ROUTES = {
     ANALYTICS: "/voice/analytics",
   },
   SOCIAL: {
-    OVERVIEW: "/social",
     CONNECTED_ACCOUNTS: "/social/connected-accounts",
     POSTS: "/social/posts",
-    MEDIA: "/social/media",
-    CALENDAR: "/social/calendar",
-    ANALYTICS: "/social/analytics",
+    POSTS_PUBLISH: "/social/posts/publish",
   },
   SETTINGS: {
     WORKSPACE: "/settings/workspace",

@@ -1,7 +1,7 @@
 import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
-import { getImageAdPrompt } from "../../ai/prompts/meta-ads";
+import { getImageAdPrompt } from "../../../prompts/meta-ads";
 import { KieService } from "../../ai/providers/kie";
 
 const supabase = createClient(
@@ -89,8 +89,8 @@ export const generateImageAd = inngest.createFunction(
             console.error("Failed to parse Kie AI resultJson:", status.resultJson);
             imageUrl = null; // Will trigger timeout if last attempt
           }
-        } else if (status.state === "failed" || status.state === "error") {
-          throw new Error(`Kie AI Image Generation Failed: ${JSON.stringify(status)}`);
+        } else if (status.state === "fail") {
+          throw new Error(`Kie AI Image Generation Failed: ${status.failMsg || status.failCode || "no reason given"}`);
         }
         attempts++;
       }

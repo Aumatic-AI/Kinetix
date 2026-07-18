@@ -3,8 +3,9 @@ import { inngest } from "@/services/inngest/client";
 import { createClient } from "@/lib/supabase/server";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
+import { SUPPORTED_UPLOAD_POST_PLATFORMS } from "@/services/upload-post";
 
-const VALID_PLATFORMS = ["facebook", "instagram", "youtube", "x", "linkedin", "tiktok"];
+const VALID_PLATFORMS: string[] = SUPPORTED_UPLOAD_POST_PLATFORMS;
 
 export async function POST(request: Request) {
   try {
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
         .from("platform_connections")
         .select("id, platform")
         .eq("business_id", business.id)
+        .eq("account_kind", "upload_post")
         .eq("status", "connected")
         .in("platform", platforms as Database["public"]["Enums"]["platform_type"][]);
       connections = data || [];

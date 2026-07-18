@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
-import { generateIdeaPrompt } from "@/services/prompts/idea-generation.prompt";
+import { generateIdeaPrompt } from "@/prompts/idea-generation";
 
 export async function POST(request: Request) {
   try {

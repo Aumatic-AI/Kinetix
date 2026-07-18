@@ -1,5 +1,5 @@
+import { Dashboard } from "@/modules/meta-ads";
 
 export default function Page() {
-  return <>on the way</>;
+  return <Dashboard />;
 }
-

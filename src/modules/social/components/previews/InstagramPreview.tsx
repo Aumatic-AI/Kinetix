@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { Heart, MessageCircle, Send, Bookmark, Ellipsis } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { PlatformPreviewProps } from "./types";
@@ -11,11 +12,11 @@ export function InstagramPreview({ account, caption, mediaUrl, mediaType }: Plat
         <p className="font-semibold text-[13px] text-[#262626] truncate">{handle}</p>
         <Ellipsis className="w-4 h-4 ml-auto text-[#262626] shrink-0" />
       </div>
-      <div className="bg-black/5 aspect-square">
+      <div className="relative bg-black/5 aspect-square">
         {mediaType === "video" ? (
           <video src={mediaUrl} className="w-full h-full object-cover bg-black" controls />
         ) : (
-          <img src={mediaUrl} alt="" className="w-full h-full object-cover" />
+          <Image src={mediaUrl || ""} alt="" fill sizes="380px" className="object-cover" />
         )}
       </div>
       <div className="flex items-center gap-3.5 px-3 pt-2.5">

@@ -8,9 +8,7 @@ import {
   Settings,
   BarChart,
   Users,
-  Image as ImageIcon,
   BookOpen,
-  Calendar,
   Link,
   CreditCard,
   Bot,
@@ -21,13 +19,11 @@ import {
   History,
   RefreshCw,
   PieChart,
-  Target,
   Wand2,
   ListOrdered,
   PlusCircle,
   CheckCircle,
   PlayCircle,
-  BarChart2,
   FileText,
 } from "lucide-react";
 import { NavItem, ProductModule } from "@/types";
@@ -44,14 +40,14 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
   {
     id: "metaAds",
     label: "Meta Ads",
-    href: ROUTES.META_ADS.OVERVIEW,
+    href: ROUTES.META_ADS.DASHBOARD,
     icon: Megaphone,
     module: "metaAds",
   },
   {
     id: "social",
     label: "Social Media",
-    href: ROUTES.SOCIAL.OVERVIEW,
+    href: ROUTES.SOCIAL.POSTS,
     icon: Share2,
     module: "social",
   },
@@ -92,9 +88,9 @@ export const SECONDARY_NAV_ITEMS: Record<
   dashboard: [],
   metaAds: [
     {
-      id: "ma-overview",
-      label: "Overview",
-      href: ROUTES.META_ADS.OVERVIEW,
+      id: "ma-dashboard",
+      label: "Dashboard",
+      href: ROUTES.META_ADS.DASHBOARD,
       icon: LayoutDashboard,
     },
     {
@@ -104,21 +100,9 @@ export const SECONDARY_NAV_ITEMS: Record<
       icon: BookOpen,
     },
     {
-      id: "ma-competitors",
-      label: "Competitors",
-      href: ROUTES.META_ADS.COMPETITORS,
-      icon: Target,
-    },
-    {
       id: "ma-campaigns",
-      label: "Campaign Setup",
+      label: "Campaigns",
       href: ROUTES.META_ADS.CAMPAIGNS,
-      icon: Settings,
-    },
-    {
-      id: "ma-live-campaigns",
-      label: "Live Campaigns",
-      href: ROUTES.META_ADS.LIVE_CAMPAIGNS,
       icon: PlayCircle,
     },
     {
@@ -126,12 +110,6 @@ export const SECONDARY_NAV_ITEMS: Record<
       label: "Reports",
       href: ROUTES.META_ADS.REPORTS,
       icon: FileText,
-    },
-    {
-      id: "ma-report-analysis",
-      label: "Report Analysis",
-      href: ROUTES.META_ADS.REPORT_ANALYSIS,
-      icon: BarChart2,
     },
     {
       id: "ma-leads",
@@ -240,40 +218,16 @@ export const SECONDARY_NAV_ITEMS: Record<
   ],
   social: [
     {
-      id: "sm-overview",
-      label: "Overview",
-      href: ROUTES.SOCIAL.OVERVIEW,
-      icon: LayoutDashboard,
-    },
-    {
-      id: "sm-accounts",
-      label: "Connected Accounts",
-      href: ROUTES.SOCIAL.CONNECTED_ACCOUNTS,
-      icon: Link,
-    },
-    {
       id: "sm-posts",
       label: "Posts",
       href: ROUTES.SOCIAL.POSTS,
       icon: Megaphone,
     },
     {
-      id: "sm-media",
-      label: "Media",
-      href: ROUTES.SOCIAL.MEDIA,
-      icon: ImageIcon,
-    },
-    {
-      id: "sm-calendar",
-      label: "Calendar",
-      href: ROUTES.SOCIAL.CALENDAR,
-      icon: Calendar,
-    },
-    {
-      id: "sm-analytics",
-      label: "Analytics",
-      href: ROUTES.SOCIAL.ANALYTICS,
-      icon: BarChart,
+      id: "sm-accounts",
+      label: "Connected Accounts",
+      href: ROUTES.SOCIAL.CONNECTED_ACCOUNTS,
+      icon: Link,
     },
   ],
   settings: [

@@ -770,7 +770,10 @@ export type Database = {
           published_at: string | null
           scheduled_at: string | null
           status: string
+          title: string | null
           updated_at: string
+          upload_post_job_id: string | null
+          upload_post_request_id: string | null
         }
         Insert: {
           business_id: string
@@ -787,7 +790,10 @@ export type Database = {
           published_at?: string | null
           scheduled_at?: string | null
           status?: string
+          title?: string | null
           updated_at?: string
+          upload_post_job_id?: string | null
+          upload_post_request_id?: string | null
         }
         Update: {
           business_id?: string
@@ -804,7 +810,10 @@ export type Database = {
           published_at?: string | null
           scheduled_at?: string | null
           status?: string
+          title?: string | null
           updated_at?: string
+          upload_post_job_id?: string | null
+          upload_post_request_id?: string | null
         }
         Relationships: [
           {

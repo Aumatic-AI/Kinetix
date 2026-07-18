@@ -3,9 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
-import { getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "@/services/ai/prompts/social-media";
+import { getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "@/prompts/social-media";
+import { SUPPORTED_UPLOAD_POST_PLATFORMS } from "@/services/upload-post";
 
-const VALID_PLATFORMS = ["facebook", "instagram", "youtube", "x", "linkedin", "tiktok"];
+const VALID_PLATFORMS: string[] = SUPPORTED_UPLOAD_POST_PLATFORMS;
 
 /** Direct-upload path: user already has the media, so there's no Kie/FFmpeg
  * wait — this runs synchronously. Captions are still AI-generated (fast,
@@ -44,6 +45,7 @@ export async function POST(request: Request) {
         .from("platform_connections")
         .select("id, platform")
         .eq("business_id", business.id)
+        .eq("account_kind", "upload_post")
         .eq("status", "connected")
         .in("platform", platforms as Database["public"]["Enums"]["platform_type"][]);
       connections = data || [];
@@ -101,6 +103,7 @@ export async function POST(request: Request) {
           idea_prompt: captionIdea || null,
           media_asset_id: asset.id,
           caption: manualCaption || platformCaptions[platform as SocialPlatform]?.text || "",
+          title: platformCaptions[platform as SocialPlatform]?.title || null,
         }))
       : [{
           business_id: business.id,

@@ -24,10 +24,8 @@ export function PrimarySidebar({ currentModule, hasSecondary }: PrimarySidebarPr
               <Link 
                 key={item.id}
                 href={item.href}
-                className={`h-11 rounded-lg flex items-center transition-colors overflow-hidden flex-shrink-0 ${
-                  isActive 
-                    ? "bg-primary-subtle text-primary font-semibold" 
-                    : "text-muted hover:bg-secondary hover:text-text"
+                className={`h-11 rounded-lg flex items-center transition-colors overflow-hidden flex-shrink-0 text-muted ${
+                  isActive ? "bg-secondary" : "hover:bg-secondary hover:text-text"
                 }`}
                 title={item.label}
               >

@@ -1,1 +1,1 @@
-export { MetaAdsOverviewPage } from "./pages/MetaAdsOverviewPage";
+export { Dashboard } from "./pages/Dashboard";

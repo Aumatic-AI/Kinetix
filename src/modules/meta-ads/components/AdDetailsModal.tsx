@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Play, Sparkles, Clock, Video, Image as ImageIcon, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -25,10 +26,13 @@ export function AdDetailsModal({ ad, onClose }: AdDetailsModalProps) {
                 className="w-full h-full object-contain"
               />
             ) : (
-              <img 
-                src={ad.media_urls[0]} 
-                alt="Ad Creative" 
-                className="w-full h-full object-contain"
+              <Image
+                src={ad.media_urls[0]}
+                alt="Ad Creative"
+                fill
+                unoptimized
+                sizes="55vw"
+                className="object-contain"
               />
             )
           ) : (

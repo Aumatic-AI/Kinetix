@@ -33,7 +33,18 @@ export class ElevenLabsService {
       });
 
       if (!response.ok) {
-        throw new Error(`ElevenLabs API Error: ${response.statusText}`);
+        // ElevenLabs puts the actually useful diagnostic (e.g. quota_exceeded
+        // with exact credits remaining/required) in the JSON body, not the
+        // status text — a bare "Unauthorized" hides what's really wrong.
+        const body = await response.text();
+        let detail = body;
+        try {
+          const parsed = JSON.parse(body);
+          detail = parsed?.detail?.message || parsed?.detail?.status || body;
+        } catch {
+          // body wasn't JSON — fall back to the raw text above
+        }
+        throw new Error(`ElevenLabs API Error (${response.status}): ${detail}`);
       }
 
       // Returns the raw audio buffer

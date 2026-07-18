@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
-import { getSocialIdeaPrompt } from "@/services/ai/prompts/social-media";
+import { getSocialIdeaPrompt } from "@/prompts/social-media";
 
 export async function POST(request: Request) {
   try {
@@ -13,8 +13,8 @@ export async function POST(request: Request) {
     if (!body.ideaPrompt || !String(body.ideaPrompt).trim()) {
       return NextResponse.json({ error: "Missing required field: ideaPrompt" }, { status: 400 });
     }
-    if (body.format !== "image" && body.format !== "video") {
-      return NextResponse.json({ error: "format must be 'image' or 'video'" }, { status: 400 });
+    if (body.format !== "image" && body.format !== "video" && body.format !== "text") {
+      return NextResponse.json({ error: "format must be 'image', 'video', or 'text'" }, { status: 400 });
     }
 
     const { data: business } = await supabase.from("businesses").select("*").limit(1).single();

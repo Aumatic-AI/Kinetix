@@ -2,7 +2,7 @@ import { inngest } from "@/services/inngest/client";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
 import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
 import { createClient } from "@supabase/supabase-js";
-import { generateBusinessAnalysisPrompt } from "@/services/prompts/business-analysis.prompt";
+import { generateBusinessAnalysisPrompt } from "@/prompts/business-analysis";
 import { aggregateByAd, diagnosePattern, bucketAds, ruleBasedSelfAdReport } from "@/services/ai/self-ad-processor";
 
 const supabase = createClient(

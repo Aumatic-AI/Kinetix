@@ -28,3 +28,10 @@ export function platformMeta(platform: string): PlatformMeta | undefined {
 export function platformsSupporting(format: "image" | "video" | "text"): PlatformMeta[] {
   return PLATFORMS.filter((p) => (format === "image" ? p.supportsImage : format === "video" ? p.supportsVideo : p.supportsTextOnly));
 }
+
+export function formatFollowerCount(n?: number): string | null {
+  if (n === undefined || n === null) return null;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}

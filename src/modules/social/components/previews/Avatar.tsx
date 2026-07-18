@@ -1,11 +1,19 @@
+"use client";
+import { useState } from "react";
+import Image from "next/image";
+
 export function Avatar({ src, name, size = 40, className = "" }: { src?: string; name: string; size?: number; className?: string }) {
+  const [failed, setFailed] = useState(false);
   const initial = (name || "?").replace(/^@/, "").trim().charAt(0).toUpperCase() || "?";
-  if (src) {
+
+  if (src && !failed) {
     return (
-      <img
+      <Image
         src={src}
         alt=""
-        style={{ width: size, height: size }}
+        width={size}
+        height={size}
+        onError={() => setFailed(true)}
         className={`rounded-full object-cover bg-surface shrink-0 ${className}`}
       />
     );

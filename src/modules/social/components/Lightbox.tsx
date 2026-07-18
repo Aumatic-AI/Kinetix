@@ -1,5 +1,6 @@
 "use client";
 import { useEffect } from "react";
+import Image from "next/image";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
 
@@ -32,7 +33,13 @@ export function Lightbox({ mediaUrl, mediaType, onClose }: LightboxProps) {
         {mediaType === "video" ? (
           <video src={mediaUrl} className="max-w-[92vw] max-h-[90vh] rounded-lg" controls autoPlay />
         ) : (
-          <img src={mediaUrl} alt="" className="max-w-[92vw] max-h-[90vh] rounded-lg object-contain" />
+          <Image
+            src={mediaUrl}
+            alt=""
+            width={1600}
+            height={1600}
+            className="w-auto h-auto max-w-[92vw] max-h-[90vh] rounded-lg object-contain"
+          />
         )}
       </div>
     </div>,

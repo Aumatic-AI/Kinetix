@@ -3,9 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
-import { getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "@/services/ai/prompts/social-media";
+import { getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "@/prompts/social-media";
+import { SUPPORTED_UPLOAD_POST_PLATFORMS } from "@/services/upload-post";
 
-const VALID_PLATFORMS = ["facebook", "instagram", "youtube", "x", "linkedin", "tiktok"];
+const VALID_PLATFORMS: string[] = SUPPORTED_UPLOAD_POST_PLATFORMS;
 
 /**
  * Called from the Posts grid's "Publish" flow when the user picks which
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
 
     const { data: existingRows } = await supabase
       .from("social_posts")
-      .select("id, caption, platform_connections(platform, display_name, metadata)")
+      .select("id, caption, title, platform_connections(platform, display_name, metadata)")
       .eq("media_asset_id", mediaAssetId);
 
     const existingByPlatform = new Map<string, any>();
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
         .from("platform_connections")
         .select("id, platform, display_name, metadata")
         .eq("business_id", business.id)
+        .eq("account_kind", "upload_post")
         .eq("status", "connected")
         .in("platform", newPlatforms as Database["public"]["Enums"]["platform_type"][]);
       newConnections = data || [];
@@ -81,6 +83,7 @@ export async function POST(request: Request) {
         idea_prompt: ideaPrompt,
         media_asset_id: mediaAssetId,
         caption: platformCaptions[platform as SocialPlatform]?.text || "",
+        title: platformCaptions[platform as SocialPlatform]?.title || null,
       }));
       const { data, error } = await supabase.from("social_posts").insert(rows).select("id, connection_id");
       if (error || !data) throw new Error(error?.message || "Failed to create post records");
@@ -94,6 +97,7 @@ export async function POST(request: Request) {
           id: existing.id,
           platform,
           caption: existing.caption || "",
+          title: existing.title || undefined,
           account: {
             displayName: existing.platform_connections?.display_name || platform,
             avatarUrl: existing.platform_connections?.metadata?.avatarUrl,
@@ -106,6 +110,7 @@ export async function POST(request: Request) {
         id: created.id,
         platform,
         caption: platformCaptions[platform as SocialPlatform]?.text || "",
+        title: platformCaptions[platform as SocialPlatform]?.title || undefined,
         account: { displayName: conn.display_name || platform, avatarUrl: (conn.metadata as any)?.avatarUrl },
       };
     });

@@ -1,11 +1,15 @@
 "use client";
 import React, { useState, useRef } from "react";
-import { ImageIcon, Video, Sparkles, UploadCloud, Send, Mic2, File, Trash2, X, RectangleHorizontal, RectangleVertical } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ImageIcon, Video, MessageSquareText, Sparkles, UploadCloud, Send, Mic2, File, Trash2, X, RectangleHorizontal, RectangleVertical } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { ROUTES } from "@/config/routes";
+import { PLATFORMS } from "../lib/platforms";
+import { useConnections } from "../hooks/useSocialPosts";
 import VoiceExplorerModal from "@/modules/meta-ads/components/VoiceExplorerModal";
 
 const VOICE_OPTIONS = {
@@ -40,8 +44,11 @@ interface CreatePostModalProps {
 }
 
 export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalProps) {
+  const router = useRouter();
+  const { data: connections = [] } = useConnections();
   const [mode, setMode] = useState<"generate" | "upload">("generate");
-  const [format, setFormat] = useState<"image" | "video">("image");
+  const [format, setFormat] = useState<"image" | "video" | "text">("image");
+  const [textPlatforms, setTextPlatforms] = useState<Set<string>>(new Set());
   const [idea, setIdea] = useState("");
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("9:16");
   const [service, setService] = useState(SERVICE_OPTIONS[0]);
@@ -69,6 +76,15 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
     setError("");
     setGeneratedIdeas(null);
     setIdeaError("");
+    setTextPlatforms(new Set());
+  };
+
+  const toggleTextPlatform = (platform: string) => {
+    setTextPlatforms((prev) => {
+      const next = new Set(prev);
+      next.has(platform) ? next.delete(platform) : next.add(platform);
+      return next;
+    });
   };
 
   const handleGenerateIdeas = async () => {
@@ -128,6 +144,29 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
     }
   };
 
+  const handlePublishText = async () => {
+    if (!idea.trim() || !textPlatforms.size) return;
+    setIsSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/social/posts/generate-text", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ideaPrompt: idea, platforms: [...textPlatforms] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to generate post");
+      onSuccess?.();
+      onClose();
+      reset();
+      router.push(`${ROUTES.SOCIAL.POSTS_PUBLISH}?socialPostIds=${data.socialPostIds.join(",")}&step=preview`);
+    } catch (e: any) {
+      setError(e.message || "Something went wrong");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleUpload = async () => {
     if (!uploadFile) return;
     setIsSubmitting(true);
@@ -151,8 +190,13 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
     }
   };
 
-  const canSubmit = mode === "generate" ? !!idea.trim() : !!uploadFile;
-  const submitLabel = mode === "generate" ? "Generate" : "Upload";
+  const canSubmit = mode === "upload"
+    ? !!uploadFile
+    : format === "text"
+    ? !!idea.trim() && textPlatforms.size > 0
+    : !!idea.trim();
+  const submitLabel = mode === "upload" ? "Upload" : format === "text" ? "Publish" : "Generate";
+  const handleSubmit = mode === "upload" ? handleUpload : format === "text" ? handlePublishText : handleGenerate;
 
   return (
     <>
@@ -205,7 +249,53 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                   >
                     <Video className="w-4 h-4 shrink-0" /> Video
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormat("text")}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all border",
+                      format === "text" ? "bg-primary text-white border-primary shadow-sm" : "border-transparent text-muted hover:bg-surface"
+                    )}
+                  >
+                    <MessageSquareText className="w-4 h-4 shrink-0" /> Text Post
+                  </button>
                 </div>
+              </div>
+            )}
+
+            {mode === "generate" && format === "text" && (
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-muted mb-2">Platforms</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {PLATFORMS.map((p) => {
+                    const Icon = p.icon;
+                    const isConnected = connections.some((c) => c.platform === p.platform);
+                    const eligible = p.supportsTextOnly && isConnected;
+                    const isSelected = textPlatforms.has(p.platform);
+                    return (
+                      <button
+                        key={p.platform}
+                        type="button"
+                        disabled={!eligible}
+                        onClick={() => toggleTextPlatform(p.platform)}
+                        className={cn(
+                          "flex items-center gap-2 px-4 py-2 text-sm font-bold rounded-lg transition-all border",
+                          !eligible
+                            ? "opacity-40 cursor-not-allowed border-transparent text-muted"
+                            : isSelected
+                            ? "bg-secondary text-text border-secondary shadow-sm"
+                            : "border-transparent text-muted hover:bg-surface"
+                        )}
+                      >
+                        <Icon className="w-4 h-4 shrink-0" style={{ color: p.color }} />
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!PLATFORMS.some((p) => p.supportsTextOnly && connections.some((c) => c.platform === p.platform)) && (
+                  <p className="text-xs text-muted mt-2">None of your connected accounts support text-only posts (Facebook, X, and LinkedIn do).</p>
+                )}
               </div>
             )}
 
@@ -213,7 +303,9 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
               <>
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold uppercase tracking-wide text-muted">{format === "video" ? "Story Description" : "Image Generation Prompt"}</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                      {format === "video" ? "Story Description" : format === "text" ? "Post Content" : "Image Generation Prompt"}
+                    </p>
                     <Button
                       type="button"
                       variant="outline"
@@ -229,7 +321,13 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                   <Textarea
                     value={idea}
                     onChange={(e) => { setIdea(e.target.value); if (generatedIdeas) setGeneratedIdeas(null); }}
-                    placeholder={format === "video" ? "Describe the story you want told..." : "Describe what the image should show and what it's about..."}
+                    placeholder={
+                      format === "video"
+                        ? "Describe the story you want told..."
+                        : format === "text"
+                        ? "What's this post about?"
+                        : "Describe what the image should show and what it's about..."
+                    }
                     className="!p-4 min-h-[110px]"
                   />
                   {ideaError && <p className="text-xs font-medium text-danger mt-2">{ideaError}</p>}
@@ -430,7 +528,7 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
           <DialogFooter className="px-7 py-4 border-t border-border bg-surface flex flex-row justify-end gap-3 shrink-0">
             <Button variant="outline" onClick={() => { onClose(); reset(); }} className="rounded-lg font-semibold">Cancel</Button>
             <Button
-              onClick={mode === "generate" ? handleGenerate : handleUpload}
+              onClick={handleSubmit}
               disabled={!canSubmit || isSubmitting}
               className="px-6 rounded-lg font-bold"
               icon={isSubmitting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-4 h-4" />}

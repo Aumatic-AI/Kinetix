@@ -1,7 +1,7 @@
 import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
-import { getSocialImagePrompt, getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../ai/prompts/social-media";
+import { getSocialImagePrompt, getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../../prompts/social-media";
 import { KieService } from "../../ai/providers/kie";
 
 const supabase = createClient(
@@ -74,8 +74,8 @@ export const generateSocialImage = inngest.createFunction(
           } catch {
             imageUrl = null;
           }
-        } else if (status.state === "failed" || status.state === "error") {
-          throw new Error(`Kie AI Image Generation Failed: ${JSON.stringify(status)}`);
+        } else if (status.state === "fail") {
+          throw new Error(`Kie AI Image Generation Failed: ${status.failMsg || status.failCode || "no reason given"}`);
         }
         attempts++;
       }
@@ -129,6 +129,7 @@ export const generateSocialImage = inngest.createFunction(
                 status: "draft",
                 media_asset_id: stored.assetId,
                 caption: platformCaption?.text || captionMeta?.caption || "",
+                title: platformCaption?.title || null,
                 generation_inputs: { ideaPrompt, captionMeta },
               })
               .eq("id", socialPostIds[i]);

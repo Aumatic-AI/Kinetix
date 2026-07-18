@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { ThumbsUp, MessageCircle, Repeat2, Send, Globe } from "lucide-react";
 import { Avatar } from "./Avatar";
 import { PlatformPreviewProps } from "./types";
@@ -15,13 +16,15 @@ export function LinkedInPreview({ account, caption, mediaUrl, mediaType }: Platf
         </div>
       </div>
       <p className="text-[14px] text-[#000000de] whitespace-pre-wrap leading-snug mt-3">{caption}</p>
-      <div className="mt-3 rounded-lg overflow-hidden border border-[#dce6f1] -mx-4">
-        {mediaType === "video" ? (
-          <video src={mediaUrl} className="w-full max-h-[420px] object-contain bg-black" controls />
-        ) : (
-          <img src={mediaUrl} alt="" className="w-full max-h-[420px] object-cover" />
-        )}
-      </div>
+      {mediaUrl && (
+        <div className="mt-3 rounded-lg overflow-hidden border border-[#dce6f1] -mx-4">
+          {mediaType === "video" ? (
+            <video src={mediaUrl} className="w-full max-h-[420px] object-contain bg-black" controls />
+          ) : (
+            <Image src={mediaUrl} alt="" width={1080} height={1350} className="w-full h-auto max-h-[420px] object-cover" />
+          )}
+        </div>
+      )}
       <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-[#dce6f1] text-[#00000099] text-[13px] font-medium">
         <span className="flex items-center gap-1.5"><ThumbsUp className="w-4 h-4" />Like</span>
         <span className="flex items-center gap-1.5"><MessageCircle className="w-4 h-4" />Comment</span>
