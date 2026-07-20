@@ -11,12 +11,18 @@ import { useCreateContact } from "@/modules/contacts/hooks/useContacts";
 export function AddLeadModal({ categoryId, open, onClose }: { categoryId?: string; open: boolean; onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
+  const [error, setError] = useState("");
   const createContact = useCreateContact();
 
   const handleSubmit = async () => {
     if (!email.trim() || !categoryId) return;
-    await createContact.mutateAsync({ email: email.trim(), firstName: firstName.trim() || undefined, categoryId });
-    onClose();
+    setError("");
+    try {
+      await createContact.mutateAsync({ email: email.trim(), firstName: firstName.trim() || undefined, categoryId });
+      onClose();
+    } catch (e: any) {
+      setError(e.message || "Failed to add the lead");
+    }
   };
 
   return (
@@ -34,6 +40,7 @@ export function AddLeadModal({ categoryId, open, onClose }: { categoryId?: strin
             <label className="text-xs font-bold text-muted uppercase tracking-wide">First name (optional)</label>
             <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="e.g. Sarah" />
           </div>
+          {error && <p className="text-sm text-danger font-medium">{error}</p>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>

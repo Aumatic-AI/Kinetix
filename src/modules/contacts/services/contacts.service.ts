@@ -38,7 +38,10 @@ export class ContactsService {
 
   static async createContact(supabase: SupabaseClient, row: Partial<Contact>): Promise<Contact> {
     const { data, error } = await supabase.from("contacts").insert(row).select("*").single();
-    if (error) throw new Error(`Error creating contact: ${error.message}`);
+    if (error) {
+      if (error.code === "23505") throw new Error("A lead with this email already exists.");
+      throw new Error(`Error creating contact: ${error.message}`);
+    }
     return data as Contact;
   }
 
