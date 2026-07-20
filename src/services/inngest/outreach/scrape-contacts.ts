@@ -82,10 +82,10 @@ export const scrapeOutreachContacts = inngest.createFunction(
           }
           validEmails++;
 
-          await supabase.from("contacts").upsert(
+          await supabase.from("outreach_leads").upsert(
             {
               business_id: job.business_id,
-              category_id: job.category_id,
+              list_id: job.list_id,
               email,
               first_name: item.first_name || null,
               last_name: item.last_name || null,

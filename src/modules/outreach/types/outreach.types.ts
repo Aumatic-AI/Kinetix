@@ -9,7 +9,7 @@ export interface OutreachGeneratedBody {
 export interface OutreachCampaign {
   id: string;
   business_id: string;
-  category_id: string;
+  list_id: string;
   name: string;
   goal: string | null;
   tone: string | null;
@@ -31,7 +31,7 @@ export interface OutreachCampaign {
 export interface ScrapeJob {
   id: string;
   business_id: string;
-  category_id: string | null;
+  list_id: string;
   niches: string;
   location: string;
   max_results: number;
@@ -46,7 +46,7 @@ export interface ScrapeJob {
 
 export interface CreateOutreachCampaignInput {
   name: string;
-  categoryId: string;
+  listId: string;
   serviceType: string;
   targetRegion: string;
   goal: string;
@@ -60,5 +60,5 @@ export interface StartScrapeInput {
   niches: string;
   location: string;
   maxResults: number;
-  categoryId: string;
+  listId: string;
 }

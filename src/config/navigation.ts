@@ -148,9 +148,9 @@ export const SECONDARY_NAV_ITEMS: Record<
       icon: LayoutDashboard,
     },
     {
-      id: "or-contacts",
+      id: "or-leads",
       label: "Leads",
-      href: ROUTES.OUTREACH.CONTACTS,
+      href: ROUTES.OUTREACH.LEADS,
       icon: Users,
     },
     {

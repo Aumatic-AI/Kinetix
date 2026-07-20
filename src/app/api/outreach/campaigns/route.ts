@@ -23,7 +23,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    if (!body.name?.trim() || !body.categoryId || !body.serviceType || !body.targetRegion || !body.goal?.trim() || !body.messageBrief?.trim()) {
+    if (!body.name?.trim() || !body.listId || !body.serviceType || !body.targetRegion || !body.goal?.trim() || !body.messageBrief?.trim()) {
       return NextResponse.json({ error: "Name, list, service type, target region, goal, and message brief are all required" }, { status: 400 });
     }
 
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
     const campaign = await OutreachCampaignsService.createCampaign(supabase, {
       business_id: businessId,
-      category_id: body.categoryId,
+      list_id: body.listId,
       name: body.name.trim(),
       goal: input.goal,
       tone: input.tone,

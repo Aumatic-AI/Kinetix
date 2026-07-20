@@ -1,13 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Loader2, Check, X } from "lucide-react";
+import Link from "next/link";
+import { Search, Loader2, Check, X, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useScrapeJobs, useStartScrape } from "../hooks/useScrapeJobs";
-import { useContactCategories, useCreateContactCategory } from "@/modules/contacts/hooks/useContacts";
+import { useLeadLists, useCreateLeadList } from "@/modules/leads/hooks/useLeads";
 import { useJobsStore } from "@/store";
 import { ROUTES } from "@/config/routes";
 
@@ -24,33 +25,33 @@ export function FindLeadsPage() {
   const [niches, setNiches] = useState("");
   const [location, setLocation] = useState("");
   const [maxResults, setMaxResults] = useState("100");
-  const [categoryId, setCategoryId] = useState("");
-  const [creatingCategory, setCreatingCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState("");
+  const [listId, setListId] = useState("");
+  const [creatingList, setCreatingList] = useState(false);
+  const [newListName, setNewListName] = useState("");
   const [error, setError] = useState("");
 
-  const { data: categories = [] } = useContactCategories();
+  const { data: lists = [] } = useLeadLists();
   const { data: jobs = [], isLoading } = useScrapeJobs();
-  const createCategory = useCreateContactCategory();
+  const createList = useCreateLeadList();
   const startScrape = useStartScrape();
   const addJob = useJobsStore((s) => s.addJob);
 
-  const submitNewCategory = async () => {
-    if (!newCategoryName.trim()) return;
-    const result: any = await createCategory.mutateAsync(newCategoryName.trim());
-    setCategoryId(result.category.id);
-    setNewCategoryName("");
-    setCreatingCategory(false);
+  const submitNewList = async () => {
+    if (!newListName.trim()) return;
+    const result: any = await createList.mutateAsync(newListName.trim());
+    setListId(result.list.id);
+    setNewListName("");
+    setCreatingList(false);
   };
 
   const handleStart = async () => {
     setError("");
     if (!niches.trim() || !location.trim()) return setError("Enter what you're looking for and where.");
-    if (!categoryId) return setError("Choose a list to save these leads into.");
+    if (!listId) return setError("Choose a list to save these leads into.");
     try {
-      const result: any = await startScrape.mutateAsync({ niches: niches.trim(), location: location.trim(), maxResults: Number(maxResults), categoryId });
-      addJob({ id: result.job.id, title: `Finding leads: ${niches.trim()} in ${location.trim()}`, type: "outreach-scrape", targetUrl: ROUTES.OUTREACH.CONTACTS });
-      router.push(ROUTES.OUTREACH.CONTACTS);
+      const result: any = await startScrape.mutateAsync({ niches: niches.trim(), location: location.trim(), maxResults: Number(maxResults), listId });
+      addJob({ id: result.job.id, title: `Finding leads: ${niches.trim()} in ${location.trim()}`, type: "outreach-scrape", targetUrl: ROUTES.OUTREACH.LEADS });
+      router.push(ROUTES.OUTREACH.LEADS);
     } catch (e: any) {
       setError(e.message || "Failed to start the search");
     }
@@ -58,9 +59,13 @@ export function FindLeadsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 pb-10">
+      <Link href={ROUTES.OUTREACH.LEADS} className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-text">
+        <ArrowLeft className="w-4 h-4" /> Back to Leads
+      </Link>
+
       <div>
         <h2 className="text-2xl font-bold text-text">Find Leads</h2>
-        <p className="text-sm text-muted mt-1">Search for potential contacts by industry and location — results land straight in your leads list once verified.</p>
+        <p className="text-sm text-muted mt-1">Search for potential leads by industry and location — results land straight in your leads list once verified.</p>
       </div>
 
       <div className="bg-background border border-default rounded-xl p-5 space-y-4">
@@ -86,19 +91,19 @@ export function FindLeadsPage() {
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-muted uppercase tracking-wide">Save to</label>
-            {creatingCategory ? (
+            {creatingList ? (
               <div className="flex gap-2">
-                <Input value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} placeholder="e.g. Dental Clinics" autoFocus />
-                <Button size="sm" onClick={submitNewCategory} loading={createCategory.isPending} icon={<Check className="w-3.5 h-3.5" />} />
-                <Button size="sm" variant="outline" onClick={() => setCreatingCategory(false)} icon={<X className="w-3.5 h-3.5" />} />
+                <Input value={newListName} onChange={(e) => setNewListName(e.target.value)} placeholder="e.g. Dental Clinics" autoFocus />
+                <Button size="sm" onClick={submitNewList} loading={createList.isPending} icon={<Check className="w-3.5 h-3.5" />} />
+                <Button size="sm" variant="outline" onClick={() => setCreatingList(false)} icon={<X className="w-3.5 h-3.5" />} />
               </div>
-            ) : categories.length === 0 ? (
-              <Button size="sm" variant="outline" onClick={() => setCreatingCategory(true)}>+ Create a new list</Button>
+            ) : lists.length === 0 ? (
+              <Button size="sm" variant="outline" onClick={() => setCreatingList(true)}>+ Create a new list</Button>
             ) : (
-              <Select value={categoryId} onValueChange={(v) => (v === "__new" ? setCreatingCategory(true) : setCategoryId(v))}>
+              <Select value={listId} onValueChange={(v) => (v === "__new" ? setCreatingList(true) : setListId(v))}>
                 <SelectTrigger><SelectValue placeholder="Choose a list" /></SelectTrigger>
                 <SelectContent>
-                  {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  {lists.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
                   <SelectItem value="__new">+ Create a new list</SelectItem>
                 </SelectContent>
               </Select>
@@ -106,7 +111,7 @@ export function FindLeadsPage() {
           </div>
         </div>
         {error && <p className="text-sm text-danger font-medium">{error}</p>}
-        <Button onClick={handleStart} loading={startScrape.isPending} disabled={!categoryId && !creatingCategory} icon={<Search className="w-4 h-4" />}>
+        <Button onClick={handleStart} loading={startScrape.isPending} disabled={!listId && !creatingList} icon={<Search className="w-4 h-4" />}>
           {startScrape.isPending ? "Starting…" : "Find Leads"}
         </Button>
       </div>

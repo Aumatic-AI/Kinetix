@@ -4,31 +4,31 @@ import { useRouter } from "next/navigation";
 import { Search, Plus, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { useContactCategories, useDeleteContactCategory, ContactCategoryWithCount } from "@/modules/contacts/hooks/useContacts";
-import { CategoryCompositionBar } from "@/modules/contacts/components/CategoryCompositionBar";
-import { CategoryModal } from "@/modules/contacts/components/CategoryModal";
+import { useLeadLists, useDeleteLeadList, LeadListWithCount } from "@/modules/leads/hooks/useLeads";
+import { ListCompositionBar } from "@/modules/leads/components/ListCompositionBar";
+import { ListModal } from "@/modules/leads/components/ListModal";
 import { ScrapeProgressBanner } from "../components/ScrapeProgressBanner";
 import { LeadsDrawer } from "../components/LeadsDrawer";
 import { ROUTES } from "@/config/routes";
 
 export function LeadsPage() {
   const router = useRouter();
-  const [selected, setSelected] = useState<ContactCategoryWithCount | null>(null);
-  const [editingCategory, setEditingCategory] = useState<ContactCategoryWithCount | null>(null);
+  const [selected, setSelected] = useState<LeadListWithCount | null>(null);
+  const [editingList, setEditingList] = useState<LeadListWithCount | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalKey, setModalKey] = useState(0);
 
-  const { data: categories = [], isLoading } = useContactCategories();
-  const deleteCategory = useDeleteContactCategory();
+  const { data: lists = [], isLoading } = useLeadLists();
+  const deleteList = useDeleteLeadList();
 
   const openCreateModal = () => {
-    setEditingCategory(null);
+    setEditingList(null);
     setModalOpen(true);
     setModalKey((k) => k + 1);
   };
 
-  const openEditModal = (category: ContactCategoryWithCount) => {
-    setEditingCategory(category);
+  const openEditModal = (list: LeadListWithCount) => {
+    setEditingList(list);
     setModalOpen(true);
     setModalKey((k) => k + 1);
   };
@@ -50,7 +50,7 @@ export function LeadsPage() {
 
       {isLoading ? (
         <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-14 rounded-lg bg-surface animate-pulse" />)}</div>
-      ) : categories.length === 0 ? (
+      ) : lists.length === 0 ? (
         <div className="py-16 text-center border border-default rounded-2xl border-dashed space-y-3">
           <p className="text-sm text-muted">Create your first list to start finding leads.</p>
           <Button size="sm" onClick={openCreateModal} icon={<Plus className="w-3.5 h-3.5" />}>Create a list</Button>
@@ -64,25 +64,25 @@ export function LeadsPage() {
             <span />
           </div>
           <div className="divide-y divide-border">
-            {categories.map((c) => (
+            {lists.map((l) => (
               <div
-                key={c.id}
+                key={l.id}
                 className="grid grid-cols-[1fr_100px_160px_44px] gap-4 items-center px-4 py-3 cursor-pointer hover:bg-surface/40 transition-colors"
-                onClick={() => setSelected(c)}
+                onClick={() => setSelected(l)}
               >
-                <span className="font-semibold text-text truncate">{c.name}</span>
-                <span className="text-muted tabular-nums text-right">{c.contactCount}</span>
-                <CategoryCompositionBar breakdown={c.statusBreakdown} />
+                <span className="font-semibold text-text truncate">{l.name}</span>
+                <span className="text-muted tabular-nums text-right">{l.leadCount}</span>
+                <ListCompositionBar breakdown={l.statusBreakdown} />
                 <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
                   <DropdownMenu>
                     <DropdownMenuTrigger className="p-1.5 rounded-md text-muted hover:bg-surface hover:text-text">
                       <MoreVertical className="w-4 h-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEditModal(c)}>
+                      <DropdownMenuItem onClick={() => openEditModal(l)}>
                         <Pencil className="w-3.5 h-3.5" /> Edit
                       </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive" onClick={() => deleteCategory.mutate(c.id)}>
+                      <DropdownMenuItem variant="destructive" onClick={() => deleteList.mutate(l.id)}>
                         <Trash2 className="w-3.5 h-3.5" /> Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -94,8 +94,8 @@ export function LeadsPage() {
         </div>
       )}
 
-      <LeadsDrawer category={selected} onClose={() => setSelected(null)} />
-      <CategoryModal key={modalKey} category={editingCategory} open={modalOpen} onClose={() => setModalOpen(false)} />
+      <LeadsDrawer list={selected} onClose={() => setSelected(null)} />
+      <ListModal key={modalKey} list={editingList} open={modalOpen} onClose={() => setModalOpen(false)} />
     </div>
   );
 }

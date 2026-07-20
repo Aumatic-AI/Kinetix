@@ -1,22 +1,21 @@
 "use client";
 import { useState } from "react";
-import { Plus, Sparkles, RotateCcw, Check, Send, Trash2, X, Pencil } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Plus, RotateCcw, Check, Send, Trash2, X, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import {
   useOutreachCampaigns,
   useOutreachCampaign,
-  useCreateOutreachCampaign,
   useRegenerateOutreachCampaign,
   useEditOutreachCampaignContent,
   useApproveOutreachCampaign,
   useSendOutreachCampaign,
   useDeleteOutreachCampaign,
 } from "../hooks/useOutreachCampaigns";
-import { useContactCategories, useContacts } from "@/modules/contacts/hooks/useContacts";
+import { ROUTES } from "@/config/routes";
 
 const STATUS_STYLE: Record<string, string> = {
   draft: "text-muted bg-surface",
@@ -26,68 +25,22 @@ const STATUS_STYLE: Record<string, string> = {
   archived: "text-muted bg-surface",
 };
 
-const SERVICE_TYPES = ["Hair Transplant", "Dental Treatment", "Cosmetic Surgery", "Eye Treatment", "IVF Fertility", "Thermal Wellness", "All Services"];
-const TARGET_REGIONS = ["Europe", "Middle East", "Asia", "North America", "Global"];
-const SUPPRESSED_STATUSES = ["bounced", "do_not_contact", "replied"] as const;
-
 export function CampaignsPage() {
-  const [composing, setComposing] = useState(false);
+  const router = useRouter();
   const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [editSubject, setEditSubject] = useState("");
   const [editBody, setEditBody] = useState("");
-  const [name, setName] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [serviceType, setServiceType] = useState("");
-  const [targetRegion, setTargetRegion] = useState("");
-  const [goal, setGoal] = useState("");
-  const [tone, setTone] = useState("Friendly and professional");
-  const [messageBrief, setMessageBrief] = useState("");
-  const [ctaText, setCtaText] = useState("");
-  const [ctaLink, setCtaLink] = useState("");
   const [feedback, setFeedback] = useState("");
-  const [error, setError] = useState("");
 
   const { data: campaigns = [], isLoading } = useOutreachCampaigns();
-  const { data: categories = [] } = useContactCategories();
   const { data: openCampaign } = useOutreachCampaign(openId);
-  const { data: audience } = useContacts({ excludeOutreachStatuses: [...SUPPRESSED_STATUSES], categoryId: categoryId || undefined }, 1, 1);
 
-  const createCampaign = useCreateOutreachCampaign();
   const regenerate = useRegenerateOutreachCampaign();
   const saveEdit = useEditOutreachCampaignContent();
   const approve = useApproveOutreachCampaign();
   const sendCampaign = useSendOutreachCampaign();
   const deleteCampaign = useDeleteOutreachCampaign();
-
-  const resetCompose = () => {
-    setComposing(false);
-    setName(""); setCategoryId(""); setServiceType(""); setTargetRegion(""); setGoal(""); setMessageBrief(""); setCtaText(""); setCtaLink(""); setFeedback(""); setError("");
-  };
-
-  const handleGenerate = async () => {
-    setError("");
-    if (!name.trim() || !categoryId || !serviceType || !targetRegion || !goal.trim() || !messageBrief.trim()) {
-      return setError("Fill in a name, list, service type, target region, goal, and message.");
-    }
-    try {
-      const result = await createCampaign.mutateAsync({
-        name: name.trim(),
-        categoryId,
-        serviceType,
-        targetRegion,
-        goal: goal.trim(),
-        tone,
-        messageBrief: messageBrief.trim(),
-        ctaText: ctaText.trim() || undefined,
-        ctaLink: ctaLink.trim() || undefined,
-      });
-      resetCompose();
-      setOpenId(result.campaign.id);
-    } catch (e: any) {
-      setError(e.message || "Failed to generate the draft");
-    }
-  };
 
   const handleRegenerate = async () => {
     if (!openId || !feedback.trim()) return;
@@ -122,75 +75,8 @@ export function CampaignsPage() {
           <h2 className="text-2xl font-bold text-text">Campaigns</h2>
           <p className="text-sm text-muted mt-1">Draft, review, and send outreach emails.</p>
         </div>
-        {!composing && <Button onClick={() => setComposing(true)} icon={<Plus className="w-4 h-4" />}>New Campaign</Button>}
+        <Button onClick={() => router.push(ROUTES.OUTREACH.CAMPAIGN_NEW)} icon={<Plus className="w-4 h-4" />}>New Campaign</Button>
       </div>
-
-      {composing && (
-        <div className="bg-background border border-default rounded-xl p-5 space-y-4">
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5"><label className="text-xs font-bold text-muted uppercase tracking-wide">Campaign name</label><Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Q3 Dental Clinics" /></div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted uppercase tracking-wide">List</label>
-              {categories.length === 0 ? (
-                <p className="text-xs text-muted pt-2">Create a list on the Leads page first.</p>
-              ) : (
-                <Select value={categoryId} onValueChange={setCategoryId}>
-                  <SelectTrigger><SelectValue placeholder="Choose a list" /></SelectTrigger>
-                  <SelectContent>
-                    {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted uppercase tracking-wide">Service type</label>
-              <Select value={serviceType} onValueChange={setServiceType}>
-                <SelectTrigger><SelectValue placeholder="Choose a service" /></SelectTrigger>
-                <SelectContent>
-                  {SERVICE_TYPES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted uppercase tracking-wide">Target region</label>
-              <Select value={targetRegion} onValueChange={setTargetRegion}>
-                <SelectTrigger><SelectValue placeholder="Choose a region" /></SelectTrigger>
-                <SelectContent>
-                  {TARGET_REGIONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5"><label className="text-xs font-bold text-muted uppercase tracking-wide">Goal</label><Input value={goal} onChange={(e) => setGoal(e.target.value)} placeholder="e.g. Book a free consultation call" /></div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-muted uppercase tracking-wide">Tone</label>
-              <Select value={tone} onValueChange={setTone}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["Friendly and professional", "Direct and concise", "Warm and consultative"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-muted uppercase tracking-wide">What should the email say?</label>
-            <Textarea value={messageBrief} onChange={(e) => setMessageBrief(e.target.value)} rows={3} placeholder="Describe the message — what you're offering and why they'd care" />
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5"><label className="text-xs font-bold text-muted uppercase tracking-wide">Button text</label><Input value={ctaText} onChange={(e) => setCtaText(e.target.value)} placeholder="e.g. Book Free Consultation" /></div>
-            <div className="space-y-1.5"><label className="text-xs font-bold text-muted uppercase tracking-wide">Button link (optional)</label><Input value={ctaLink} onChange={(e) => setCtaLink(e.target.value)} placeholder="https://…" /></div>
-          </div>
-          {categoryId && <p className="text-xs text-muted">{audience?.count ?? "…"} lead{audience?.count === 1 ? "" : "s"} will be eligible for this campaign.</p>}
-          {error && <p className="text-sm text-danger font-medium">{error}</p>}
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={resetCompose}>Cancel</Button>
-            <Button onClick={handleGenerate} loading={createCampaign.isPending} icon={<Sparkles className="w-4 h-4" />}>{createCampaign.isPending ? "Writing…" : "Generate Draft"}</Button>
-          </div>
-        </div>
-      )}
 
       {openId && openCampaign && (
         <div className="bg-background border border-primary/30 rounded-xl p-5 space-y-4">

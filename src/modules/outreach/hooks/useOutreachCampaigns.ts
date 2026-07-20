@@ -70,8 +70,8 @@ export function useApproveOutreachCampaign() {
 export function useSendOutreachCampaign() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, categoryId }: { id: string; categoryId?: string }) =>
-      fetchJson(`/api/outreach/campaigns/${id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ categoryId }) }),
+    mutationFn: ({ id, listId }: { id: string; listId?: string }) =>
+      fetchJson(`/api/outreach/campaigns/${id}/send`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ listId }) }),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: outreachKeys.campaigns() });
       queryClient.invalidateQueries({ queryKey: outreachKeys.campaign(variables.id) });
@@ -90,6 +90,6 @@ export function useDeleteOutreachCampaign() {
 export function useOutreachAnalytics() {
   return useQuery({
     queryKey: [...outreachKeys.all, "analytics"] as const,
-    queryFn: () => fetchJson<{ counts: Record<string, number>; totalCampaignsSent: number; totalContacts: number }>("/api/outreach/analytics"),
+    queryFn: () => fetchJson<{ counts: Record<string, number>; totalCampaignsSent: number; totalLeads: number }>("/api/outreach/analytics"),
   });
 }

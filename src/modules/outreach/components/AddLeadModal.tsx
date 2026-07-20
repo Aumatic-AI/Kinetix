@@ -3,22 +3,22 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { useCreateContact } from "@/modules/contacts/hooks/useContacts";
+import { useCreateLead } from "@/modules/leads/hooks/useLeads";
 
 /** Parent remounts this (via a `key` that changes on open) each time it's
- * opened, same pattern as CategoryModal — keeps the form fresh with no
- * effect needed to reset it between uses. */
-export function AddLeadModal({ categoryId, open, onClose }: { categoryId?: string; open: boolean; onClose: () => void }) {
+ * opened, same pattern as ListModal — keeps the form fresh with no effect
+ * needed to reset it between uses. */
+export function AddLeadModal({ listId, open, onClose }: { listId?: string; open: boolean; onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [error, setError] = useState("");
-  const createContact = useCreateContact();
+  const createLead = useCreateLead();
 
   const handleSubmit = async () => {
-    if (!email.trim() || !categoryId) return;
+    if (!email.trim() || !listId) return;
     setError("");
     try {
-      await createContact.mutateAsync({ email: email.trim(), firstName: firstName.trim() || undefined, categoryId });
+      await createLead.mutateAsync({ email: email.trim(), firstName: firstName.trim() || undefined, listId });
       onClose();
     } catch (e: any) {
       setError(e.message || "Failed to add the lead");
@@ -44,7 +44,7 @@ export function AddLeadModal({ categoryId, open, onClose }: { categoryId?: strin
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} loading={createContact.isPending} disabled={!email.trim()}>Add</Button>
+          <Button onClick={handleSubmit} loading={createLead.isPending} disabled={!email.trim()}>Add</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

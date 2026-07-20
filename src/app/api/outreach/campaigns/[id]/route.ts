@@ -69,7 +69,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     await OutreachCampaignsService.updateCampaign(supabase, id, {
       ...(body.approve ? { status: "active" } : {}),
       ...(body.name !== undefined ? { name: body.name } : {}),
-      ...(body.categoryId !== undefined ? { category_id: body.categoryId } : {}),
+      ...(body.listId !== undefined ? { list_id: body.listId } : {}),
       ...(body.dailyLimit !== undefined ? { daily_limit: body.dailyLimit } : {}),
     });
 

@@ -3,15 +3,15 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/Button";
-import { ContactsTable } from "@/modules/contacts/components/ContactsTable";
-import { useContacts, ContactCategoryWithCount } from "@/modules/contacts/hooks/useContacts";
+import { LeadsTable } from "@/modules/leads/components/LeadsTable";
+import { useLeads, LeadListWithCount } from "@/modules/leads/hooks/useLeads";
 import { AddLeadModal } from "./AddLeadModal";
 
-export function LeadsDrawer({ category, onClose }: { category: ContactCategoryWithCount | null; onClose: () => void }) {
+export function LeadsDrawer({ list, onClose }: { list: LeadListWithCount | null; onClose: () => void }) {
   const [adding, setAdding] = useState(false);
   const [addModalKey, setAddModalKey] = useState(0);
 
-  const { data, isLoading } = useContacts({ categoryId: category?.id }, 1, 200);
+  const { data, isLoading } = useLeads({ listId: list?.id }, 1, 200);
 
   const openAddModal = () => {
     setAdding(true);
@@ -20,18 +20,18 @@ export function LeadsDrawer({ category, onClose }: { category: ContactCategoryWi
 
   return (
     <>
-      <Drawer open={!!category} onOpenChange={(open) => !open && onClose()} swipeDirection="right">
+      <Drawer open={!!list} onOpenChange={(open) => !open && onClose()} swipeDirection="right">
         <DrawerContent className="data-[swipe-axis=x]:sm:[--drawer-content-width:500px]">
           <DrawerHeader>
-            <DrawerTitle>{category?.name}</DrawerTitle>
-            <DrawerDescription>{category?.contactCount ?? 0} lead{category?.contactCount === 1 ? "" : "s"} in this list.</DrawerDescription>
+            <DrawerTitle>{list?.name}</DrawerTitle>
+            <DrawerDescription>{list?.leadCount ?? 0} lead{list?.leadCount === 1 ? "" : "s"} in this list.</DrawerDescription>
           </DrawerHeader>
 
           <div className="flex-1 overflow-y-auto px-6 space-y-4">
             {isLoading ? (
               <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-12 rounded-lg bg-surface animate-pulse" />)}</div>
             ) : (
-              <ContactsTable contacts={data?.contacts || []} statusMode="outreach" showCategory={false} />
+              <LeadsTable leads={data?.leads || []} />
             )}
           </div>
 
@@ -41,7 +41,7 @@ export function LeadsDrawer({ category, onClose }: { category: ContactCategoryWi
         </DrawerContent>
       </Drawer>
 
-      <AddLeadModal key={addModalKey} categoryId={category?.id} open={adding} onClose={() => setAdding(false)} />
+      <AddLeadModal key={addModalKey} listId={list?.id} open={adding} onClose={() => setAdding(false)} />
     </>
   );
 }
