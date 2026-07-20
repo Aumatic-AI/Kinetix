@@ -1,13 +1,12 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Settings2, Plus, Check, X } from "lucide-react";
+import { Search, Plus, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { useContactCategories, useCreateContactCategory, ContactCategoryWithCount } from "@/modules/contacts/hooks/useContacts";
-import { CategoryManager } from "@/modules/contacts/components/CategoryManager";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { useContactCategories, useDeleteContactCategory, ContactCategoryWithCount } from "@/modules/contacts/hooks/useContacts";
 import { CategoryCompositionBar } from "@/modules/contacts/components/CategoryCompositionBar";
+import { CategoryModal } from "@/modules/contacts/components/CategoryModal";
 import { ScrapeProgressBanner } from "../components/ScrapeProgressBanner";
 import { LeadsDrawer } from "../components/LeadsDrawer";
 import { ROUTES } from "@/config/routes";
@@ -15,18 +14,23 @@ import { ROUTES } from "@/config/routes";
 export function LeadsPage() {
   const router = useRouter();
   const [selected, setSelected] = useState<ContactCategoryWithCount | null>(null);
-  const [managing, setManaging] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
+  const [editingCategory, setEditingCategory] = useState<ContactCategoryWithCount | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalKey, setModalKey] = useState(0);
 
   const { data: categories = [], isLoading } = useContactCategories();
-  const createCategory = useCreateContactCategory();
+  const deleteCategory = useDeleteContactCategory();
 
-  const submitNew = async () => {
-    if (!newName.trim()) return;
-    await createCategory.mutateAsync(newName.trim());
-    setNewName("");
-    setCreating(false);
+  const openCreateModal = () => {
+    setEditingCategory(null);
+    setModalOpen(true);
+    setModalKey((k) => k + 1);
+  };
+
+  const openEditModal = (category: ContactCategoryWithCount) => {
+    setEditingCategory(category);
+    setModalOpen(true);
+    setModalKey((k) => k + 1);
   };
 
   return (
@@ -36,7 +40,10 @@ export function LeadsPage() {
           <h2 className="text-2xl font-bold text-text">Leads</h2>
           <p className="text-sm text-muted mt-1">Every list of potential clients, and how each one is coming along.</p>
         </div>
-        <Button onClick={() => router.push(ROUTES.OUTREACH.FIND_LEADS)} icon={<Search className="w-4 h-4" />}>Find Leads</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={openCreateModal} icon={<Plus className="w-4 h-4" />}>New List</Button>
+          <Button onClick={() => router.push(ROUTES.OUTREACH.FIND_LEADS)} icon={<Search className="w-4 h-4" />}>Find Leads</Button>
+        </div>
       </div>
 
       <ScrapeProgressBanner />
@@ -46,44 +53,49 @@ export function LeadsPage() {
       ) : categories.length === 0 ? (
         <div className="py-16 text-center border border-default rounded-2xl border-dashed space-y-3">
           <p className="text-sm text-muted">Create your first list to start finding leads.</p>
-          {creating ? (
-            <div className="flex justify-center gap-2">
-              <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. Dental Clinics" className="max-w-[220px]" autoFocus />
-              <Button size="sm" onClick={submitNew} loading={createCategory.isPending} icon={<Check className="w-3.5 h-3.5" />} />
-              <Button size="sm" variant="outline" onClick={() => setCreating(false)} icon={<X className="w-3.5 h-3.5" />} />
-            </div>
-          ) : (
-            <Button size="sm" onClick={() => setCreating(true)} icon={<Plus className="w-3.5 h-3.5" />}>Create a list</Button>
-          )}
+          <Button size="sm" onClick={openCreateModal} icon={<Plus className="w-3.5 h-3.5" />}>Create a list</Button>
         </div>
       ) : (
-        <>
-          <div className="flex justify-end">
-            <Button size="sm" variant="ghost" onClick={() => setManaging(!managing)} icon={<Settings2 className="w-3.5 h-3.5" />}>Manage lists</Button>
+        <div className="border border-default rounded-lg overflow-hidden">
+          <div className="grid grid-cols-[1fr_100px_160px_44px] gap-4 px-4 py-2.5 bg-surface/60 border-b border-default text-[11px] font-bold text-muted uppercase tracking-wide">
+            <span>List</span>
+            <span className="text-right">Leads</span>
+            <span>Progress</span>
+            <span />
           </div>
-
-          {managing && <CategoryManager />}
-
-          <div className="border border-default rounded-lg overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow><TableHead>List</TableHead><TableHead>Leads</TableHead><TableHead className="w-40">Progress</TableHead></TableRow>
-              </TableHeader>
-              <TableBody>
-                {categories.map((c) => (
-                  <TableRow key={c.id} className="cursor-pointer" onClick={() => setSelected(c)}>
-                    <TableCell className="font-semibold text-text">{c.name}</TableCell>
-                    <TableCell className="text-muted tabular-nums">{c.contactCount}</TableCell>
-                    <TableCell><CategoryCompositionBar breakdown={c.statusBreakdown} /></TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="divide-y divide-border">
+            {categories.map((c) => (
+              <div
+                key={c.id}
+                className="grid grid-cols-[1fr_100px_160px_44px] gap-4 items-center px-4 py-3 cursor-pointer hover:bg-surface/40 transition-colors"
+                onClick={() => setSelected(c)}
+              >
+                <span className="font-semibold text-text truncate">{c.name}</span>
+                <span className="text-muted tabular-nums text-right">{c.contactCount}</span>
+                <CategoryCompositionBar breakdown={c.statusBreakdown} />
+                <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger className="p-1.5 rounded-md text-muted hover:bg-surface hover:text-text">
+                      <MoreVertical className="w-4 h-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openEditModal(c)}>
+                        <Pencil className="w-3.5 h-3.5" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem variant="destructive" onClick={() => deleteCategory.mutate(c.id)}>
+                        <Trash2 className="w-3.5 h-3.5" /> Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            ))}
           </div>
-        </>
+        </div>
       )}
 
       <LeadsDrawer category={selected} onClose={() => setSelected(null)} />
+      <CategoryModal key={modalKey} category={editingCategory} open={modalOpen} onClose={() => setModalOpen(false)} />
     </div>
   );
 }
