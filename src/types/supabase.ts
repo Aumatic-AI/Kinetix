@@ -206,6 +206,7 @@ export type Database = {
           created_at: string
           creative_id: string | null
           external_ad_id: string | null
+          external_creative_id: string | null
           id: string
           name: string
           status: Database["public"]["Enums"]["campaign_status"]
@@ -216,6 +217,7 @@ export type Database = {
           created_at?: string
           creative_id?: string | null
           external_ad_id?: string | null
+          external_creative_id?: string | null
           id?: string
           name: string
           status?: Database["public"]["Enums"]["campaign_status"]
@@ -226,6 +228,7 @@ export type Database = {
           created_at?: string
           creative_id?: string | null
           external_ad_id?: string | null
+          external_creative_id?: string | null
           id?: string
           name?: string
           status?: Database["public"]["Enums"]["campaign_status"]
@@ -474,6 +477,181 @@ export type Database = {
           },
         ]
       }
+      contact_categories: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_categories_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contacts: {
+        Row: {
+          business_id: string
+          category_id: string | null
+          city: string | null
+          company: string | null
+          country: string | null
+          created_at: string
+          email: string
+          email_verification_status: string
+          first_name: string | null
+          id: string
+          last_name: string | null
+          linkedin_url: string | null
+          outreach_status: Database["public"]["Enums"]["contact_status"]
+          phone: string | null
+          source: string
+          subscriber_status: Database["public"]["Enums"]["subscriber_status"]
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          category_id?: string | null
+          city?: string | null
+          company?: string | null
+          country?: string | null
+          created_at?: string
+          email: string
+          email_verification_status?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          linkedin_url?: string | null
+          outreach_status?: Database["public"]["Enums"]["contact_status"]
+          phone?: string | null
+          source?: string
+          subscriber_status?: Database["public"]["Enums"]["subscriber_status"]
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          category_id?: string | null
+          city?: string | null
+          company?: string | null
+          country?: string | null
+          created_at?: string
+          email?: string
+          email_verification_status?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          linkedin_url?: string | null
+          outreach_status?: Database["public"]["Enums"]["contact_status"]
+          phone?: string | null
+          source?: string
+          subscriber_status?: Database["public"]["Enums"]["subscriber_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contacts_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contacts_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "contact_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_events: {
+        Row: {
+          business_id: string
+          channel: string
+          contact_id: string | null
+          event_type: Database["public"]["Enums"]["email_event_type"]
+          id: string
+          newsletter_campaign_id: string | null
+          occurred_at: string
+          outreach_campaign_id: string | null
+          provider_message_id: string | null
+          raw_data: Json | null
+        }
+        Insert: {
+          business_id: string
+          channel: string
+          contact_id?: string | null
+          event_type: Database["public"]["Enums"]["email_event_type"]
+          id?: string
+          newsletter_campaign_id?: string | null
+          occurred_at?: string
+          outreach_campaign_id?: string | null
+          provider_message_id?: string | null
+          raw_data?: Json | null
+        }
+        Update: {
+          business_id?: string
+          channel?: string
+          contact_id?: string | null
+          event_type?: Database["public"]["Enums"]["email_event_type"]
+          id?: string
+          newsletter_campaign_id?: string | null
+          occurred_at?: string
+          outreach_campaign_id?: string | null
+          provider_message_id?: string | null
+          raw_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_events_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_newsletter_campaign_id_fkey"
+            columns: ["newsletter_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_events_outreach_campaign_id_fkey"
+            columns: ["outreach_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           ad_id: string | null
@@ -661,6 +839,297 @@ export type Database = {
             columns: ["media_asset_id"]
             isOneToOne: false
             referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      newsletter_campaign_contacts: {
+        Row: {
+          contact_id: string
+          id: string
+          newsletter_campaign_id: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          contact_id: string
+          id?: string
+          newsletter_campaign_id: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          contact_id?: string
+          id?: string
+          newsletter_campaign_id?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_campaign_contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_campaign_contacts_newsletter_campaign_id_fkey"
+            columns: ["newsletter_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "newsletter_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      newsletter_campaigns: {
+        Row: {
+          business_id: string
+          category_id: string | null
+          content: Json | null
+          created_at: string
+          external_broadcast_id: string | null
+          id: string
+          name: string
+          preheader: string | null
+          revision_history: Json
+          scheduled_at: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["newsletter_status"]
+          subject: string | null
+          topic: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          category_id?: string | null
+          content?: Json | null
+          created_at?: string
+          external_broadcast_id?: string | null
+          id?: string
+          name: string
+          preheader?: string | null
+          revision_history?: Json
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["newsletter_status"]
+          subject?: string | null
+          topic?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          category_id?: string | null
+          content?: Json | null
+          created_at?: string
+          external_broadcast_id?: string | null
+          id?: string
+          name?: string
+          preheader?: string | null
+          revision_history?: Json
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["newsletter_status"]
+          subject?: string | null
+          topic?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "newsletter_campaigns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "newsletter_campaigns_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "contact_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_campaign_contacts: {
+        Row: {
+          contact_id: string
+          id: string
+          outreach_campaign_id: string
+          sent_at: string | null
+          status: string
+        }
+        Insert: {
+          contact_id: string
+          id?: string
+          outreach_campaign_id: string
+          sent_at?: string | null
+          status?: string
+        }
+        Update: {
+          contact_id?: string
+          id?: string
+          outreach_campaign_id?: string
+          sent_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_campaign_contacts_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_campaign_contacts_outreach_campaign_id_fkey"
+            columns: ["outreach_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_campaigns: {
+        Row: {
+          business_id: string
+          category_id: string
+          created_at: string
+          cta_link: string | null
+          cta_text: string | null
+          daily_limit: number
+          external_campaign_id: string | null
+          generated_body: Json | null
+          generated_subject: string | null
+          goal: string | null
+          id: string
+          message_brief: string | null
+          name: string
+          revision_history: Json
+          service_type: string | null
+          status: Database["public"]["Enums"]["campaign_status"]
+          target_region: string | null
+          tone: string | null
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          category_id: string
+          created_at?: string
+          cta_link?: string | null
+          cta_text?: string | null
+          daily_limit?: number
+          external_campaign_id?: string | null
+          generated_body?: Json | null
+          generated_subject?: string | null
+          goal?: string | null
+          id?: string
+          message_brief?: string | null
+          name: string
+          revision_history?: Json
+          service_type?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"]
+          target_region?: string | null
+          tone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          category_id?: string
+          created_at?: string
+          cta_link?: string | null
+          cta_text?: string | null
+          daily_limit?: number
+          external_campaign_id?: string | null
+          generated_body?: Json | null
+          generated_subject?: string | null
+          goal?: string | null
+          id?: string
+          message_brief?: string | null
+          name?: string
+          revision_history?: Json
+          service_type?: string | null
+          status?: Database["public"]["Enums"]["campaign_status"]
+          target_region?: string | null
+          tone?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_campaigns_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_campaigns_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "contact_categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_scrape_jobs: {
+        Row: {
+          apify_run_id: string | null
+          business_id: string
+          category_id: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          invalid_emails: number
+          location: string
+          max_results: number
+          niches: string
+          status: Database["public"]["Enums"]["job_status"]
+          total_scraped: number
+          valid_emails: number
+        }
+        Insert: {
+          apify_run_id?: string | null
+          business_id: string
+          category_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          invalid_emails?: number
+          location: string
+          max_results?: number
+          niches: string
+          status?: Database["public"]["Enums"]["job_status"]
+          total_scraped?: number
+          valid_emails?: number
+        }
+        Update: {
+          apify_run_id?: string | null
+          business_id?: string
+          category_id?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          invalid_emails?: number
+          location?: string
+          max_results?: number
+          niches?: string
+          status?: Database["public"]["Enums"]["job_status"]
+          total_scraped?: number
+          valid_emails?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_scrape_jobs_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_scrape_jobs_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "contact_categories"
             referencedColumns: ["id"]
           },
         ]
