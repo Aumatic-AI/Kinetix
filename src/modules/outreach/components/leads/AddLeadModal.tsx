@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { useCreateLead } from "@/modules/leads/hooks/useLeads";
+import { useCreateLead } from "@/modules/outreach/hooks/useLeads";
 
 /** Parent remounts this (via a `key` that changes on open) each time it's
  * opened, same pattern as ListModal — keeps the form fresh with no effect

@@ -3,8 +3,8 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { useCreateLeadList, useRenameLeadList } from "../hooks/useLeads";
-import { LeadList } from "../types/leads.types";
+import { useCreateLeadList, useRenameLeadList } from "../../hooks/useLeads";
+import { LeadList } from "../../types/leads.types";
 
 /** Shared create/edit modal for lead lists. The parent remounts this (via a
  * `key` that changes) every time it opens, so `name` initializes fresh from

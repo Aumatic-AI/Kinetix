@@ -1,8 +1,8 @@
 "use client";
 import { Trash2 } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Lead } from "../types/leads.types";
-import { useDeleteLead } from "../hooks/useLeads";
+import { Lead } from "../../types/leads.types";
+import { useDeleteLead } from "../../hooks/useLeads";
 
 const STATUS_STYLE: Record<string, string> = {
   new: "text-muted bg-surface",

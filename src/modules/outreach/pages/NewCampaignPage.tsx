@@ -8,21 +8,13 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCreateOutreachCampaign } from "../hooks/useOutreachCampaigns";
-import { useLeadLists, useLeads } from "@/modules/leads/hooks/useLeads";
+import { useLeadLists, useLeads } from "@/modules/outreach/hooks/useLeads";
+import { FormSection } from "../components/campaigns/FormSection";
 import { ROUTES } from "@/config/routes";
 
 const SERVICE_TYPES = ["Hair Transplant", "Dental Treatment", "Cosmetic Surgery", "Eye Treatment", "IVF Fertility", "Thermal Wellness", "All Services"];
 const TARGET_REGIONS = ["Europe", "Middle East", "Asia", "North America", "Global"];
 const SUPPRESSED_STATUSES = ["bounced", "do_not_contact", "replied"] as const;
-
-function FormSection({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-background border border-default rounded-xl p-5 space-y-4">
-      <h3 className="text-sm font-bold text-text uppercase tracking-wide">{title}</h3>
-      {children}
-    </div>
-  );
-}
 
 export function NewCampaignPage() {
   const router = useRouter();

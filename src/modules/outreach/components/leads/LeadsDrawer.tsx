@@ -3,8 +3,8 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/Button";
-import { LeadsTable } from "@/modules/leads/components/LeadsTable";
-import { useLeads, LeadListWithCount } from "@/modules/leads/hooks/useLeads";
+import { LeadsTable } from "./LeadsTable";
+import { useLeads, LeadListWithCount } from "@/modules/outreach/hooks/useLeads";
 import { AddLeadModal } from "./AddLeadModal";
 
 export function LeadsDrawer({ list, onClose }: { list: LeadListWithCount | null; onClose: () => void }) {

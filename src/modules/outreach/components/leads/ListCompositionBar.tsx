@@ -1,4 +1,4 @@
-import { ListStatusBreakdown } from "../types/leads.types";
+import { ListStatusBreakdown } from "../../types/leads.types";
 
 const BUCKET_COLOR: Record<"muted" | "info" | "success" | "danger", string> = {
   muted: "var(--color-text-secondary)",

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useScrapeJobs, useStartScrape } from "../hooks/useScrapeJobs";
-import { useLeadLists, useCreateLeadList } from "@/modules/leads/hooks/useLeads";
+import { useLeadLists, useCreateLeadList } from "@/modules/outreach/hooks/useLeads";
 import { useJobsStore } from "@/store";
 import { ROUTES } from "@/config/routes";
 

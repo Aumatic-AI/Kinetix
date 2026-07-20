@@ -4,11 +4,11 @@ import { useRouter } from "next/navigation";
 import { Search, Plus, MoreVertical, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import { useLeadLists, useDeleteLeadList, LeadListWithCount } from "@/modules/leads/hooks/useLeads";
-import { ListCompositionBar } from "@/modules/leads/components/ListCompositionBar";
-import { ListModal } from "@/modules/leads/components/ListModal";
-import { ScrapeProgressBanner } from "../components/ScrapeProgressBanner";
-import { LeadsDrawer } from "../components/LeadsDrawer";
+import { useLeadLists, useDeleteLeadList, LeadListWithCount } from "@/modules/outreach/hooks/useLeads";
+import { ListCompositionBar } from "../components/leads/ListCompositionBar";
+import { ListModal } from "../components/leads/ListModal";
+import { ScrapeProgressBanner } from "../components/leads/ScrapeProgressBanner";
+import { LeadsDrawer } from "../components/leads/LeadsDrawer";
 import { ROUTES } from "@/config/routes";
 
 export function LeadsPage() {
