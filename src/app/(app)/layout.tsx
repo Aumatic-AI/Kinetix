@@ -7,6 +7,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { BackgroundJobsWidget } from "@/components/global/BackgroundJobsWidget";
 import { GlobalJobTracker } from "@/components/global/GlobalJobTracker";
 import { SessionBootstrap } from "@/components/providers/SessionBootstrap";
+import { Toaster } from "sonner";
 import { ProductModule } from "@/types";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -42,6 +43,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <BackgroundJobsWidget />
       <GlobalJobTracker />
+      <Toaster richColors position="bottom-left" />
     </div>
   );
 }

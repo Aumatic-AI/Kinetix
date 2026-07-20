@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { toast } from "sonner";
 import { useJobsStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
 
@@ -18,14 +19,21 @@ export function GlobalJobTracker() {
 
     channel
       .on("broadcast", { event: "job-progress" }, (payload) => {
-        // Expected payload: { jobId: "job-123", progress: 50, status: "processing" }
-        const data = payload.payload as { jobId: string; progress?: number; status?: "processing" | "completed" | "failed" | "queued" };
-        
-        if (data.jobId) {
-          updateJob(data.jobId, {
-            ...(data.progress !== undefined && { progress: data.progress }),
-            ...(data.status && { status: data.status }),
-          });
+        // Expected payload: { jobId, progress?, status?, message? }
+        const data = payload.payload as { jobId: string; progress?: number; status?: "processing" | "completed" | "failed" | "queued"; message?: string };
+
+        if (!data.jobId) return;
+
+        updateJob(data.jobId, {
+          ...(data.progress !== undefined && { progress: data.progress }),
+          ...(data.status && { status: data.status }),
+        });
+
+        if (data.status === "completed" || data.status === "failed") {
+          const job = useJobsStore.getState().jobs.find((j) => j.id === data.jobId);
+          const label = job?.title || "Task";
+          if (data.status === "completed") toast.success(data.message || `${label} — done`);
+          else toast.error(data.message || `${label} — failed`);
         }
       })
       .subscribe((status) => {
