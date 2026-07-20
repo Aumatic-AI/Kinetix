@@ -31,8 +31,8 @@ export function AddLeadModal({ categoryId, open, onClose }: { categoryId?: strin
             <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" autoFocus />
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-muted uppercase tracking-wide">First name</label>
-            <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="Optional" />
+            <label className="text-xs font-bold text-muted uppercase tracking-wide">First name (optional)</label>
+            <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="e.g. Sarah" />
           </div>
         </div>
         <DialogFooter>

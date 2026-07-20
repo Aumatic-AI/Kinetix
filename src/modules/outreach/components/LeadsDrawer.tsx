@@ -21,7 +21,7 @@ export function LeadsDrawer({ category, onClose }: { category: ContactCategoryWi
   return (
     <>
       <Drawer open={!!category} onOpenChange={(open) => !open && onClose()} swipeDirection="right">
-        <DrawerContent>
+        <DrawerContent className="data-[swipe-axis=x]:sm:[--drawer-content-width:48rem]">
           <DrawerHeader>
             <DrawerTitle>{category?.name}</DrawerTitle>
             <DrawerDescription>{category?.contactCount ?? 0} lead{category?.contactCount === 1 ? "" : "s"} in this list.</DrawerDescription>
