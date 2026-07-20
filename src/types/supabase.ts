@@ -477,113 +477,6 @@ export type Database = {
           },
         ]
       }
-      contact_categories: {
-        Row: {
-          business_id: string
-          created_at: string
-          id: string
-          name: string
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          id?: string
-          name: string
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          id?: string
-          name?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contact_categories_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      contacts: {
-        Row: {
-          business_id: string
-          category_id: string | null
-          city: string | null
-          company: string | null
-          country: string | null
-          created_at: string
-          email: string
-          email_verification_status: string
-          first_name: string | null
-          id: string
-          last_name: string | null
-          linkedin_url: string | null
-          outreach_status: Database["public"]["Enums"]["contact_status"]
-          phone: string | null
-          source: string
-          subscriber_status: Database["public"]["Enums"]["subscriber_status"]
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          category_id?: string | null
-          city?: string | null
-          company?: string | null
-          country?: string | null
-          created_at?: string
-          email: string
-          email_verification_status?: string
-          first_name?: string | null
-          id?: string
-          last_name?: string | null
-          linkedin_url?: string | null
-          outreach_status?: Database["public"]["Enums"]["contact_status"]
-          phone?: string | null
-          source?: string
-          subscriber_status?: Database["public"]["Enums"]["subscriber_status"]
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          category_id?: string | null
-          city?: string | null
-          company?: string | null
-          country?: string | null
-          created_at?: string
-          email?: string
-          email_verification_status?: string
-          first_name?: string | null
-          id?: string
-          last_name?: string | null
-          linkedin_url?: string | null
-          outreach_status?: Database["public"]["Enums"]["contact_status"]
-          phone?: string | null
-          source?: string
-          subscriber_status?: Database["public"]["Enums"]["subscriber_status"]
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "contacts_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "contacts_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "contact_categories"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       email_events: {
         Row: {
           business_id: string
@@ -627,13 +520,6 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "email_events_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
             referencedColumns: ["id"]
           },
           {
@@ -867,13 +753,6 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "newsletter_campaign_contacts_contact_id_fkey"
-            columns: ["contact_id"]
-            isOneToOne: false
-            referencedRelation: "contacts"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "newsletter_campaign_contacts_newsletter_campaign_id_fkey"
             columns: ["newsletter_campaign_id"]
             isOneToOne: false
@@ -942,47 +821,40 @@ export type Database = {
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "newsletter_campaigns_category_id_fkey"
-            columns: ["category_id"]
-            isOneToOne: false
-            referencedRelation: "contact_categories"
-            referencedColumns: ["id"]
-          },
         ]
       }
-      outreach_campaign_contacts: {
+      outreach_campaign_leads: {
         Row: {
-          contact_id: string
           id: string
+          lead_id: string
           outreach_campaign_id: string
           sent_at: string | null
           status: string
         }
         Insert: {
-          contact_id: string
           id?: string
+          lead_id: string
           outreach_campaign_id: string
           sent_at?: string | null
           status?: string
         }
         Update: {
-          contact_id?: string
           id?: string
+          lead_id?: string
           outreach_campaign_id?: string
           sent_at?: string | null
           status?: string
         }
         Relationships: [
           {
-            foreignKeyName: "outreach_campaign_contacts_contact_id_fkey"
-            columns: ["contact_id"]
+            foreignKeyName: "outreach_campaign_leads_lead_id_fkey"
+            columns: ["lead_id"]
             isOneToOne: false
-            referencedRelation: "contacts"
+            referencedRelation: "outreach_leads"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "outreach_campaign_contacts_outreach_campaign_id_fkey"
+            foreignKeyName: "outreach_campaign_leads_outreach_campaign_id_fkey"
             columns: ["outreach_campaign_id"]
             isOneToOne: false
             referencedRelation: "outreach_campaigns"
@@ -993,7 +865,6 @@ export type Database = {
       outreach_campaigns: {
         Row: {
           business_id: string
-          category_id: string
           created_at: string
           cta_link: string | null
           cta_text: string | null
@@ -1003,6 +874,7 @@ export type Database = {
           generated_subject: string | null
           goal: string | null
           id: string
+          list_id: string
           message_brief: string | null
           name: string
           revision_history: Json
@@ -1014,7 +886,6 @@ export type Database = {
         }
         Insert: {
           business_id: string
-          category_id: string
           created_at?: string
           cta_link?: string | null
           cta_text?: string | null
@@ -1024,6 +895,7 @@ export type Database = {
           generated_subject?: string | null
           goal?: string | null
           id?: string
+          list_id: string
           message_brief?: string | null
           name: string
           revision_history?: Json
@@ -1035,7 +907,6 @@ export type Database = {
         }
         Update: {
           business_id?: string
-          category_id?: string
           created_at?: string
           cta_link?: string | null
           cta_text?: string | null
@@ -1045,6 +916,7 @@ export type Database = {
           generated_subject?: string | null
           goal?: string | null
           id?: string
+          list_id?: string
           message_brief?: string | null
           name?: string
           revision_history?: Json
@@ -1063,10 +935,114 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "outreach_campaigns_category_id_fkey"
-            columns: ["category_id"]
+            foreignKeyName: "outreach_campaigns_list_id_fkey"
+            columns: ["list_id"]
             isOneToOne: false
-            referencedRelation: "contact_categories"
+            referencedRelation: "outreach_lead_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_lead_lists: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_lead_lists_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_leads: {
+        Row: {
+          business_id: string
+          city: string | null
+          company: string | null
+          country: string | null
+          created_at: string
+          email: string
+          email_verification_status: string
+          first_name: string | null
+          id: string
+          last_name: string | null
+          linkedin_url: string | null
+          list_id: string | null
+          phone: string | null
+          source: string
+          status: Database["public"]["Enums"]["lead_status"]
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          city?: string | null
+          company?: string | null
+          country?: string | null
+          created_at?: string
+          email: string
+          email_verification_status?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          linkedin_url?: string | null
+          list_id?: string | null
+          phone?: string | null
+          source?: string
+          status?: Database["public"]["Enums"]["lead_status"]
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          city?: string | null
+          company?: string | null
+          country?: string | null
+          created_at?: string
+          email?: string
+          email_verification_status?: string
+          first_name?: string | null
+          id?: string
+          last_name?: string | null
+          linkedin_url?: string | null
+          list_id?: string | null
+          phone?: string | null
+          source?: string
+          status?: Database["public"]["Enums"]["lead_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_leads_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_leads_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_lead_lists"
             referencedColumns: ["id"]
           },
         ]
@@ -1075,11 +1051,11 @@ export type Database = {
         Row: {
           apify_run_id: string | null
           business_id: string
-          category_id: string | null
           created_at: string
           error_message: string | null
           id: string
           invalid_emails: number
+          list_id: string
           location: string
           max_results: number
           niches: string
@@ -1090,11 +1066,11 @@ export type Database = {
         Insert: {
           apify_run_id?: string | null
           business_id: string
-          category_id?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
           invalid_emails?: number
+          list_id: string
           location: string
           max_results?: number
           niches: string
@@ -1105,11 +1081,11 @@ export type Database = {
         Update: {
           apify_run_id?: string | null
           business_id?: string
-          category_id?: string | null
           created_at?: string
           error_message?: string | null
           id?: string
           invalid_emails?: number
+          list_id?: string
           location?: string
           max_results?: number
           niches?: string
@@ -1126,10 +1102,10 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "outreach_scrape_jobs_category_id_fkey"
-            columns: ["category_id"]
+            foreignKeyName: "outreach_scrape_jobs_list_id_fkey"
+            columns: ["list_id"]
             isOneToOne: false
-            referencedRelation: "contact_categories"
+            referencedRelation: "outreach_lead_lists"
             referencedColumns: ["id"]
           },
         ]
@@ -1326,14 +1302,6 @@ export type Database = {
       asset_type: "image" | "video" | "audio" | "document"
       business_role: "owner" | "admin" | "editor" | "viewer"
       campaign_status: "draft" | "active" | "paused" | "completed" | "archived"
-      contact_status:
-        | "new"
-        | "contacted"
-        | "replied"
-        | "interested"
-        | "not_interested"
-        | "bounced"
-        | "do_not_contact"
       creative_status:
         | "draft"
         | "in_review"
@@ -1357,6 +1325,14 @@ export type Database = {
         | "outreach_email"
         | "analysis"
       job_status: "queued" | "running" | "succeeded" | "failed" | "cancelled"
+      lead_status:
+        | "new"
+        | "contacted"
+        | "replied"
+        | "interested"
+        | "not_interested"
+        | "bounced"
+        | "do_not_contact"
       newsletter_status:
         | "draft"
         | "generating"
@@ -1514,15 +1490,6 @@ export const Constants = {
       asset_type: ["image", "video", "audio", "document"],
       business_role: ["owner", "admin", "editor", "viewer"],
       campaign_status: ["draft", "active", "paused", "completed", "archived"],
-      contact_status: [
-        "new",
-        "contacted",
-        "replied",
-        "interested",
-        "not_interested",
-        "bounced",
-        "do_not_contact",
-      ],
       creative_status: [
         "draft",
         "in_review",
@@ -1549,6 +1516,15 @@ export const Constants = {
         "analysis",
       ],
       job_status: ["queued", "running", "succeeded", "failed", "cancelled"],
+      lead_status: [
+        "new",
+        "contacted",
+        "replied",
+        "interested",
+        "not_interested",
+        "bounced",
+        "do_not_contact",
+      ],
       newsletter_status: [
         "draft",
         "generating",
