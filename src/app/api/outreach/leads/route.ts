@@ -3,7 +3,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { Database } from "@/types/supabase";
 import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
-import { LeadsService } from "@/modules/outreach/services/leads.service";
+import { LeadsService } from "@/modules/outreach/services/outreach.service";
 
 export async function GET(request: NextRequest) {
   try {

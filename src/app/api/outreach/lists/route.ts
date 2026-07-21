@@ -3,8 +3,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { Database } from "@/types/supabase";
 import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
-import { LeadListsService } from "@/modules/outreach/services/lead-lists.service";
-import { LeadsService } from "@/modules/outreach/services/leads.service";
+import { LeadListsService, LeadsService } from "@/modules/outreach/services/outreach.service";
 
 /** Lead lists — a client-managed list of names they can rename, add to, or
  * delete freely, instead of a fixed set baked into the code. */

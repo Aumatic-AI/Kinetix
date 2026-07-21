@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { Database } from "@/types/supabase";
-import { LeadListsService } from "@/modules/outreach/services/lead-lists.service";
+import { LeadListsService } from "@/modules/outreach/services/outreach.service";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {

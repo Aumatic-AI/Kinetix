@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { Database } from "@/types/supabase";
-import { OutreachCampaignsService } from "@/modules/outreach/services/outreach-campaigns.service";
+import { OutreachCampaignsService } from "@/modules/outreach/services/outreach.service";
 import { inngest } from "@/services/inngest/client";
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {

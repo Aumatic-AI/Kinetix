@@ -3,7 +3,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { Database } from "@/types/supabase";
 import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
-import { OutreachCampaignsService } from "@/modules/outreach/services/outreach-campaigns.service";
+import { OutreachCampaignsService } from "@/modules/outreach/services/outreach.service";
 import { getOutreachDraftPrompt } from "@/prompts/outreach";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
 
