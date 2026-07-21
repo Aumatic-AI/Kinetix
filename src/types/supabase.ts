@@ -484,7 +484,6 @@ export type Database = {
           contact_id: string | null
           event_type: Database["public"]["Enums"]["email_event_type"]
           id: string
-          newsletter_campaign_id: string | null
           occurred_at: string
           outreach_campaign_id: string | null
           provider_message_id: string | null
@@ -496,7 +495,6 @@ export type Database = {
           contact_id?: string | null
           event_type: Database["public"]["Enums"]["email_event_type"]
           id?: string
-          newsletter_campaign_id?: string | null
           occurred_at?: string
           outreach_campaign_id?: string | null
           provider_message_id?: string | null
@@ -508,7 +506,6 @@ export type Database = {
           contact_id?: string | null
           event_type?: Database["public"]["Enums"]["email_event_type"]
           id?: string
-          newsletter_campaign_id?: string | null
           occurred_at?: string
           outreach_campaign_id?: string | null
           provider_message_id?: string | null
@@ -520,13 +517,6 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "email_events_newsletter_campaign_id_fkey"
-            columns: ["newsletter_campaign_id"]
-            isOneToOne: false
-            referencedRelation: "newsletter_campaigns"
             referencedColumns: ["id"]
           },
           {
@@ -725,100 +715,6 @@ export type Database = {
             columns: ["media_asset_id"]
             isOneToOne: false
             referencedRelation: "media_assets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      newsletter_campaign_contacts: {
-        Row: {
-          contact_id: string
-          id: string
-          newsletter_campaign_id: string
-          sent_at: string | null
-          status: string
-        }
-        Insert: {
-          contact_id: string
-          id?: string
-          newsletter_campaign_id: string
-          sent_at?: string | null
-          status?: string
-        }
-        Update: {
-          contact_id?: string
-          id?: string
-          newsletter_campaign_id?: string
-          sent_at?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "newsletter_campaign_contacts_newsletter_campaign_id_fkey"
-            columns: ["newsletter_campaign_id"]
-            isOneToOne: false
-            referencedRelation: "newsletter_campaigns"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      newsletter_campaigns: {
-        Row: {
-          business_id: string
-          category_id: string | null
-          content: Json | null
-          created_at: string
-          external_broadcast_id: string | null
-          id: string
-          name: string
-          preheader: string | null
-          revision_history: Json
-          scheduled_at: string | null
-          sent_at: string | null
-          status: Database["public"]["Enums"]["newsletter_status"]
-          subject: string | null
-          topic: string | null
-          updated_at: string
-        }
-        Insert: {
-          business_id: string
-          category_id?: string | null
-          content?: Json | null
-          created_at?: string
-          external_broadcast_id?: string | null
-          id?: string
-          name: string
-          preheader?: string | null
-          revision_history?: Json
-          scheduled_at?: string | null
-          sent_at?: string | null
-          status?: Database["public"]["Enums"]["newsletter_status"]
-          subject?: string | null
-          topic?: string | null
-          updated_at?: string
-        }
-        Update: {
-          business_id?: string
-          category_id?: string | null
-          content?: Json | null
-          created_at?: string
-          external_broadcast_id?: string | null
-          id?: string
-          name?: string
-          preheader?: string | null
-          revision_history?: Json
-          scheduled_at?: string | null
-          sent_at?: string | null
-          status?: Database["public"]["Enums"]["newsletter_status"]
-          subject?: string | null
-          topic?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "newsletter_campaigns_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
         ]
@@ -1333,14 +1229,6 @@ export type Database = {
         | "not_interested"
         | "bounced"
         | "do_not_contact"
-      newsletter_status:
-        | "draft"
-        | "generating"
-        | "ready"
-        | "scheduled"
-        | "sending"
-        | "sent"
-        | "failed"
       platform_type:
         | "facebook"
         | "instagram"
@@ -1356,7 +1244,6 @@ export type Database = {
         | "published"
         | "failed"
         | "deleted"
-      subscriber_status: "active" | "unsubscribed" | "bounced" | "complained"
       user_role: "admin" | "editor" | "viewer"
     }
     CompositeTypes: {
@@ -1525,15 +1412,6 @@ export const Constants = {
         "bounced",
         "do_not_contact",
       ],
-      newsletter_status: [
-        "draft",
-        "generating",
-        "ready",
-        "scheduled",
-        "sending",
-        "sent",
-        "failed",
-      ],
       platform_type: [
         "facebook",
         "instagram",
@@ -1551,7 +1429,6 @@ export const Constants = {
         "failed",
         "deleted",
       ],
-      subscriber_status: ["active", "unsubscribed", "bounced", "complained"],
       user_role: ["admin", "editor", "viewer"],
     },
   },
