@@ -1,6 +1,7 @@
 import { inngest } from "./client";
 import { generateImageAd, generateVideoAd } from "./meta-ads";
 import { generateSocialImage, generateSocialVideo } from "./social";
+import { scrapeOutreachContacts, sendOutreachCampaign } from "./outreach";
 import { competitorAdScraperJob, competitorAdScraperWorker } from "@/jobs/competitor-ad-scraper.job";
 import { businessAdAnalysisJob } from "@/jobs/business-ad-analysis.job";
 import { metaAdsPerformanceSyncJob } from "@/jobs/meta-ads-performance-sync.job";
@@ -16,4 +17,6 @@ export const functions = [
   generateVideoAd,
   generateSocialImage,
   generateSocialVideo,
+  scrapeOutreachContacts,
+  sendOutreachCampaign,
 ];

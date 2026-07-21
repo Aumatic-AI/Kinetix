@@ -16,9 +16,6 @@ export const ROUTES = {
   },
   NEWSLETTER: {
     DASHBOARD: "/newsletter",
-    COMPOSE: "/newsletter/compose",
-    CAMPAIGNS: "/newsletter/campaigns",
-    SUBSCRIBERS: "/newsletter/subscribers",
   },
   OUTREACH: {
     DASHBOARD: "/outreach",

@@ -12,7 +12,6 @@ import {
   Link,
   CreditCard,
   Bot,
-  Wand2,
   PlayCircle,
   FileText,
 } from "lucide-react";
@@ -114,32 +113,7 @@ export const SECONDARY_NAV_ITEMS: Record<
       icon: Link,
     },
   ],
-  newsletter: [
-    {
-      id: "nl-dashboard",
-      label: "Dashboard",
-      href: ROUTES.NEWSLETTER.DASHBOARD,
-      icon: LayoutDashboard,
-    },
-    {
-      id: "nl-compose",
-      label: "Compose",
-      href: ROUTES.NEWSLETTER.COMPOSE,
-      icon: Wand2,
-    },
-    {
-      id: "nl-campaigns",
-      label: "Campaigns",
-      href: ROUTES.NEWSLETTER.CAMPAIGNS,
-      icon: Megaphone,
-    },
-    {
-      id: "nl-subscribers",
-      label: "Subscribers",
-      href: ROUTES.NEWSLETTER.SUBSCRIBERS,
-      icon: Users,
-    },
-  ],
+  newsletter: [],
   outreach: [
     {
       id: "or-dashboard",
