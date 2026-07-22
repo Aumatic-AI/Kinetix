@@ -13,7 +13,6 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = request.nextUrl;
     const { leads, count } = await LeadsService.getLeads(
-      supabase,
       businessId,
       {
         listId: searchParams.get("listId") || undefined,
@@ -40,7 +39,7 @@ export async function POST(request: Request) {
     const businessId = await MetaAdsService.getFirstBusinessId(supabase);
     if (!businessId) return NextResponse.json({ error: "No business configured" }, { status: 400 });
 
-    const lead = await LeadsService.createLead(supabase, {
+    const lead = await LeadsService.createLead({
       business_id: businessId,
       email: body.email.trim(),
       first_name: body.firstName || null,

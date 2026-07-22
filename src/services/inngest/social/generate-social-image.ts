@@ -2,11 +2,11 @@ import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
 import { getSocialImagePrompt, getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../../prompts/social-media";
-import { KieService } from "../../ai/providers/kie";
+import { env } from "@/config";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 /**
@@ -56,7 +56,7 @@ export const generateSocialImage = inngest.createFunction(
       const jobId = await step.run("trigger-image", async () => {
         const response = await aiOrchestrator.executeTask("text", visualPrompt, "openai");
         const promptText = (response as string).trim();
-        return { kieJobId: await KieService.createImageTask(promptText, aspectRatio || "4:5"), promptText };
+        return { kieJobId: await aiOrchestrator.createImageTask(promptText, aspectRatio || "4:5"), promptText };
       });
 
       let imageUrl: string | null = null;
@@ -65,7 +65,7 @@ export const generateSocialImage = inngest.createFunction(
       while (!imageUrl && attempts < MAX_ATTEMPTS) {
         await step.sleep(`wait-image-${attempts}`, attempts === 0 ? "30s" : "20s");
         const status = await step.run(`check-image-status-${attempts}`, async () => {
-          return await KieService.checkSingleTaskStatus(jobId.kieJobId);
+          return await aiOrchestrator.checkTaskStatus(jobId.kieJobId);
         });
         if (status.state === "success") {
           try {

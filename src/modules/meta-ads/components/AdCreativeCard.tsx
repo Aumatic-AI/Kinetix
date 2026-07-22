@@ -12,9 +12,14 @@ interface AdCreativeCardProps {
   onDelete: (id: string) => void;
   onRetry: (id: string) => void;
   isRetrying?: boolean;
+  /** Present once this creative has been launched as a real ad at least
+   * once — shown as a badge, never hides the Launch button (relaunching
+   * the same creative into a new campaign/audience is a real use case). */
+  launched?: boolean;
+  onLaunch?: (ad: MetaAdCreative) => void;
 }
 
-export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRetry, isRetrying }: AdCreativeCardProps) {
+export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRetry, isRetrying, launched, onLaunch }: AdCreativeCardProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -101,6 +106,14 @@ export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRet
             </span>
           )}
         </div>
+
+        {launched && (
+          <div className="absolute top-2 left-2">
+            <span className="px-1.5 py-0.5 rounded bg-background/90 backdrop-blur-md border border-primary/30 text-primary text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
+              <Rocket size={10} /> Launched
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Content Section (Bottom) */}
@@ -183,8 +196,10 @@ export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRet
                     size="sm"
                     variant="primary"
                     className="flex-1 shadow-sm h-7 text-[11px]"
+                    onClick={() => onLaunch?.(ad)}
+                    icon={<Rocket className="w-3 h-3" />}
                   >
-                    Launch
+                    {launched ? "Relaunch" : "Launch"}
                   </Button>
                 )}
               </>

@@ -4,10 +4,11 @@ import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
 import { createClient } from "@supabase/supabase-js";
 import { generateBusinessAnalysisPrompt } from "@/prompts/business-analysis";
 import { aggregateByAd, diagnosePattern, bucketAds, ruleBasedSelfAdReport } from "@/services/ai/self-ad-processor";
+import { env } from "@/config";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export const businessAdAnalysisJob = inngest.createFunction(

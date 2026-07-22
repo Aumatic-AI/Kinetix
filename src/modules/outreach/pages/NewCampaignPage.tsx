@@ -1,23 +1,27 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Sparkles, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCreateOutreachCampaign } from "../hooks/useOutreachCampaigns";
+import { useCreateOutreachCampaign, useOutreachCampaign } from "../hooks/useOutreachCampaigns";
 import { useLeadLists, useLeads } from "@/modules/outreach/hooks/useLeads";
 import { FormSection } from "../components/campaigns/FormSection";
+import { CampaignDraftPanel } from "../components/campaigns/CampaignDraftPanel";
+import { useBusinessStore } from "@/store/business.store";
 import { ROUTES } from "@/config/routes";
 
-const SERVICE_TYPES = ["Hair Transplant", "Dental Treatment", "Cosmetic Surgery", "Eye Treatment", "IVF Fertility", "Thermal Wellness", "All Services"];
 const TARGET_REGIONS = ["Europe", "Middle East", "Asia", "North America", "Global"];
 const SUPPRESSED_STATUSES = ["bounced", "do_not_contact", "replied"] as const;
 
 export function NewCampaignPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const draftId = searchParams.get("id");
+
   const [name, setName] = useState("");
   const [listId, setListId] = useState("");
   const [serviceType, setServiceType] = useState("");
@@ -28,10 +32,14 @@ export function NewCampaignPage() {
   const [ctaText, setCtaText] = useState("");
   const [ctaLink, setCtaLink] = useState("");
   const [error, setError] = useState("");
+  const [sendTriggered, setSendTriggered] = useState(false);
 
   const { data: lists = [] } = useLeadLists();
   const { data: audience } = useLeads({ excludeStatuses: [...SUPPRESSED_STATUSES], listId: listId || undefined }, 1, 1);
   const createCampaign = useCreateOutreachCampaign();
+  const { data: existingCampaign, isLoading: loadingDraft } = useOutreachCampaign(draftId, { pollWhileSending: sendTriggered });
+  const business = useBusinessStore((s) => s.business);
+  const serviceOptions = [...(business?.services ?? []).map((s) => s.name), "All Services"];
 
   const handleGenerate = async () => {
     setError("");
@@ -39,7 +47,7 @@ export function NewCampaignPage() {
       return setError("Fill in a name, list, service type, target region, goal, and message.");
     }
     try {
-      await createCampaign.mutateAsync({
+      const result = await createCampaign.mutateAsync({
         name: name.trim(),
         listId,
         serviceType,
@@ -50,11 +58,39 @@ export function NewCampaignPage() {
         ctaText: ctaText.trim() || undefined,
         ctaLink: ctaLink.trim() || undefined,
       });
-      router.push(ROUTES.OUTREACH.CAMPAIGNS);
+      router.replace(`${ROUTES.OUTREACH.CAMPAIGN_NEW}?id=${result.campaign.id}`);
     } catch (e: any) {
       setError(e.message || "Failed to generate the draft");
     }
   };
+
+  // Reopening an existing draft (or any campaign) from the Campaigns list —
+  // show its generated content and actions instead of a blank form. The
+  // campaign row already exists in the DB, so navigating away and back never
+  // loses anything.
+  if (draftId) {
+    return (
+      <div className="max-w-2xl mx-auto space-y-6 pb-10">
+        <Link href={ROUTES.OUTREACH.CAMPAIGNS} className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-text">
+          <ArrowLeft className="w-4 h-4" /> Back to Campaigns
+        </Link>
+
+        {loadingDraft || !existingCampaign ? (
+          <div className="h-40 rounded-xl bg-surface animate-pulse" />
+        ) : (
+          <>
+            <div>
+              <h2 className="text-2xl font-bold text-text">{existingCampaign.name}</h2>
+              <p className="text-sm text-muted mt-1">
+                {existingCampaign.status === "draft" ? "Review the draft, then edit or launch it." : "Campaign details."}
+              </p>
+            </div>
+            <CampaignDraftPanel campaign={existingCampaign} onSendStarted={() => setSendTriggered(true)} />
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 pb-10">
@@ -92,7 +128,7 @@ export function NewCampaignPage() {
             <Select value={serviceType} onValueChange={setServiceType}>
               <SelectTrigger><SelectValue placeholder="Choose a service" /></SelectTrigger>
               <SelectContent>
-                {SERVICE_TYPES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                {serviceOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>

@@ -349,7 +349,9 @@ export type Database = {
           keywords: string[]
           logo_asset_id: string | null
           name: string
+          outreach_settings: Json
           pain_points: string | null
+          services: Json
           settings: Json
           target_audience: string | null
           target_countries: Json | null
@@ -371,7 +373,9 @@ export type Database = {
           keywords?: string[]
           logo_asset_id?: string | null
           name: string
+          outreach_settings?: Json
           pain_points?: string | null
+          services?: Json
           settings?: Json
           target_audience?: string | null
           target_countries?: Json | null
@@ -393,7 +397,9 @@ export type Database = {
           keywords?: string[]
           logo_asset_id?: string | null
           name?: string
+          outreach_settings?: Json
           pain_points?: string | null
+          services?: Json
           settings?: Json
           target_audience?: string | null
           target_countries?: Json | null

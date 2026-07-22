@@ -1,17 +1,18 @@
 import { NextResponse } from "next/server";
+import { env } from "@/config";
 
 /**
  * Ports the legacy project's approach exactly: a single Meta System User
  * access token + ad account id, set once as env vars, no per-user OAuth
  * "Connect" flow (see projects/meta/src/app/api/meta/live-campaigns/route.ts —
- * `process.env.META_ACCESS_TOKEN` / `META_AD_ACCOUNT_ID`). Single-tenant, so
+ * `META_ACCESS_TOKEN` / `META_AD_ACCOUNT_ID`). Single-tenant, so
  * there's nothing an OAuth dance would buy us over just configuring these once.
  */
 const META_API_VERSION = "v21.0";
 
 export async function GET() {
-  const accessToken = process.env.META_ACCESS_TOKEN;
-  const adAccountId = process.env.META_AD_ACCOUNT_ID;
+  const accessToken = env.META_ACCESS_TOKEN;
+  const adAccountId = env.META_AD_ACCOUNT_ID;
 
   if (!accessToken || !adAccountId) {
     return NextResponse.json({ configured: false });

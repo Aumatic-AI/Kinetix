@@ -2,11 +2,11 @@ import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
 import { getImageAdPrompt } from "../../../prompts/meta-ads";
-import { KieService } from "../../ai/providers/kie";
+import { env } from "@/config";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export const generateImageAd = inngest.createFunction(
@@ -65,7 +65,7 @@ export const generateImageAd = inngest.createFunction(
 
       // 4. Trigger image generation via Kie directly
       const jobId = await step.run("trigger-image", async () => {
-        return await KieService.createImageTask(scriptJson.visual_prompt, "4:5");
+        return await aiOrchestrator.createImageTask(scriptJson.visual_prompt, "4:5");
       });
 
       // 5. Poll for image completion with step.sleep
@@ -78,7 +78,7 @@ export const generateImageAd = inngest.createFunction(
         await step.sleep(`wait-image-${attempts}`, attempts === 0 ? "30s" : "20s");
         
         const status = await step.run(`check-image-status-${attempts}`, async () => {
-          return await KieService.checkSingleTaskStatus(jobId);
+          return await aiOrchestrator.checkTaskStatus(jobId);
         });
 
         if (status.state === "success") {

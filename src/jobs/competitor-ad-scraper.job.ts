@@ -4,10 +4,11 @@ import { aiOrchestrator } from "@/services/ai/orchestrator";
 import { generateCompetitorAnalysisPrompt } from "@/prompts/competitor-analysis";
 import { processCompetitorAds, trimForPrompt } from "@/services/ai/competitor-ad-processor";
 import { createClient } from "@supabase/supabase-js";
+import { env } from "@/config";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 // Ported from the legacy n8n workflow (toga Research analysis for ads.json).

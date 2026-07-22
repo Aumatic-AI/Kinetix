@@ -1,10 +1,12 @@
 import { inngest } from "../client";
 import { createClient } from "@supabase/supabase-js";
 import { InstantlyService } from "@/services/instantly";
+import { buildOutreachEmailHtml } from "@/modules/outreach/utils/email-html";
+import { env } from "@/config";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 /** Every Kinetix outreach campaign gets its own dedicated Instantly
@@ -21,7 +23,7 @@ export const sendOutreachCampaign = inngest.createFunction(
       const { data } = await supabase.from("outreach_campaigns").select("*").eq("id", campaignId).single();
       return data;
     });
-    if (!campaign?.generated_body) throw new Error("Campaign has no content to send");
+    if (!campaign?.generated_subject || !campaign?.generated_body?.body) throw new Error("Campaign has no content to send");
 
     const recipients = await step.run("fetch-recipients", async () => {
       const { data } = await supabase
@@ -29,7 +31,10 @@ export const sendOutreachCampaign = inngest.createFunction(
         .select("id, email, first_name, last_name, company")
         .eq("business_id", campaign.business_id)
         .eq("list_id", listId || campaign.list_id)
-        .not("status", "in", "(bounced,do_not_contact)")
+        // Same suppression list the New Campaign form's live eligibility
+        // count uses — also excludes already-contacted leads so re-clicking
+        // Send doesn't repeatedly re-target the same batch.
+        .not("status", "in", "(bounced,do_not_contact,replied,contacted)")
         .limit(campaign.daily_limit);
       return data || [];
     });
@@ -41,7 +46,23 @@ export const sendOutreachCampaign = inngest.createFunction(
 
     const externalCampaignId = await step.run("ensure-instantly-campaign", async () => {
       if (campaign.external_campaign_id) return campaign.external_campaign_id;
-      const created = await InstantlyService.createCampaign(campaign.name);
+
+      const { data: business } = await supabase.from("businesses").select("outreach_settings").eq("id", campaign.business_id).single();
+      const settings = business?.outreach_settings;
+
+      const html = buildOutreachEmailHtml(campaign.generated_body.body, campaign.cta_text, campaign.cta_link);
+      const created = await InstantlyService.createCampaign(
+        campaign.name,
+        { subject: campaign.generated_subject, html },
+        {
+          dailyLimit: campaign.daily_limit,
+          schedule: {
+            timezone: settings?.timezone || "America/Detroit",
+            days: settings?.days || [0, 1, 2, 3, 4, 5, 6],
+            sendWindow: settings?.send_window || { from: "09:00", to: "18:00" },
+          },
+        }
+      );
       await supabase.from("outreach_campaigns").update({ external_campaign_id: created.id }).eq("id", campaignId);
       return created.id;
     });
@@ -51,6 +72,16 @@ export const sendOutreachCampaign = inngest.createFunction(
         externalCampaignId,
         recipients.map((r) => ({ email: r.email, firstName: r.first_name || undefined, lastName: r.last_name || undefined, companyName: r.company || undefined }))
       );
+      return { added: recipients.length };
+    });
+
+    // Campaigns sit in Draft (status 0) after creation and never send on
+    // their own — confirmed against the real account, a campaign with
+    // content and leads already loaded still sent nothing until activated.
+    // Calling this every send is safe/idempotent for the already-active case.
+    await step.run("activate-instantly-campaign", async () => {
+      await InstantlyService.activateCampaign(externalCampaignId);
+      return { activated: true };
     });
 
     await step.run("record-recipients", async () => {
@@ -58,10 +89,12 @@ export const sendOutreachCampaign = inngest.createFunction(
       await supabase.from("outreach_campaign_leads").upsert(rows, { onConflict: "outreach_campaign_id,lead_id" });
       const leadIds = recipients.map((r) => r.id);
       await supabase.from("outreach_leads").update({ status: "contacted" }).in("id", leadIds);
+      return { recorded: recipients.length };
     });
 
     await step.run("mark-active", async () => {
       await supabase.from("outreach_campaigns").update({ status: "active" }).eq("id", campaignId);
+      return { status: "active" };
     });
 
     return { sent: recipients.length };

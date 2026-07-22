@@ -1,7 +1,4 @@
 import { NextResponse } from "next/server";
-import { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
-import { Database } from "@/types/supabase";
 import { OutreachCampaignsService } from "@/modules/outreach/services/outreach.service";
 import { inngest } from "@/services/inngest/client";
 
@@ -9,9 +6,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { id } = await params;
     const body = await request.json().catch(() => ({}));
-    const supabase = (await createClient()) as SupabaseClient<Database>;
 
-    const campaign = await OutreachCampaignsService.getCampaignById(supabase, id);
+    const campaign = await OutreachCampaignsService.getCampaignById(id);
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     if (!campaign.generated_body) return NextResponse.json({ error: "This campaign has no content yet" }, { status: 400 });
     if (campaign.status !== "active") return NextResponse.json({ error: "Approve this campaign before sending" }, { status: 400 });

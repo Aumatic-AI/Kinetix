@@ -11,6 +11,7 @@ import { ROUTES } from "@/config/routes";
 import { PLATFORMS } from "../lib/platforms";
 import { useConnections } from "../hooks/useSocialPosts";
 import VoiceExplorerModal from "@/modules/meta-ads/components/VoiceExplorerModal";
+import { useBusinessStore } from "@/store/business.store";
 
 const VOICE_OPTIONS = {
   male: [
@@ -25,8 +26,6 @@ const VOICE_OPTIONS = {
   ],
 };
 
-// Matches the legacy social dashboard's exact input set.
-const SERVICE_OPTIONS = ["Hair Transplant", "Dental Implants", "Rhinoplasty"];
 const VIDEO_STYLE_OPTIONS = ["Highly Realistic 4k, real life", "Cinematic Drone - Smooth", "Studio Professional - Clean"];
 const LANGUAGE_OPTIONS = ["English", "Spanish", "French", "Hebrew", "Turkish"];
 const BACKGROUND_SONG_OPTIONS = [
@@ -51,7 +50,10 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
   const [textPlatforms, setTextPlatforms] = useState<Set<string>>(new Set());
   const [idea, setIdea] = useState("");
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16">("9:16");
-  const [service, setService] = useState(SERVICE_OPTIONS[0]);
+  const business = useBusinessStore((s) => s.business);
+  const serviceOptions = (business?.services ?? []).map((s) => s.name);
+  const [serviceOverride, setServiceOverride] = useState("");
+  const service = serviceOverride || serviceOptions[0] || "";
   const [videoStyle, setVideoStyle] = useState(VIDEO_STYLE_OPTIONS[0]);
   const [language, setLanguage] = useState(LANGUAGE_OPTIONS[0]);
   const [backgroundSong, setBackgroundSong] = useState(BACKGROUND_SONG_OPTIONS[0]);
@@ -383,12 +385,12 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                   <div className="bg-surface p-5 rounded-xl border border-default grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <p className="text-xs font-semibold text-muted mb-2">Category</p>
-                      <Select value={service} onValueChange={setService}>
+                      <Select value={service} onValueChange={setServiceOverride}>
                         <SelectTrigger className="w-full bg-background border-default rounded-lg">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {SERVICE_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                          {serviceOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>

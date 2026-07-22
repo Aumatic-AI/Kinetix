@@ -2,13 +2,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, Loader2, Check, X, ArrowLeft } from "lucide-react";
+import { Search, Loader2, Check, X, ArrowLeft, Eye } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useScrapeJobs, useStartScrape } from "../hooks/useScrapeJobs";
-import { useLeadLists, useCreateLeadList } from "@/modules/outreach/hooks/useLeads";
+import { useLeadLists, useCreateLeadList, LeadListWithCount } from "@/modules/outreach/hooks/useLeads";
+import { LeadsDrawer } from "../components/leads/LeadsDrawer";
 import { useJobsStore } from "@/store";
 import { ROUTES } from "@/config/routes";
 
@@ -29,6 +30,7 @@ export function FindLeadsPage() {
   const [creatingList, setCreatingList] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [error, setError] = useState("");
+  const [selectedList, setSelectedList] = useState<LeadListWithCount | null>(null);
 
   const { data: lists = [] } = useLeadLists();
   const { data: jobs = [], isLoading } = useScrapeJobs();
@@ -132,28 +134,37 @@ export function FindLeadsPage() {
                   <TableHead className="text-right">Found</TableHead>
                   <TableHead className="text-right">Verified</TableHead>
                   <TableHead>Date</TableHead>
+                  <TableHead className="w-24" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {jobs.map((j) => (
-                  <TableRow key={j.id}>
-                    <TableCell className="font-semibold text-text">{j.niches} <span className="text-muted font-normal">in {j.location}</span></TableCell>
-                    <TableCell>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide inline-flex items-center gap-1 ${STATUS_STYLE[j.status]}`}>
-                        {j.status === "running" && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
-                        {j.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{j.total_scraped}</TableCell>
-                    <TableCell className="text-right tabular-nums">{j.valid_emails}</TableCell>
-                    <TableCell className="text-muted whitespace-nowrap">{new Date(j.created_at).toLocaleDateString()}</TableCell>
-                  </TableRow>
-                ))}
+                {jobs.map((j) => {
+                  const list = lists.find((l) => l.id === j.list_id) || null;
+                  return (
+                    <TableRow key={j.id}>
+                      <TableCell className="font-semibold text-text">{j.niches} <span className="text-muted font-normal">in {j.location}</span></TableCell>
+                      <TableCell>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide inline-flex items-center gap-1 ${STATUS_STYLE[j.status]}`}>
+                          {j.status === "running" && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
+                          {j.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">{j.total_scraped}</TableCell>
+                      <TableCell className="text-right tabular-nums">{j.valid_emails}</TableCell>
+                      <TableCell className="text-muted whitespace-nowrap">{new Date(j.created_at).toLocaleDateString()}</TableCell>
+                      <TableCell>
+                        <Button size="sm" variant="outline" disabled={!list} onClick={() => setSelectedList(list)} icon={<Eye className="w-3.5 h-3.5" />}>View</Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
         )}
       </div>
+
+      <LeadsDrawer list={selectedList} onClose={() => setSelectedList(null)} />
     </div>
   );
 }

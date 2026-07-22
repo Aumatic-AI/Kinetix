@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Plus, MoreVertical, Pencil, Trash2 } from "lucide-react";
+import { Search, Plus, MoreVertical, Pencil, Trash2, Eye } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useLeadLists, useDeleteLeadList, LeadListWithCount } from "@/modules/outreach/hooks/useLeads";
@@ -57,23 +57,24 @@ export function LeadsPage() {
         </div>
       ) : (
         <div className="border border-default rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[1fr_100px_160px_44px] gap-4 px-4 py-2.5 bg-surface/60 border-b border-default text-[11px] font-bold text-muted uppercase tracking-wide">
+          <div className="grid grid-cols-[1fr_100px_160px_80px_44px] gap-4 px-4 py-2.5 bg-surface/60 border-b border-default text-[11px] font-bold text-muted uppercase tracking-wide">
             <span>List</span>
             <span className="text-right">Leads</span>
             <span>Progress</span>
+            <span />
             <span />
           </div>
           <div className="divide-y divide-border">
             {lists.map((l) => (
               <div
                 key={l.id}
-                className="grid grid-cols-[1fr_100px_160px_44px] gap-4 items-center px-4 py-3 cursor-pointer hover:bg-surface/40 transition-colors"
-                onClick={() => setSelected(l)}
+                className="grid grid-cols-[1fr_100px_160px_80px_44px] gap-4 items-center px-4 py-3 hover:bg-surface/40 transition-colors"
               >
                 <span className="font-semibold text-text truncate">{l.name}</span>
                 <span className="text-muted tabular-nums text-right">{l.leadCount}</span>
                 <ListCompositionBar breakdown={l.statusBreakdown} />
-                <div onClick={(e) => e.stopPropagation()} className="flex justify-end">
+                <Button size="sm" variant="outline" onClick={() => setSelected(l)} icon={<Eye className="w-3.5 h-3.5" />}>View</Button>
+                <div className="flex justify-end">
                   <DropdownMenu>
                     <DropdownMenuTrigger className="p-1.5 rounded-md text-muted hover:bg-surface hover:text-text">
                       <MoreVertical className="w-4 h-4" />

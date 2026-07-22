@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import VoiceExplorerModal from "./VoiceExplorerModal";
 import { createClient } from "@/lib/supabase/client";
 import { useCreateMetaAdCreative } from "../hooks/useMetaAds";
+import { useBusinessStore } from "@/store/business.store";
 
 const VOICE_OPTIONS = {
   male: [
@@ -23,8 +24,6 @@ const VOICE_OPTIONS = {
     { id: "KClAuq9Hs0wFY7oJmaGN", label: "Maayan - Lady" }
   ]
 };
-
-const SERVICE_OPTIONS = ["Hair Transplant", "Dental Implants", "Rhinoplasty"];
 
 interface CreateAdModalInitialValues {
   type?: "video" | "image";
@@ -76,6 +75,8 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
   const createMutation = useCreateMetaAdCreative();
+  const business = useBusinessStore((s) => s.business);
+  const serviceOptions = (business?.services ?? []).map((s) => s.name);
 
   // Handlers
   const handleGenerateSubmit = async (e: React.FormEvent) => {
@@ -276,7 +277,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
                     <SelectValue placeholder="Select a service" />
                   </SelectTrigger>
                   <SelectContent>
-                    {SERVICE_OPTIONS.map((s) => (
+                    {serviceOptions.map((s) => (
                       <SelectItem key={s} value={s}>{s}</SelectItem>
                     ))}
                   </SelectContent>

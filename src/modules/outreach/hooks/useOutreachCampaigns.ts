@@ -21,11 +21,20 @@ export function useOutreachCampaigns() {
   });
 }
 
-export function useOutreachCampaign(id: string | null) {
+export function useOutreachCampaign(id: string | null, options?: { pollWhileSending?: boolean }) {
   return useQuery({
     queryKey: outreachKeys.campaign(id || ""),
     queryFn: () => fetchJson<{ campaign: OutreachCampaign }>(`/api/outreach/campaigns/${id}`).then((d) => d.campaign),
     enabled: !!id,
+    // While a Send is in flight, the campaign row only reflects completion
+    // once the background Inngest job finishes (external_campaign_id gets
+    // set, or status flips to 'completed' if no leads were eligible) — poll
+    // for that instead of leaving the button looking unclicked.
+    refetchInterval: (query) => {
+      if (!options?.pollWhileSending) return false;
+      const c = query.state.data;
+      return c && c.status === "active" && !c.external_campaign_id ? 3000 : false;
+    },
   });
 }
 

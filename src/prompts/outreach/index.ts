@@ -18,22 +18,39 @@ export interface OutreachBusinessContext {
 const STRUCTURE_RULES = `Return ONLY valid JSON — no markdown, no commentary:
 {
   "subject": "under 60 characters, reads like a personal email, never like a mass campaign",
-  "body": "2-4 short paragraphs. Must include the literal placeholders {{first_name}} and {{company}} naturally in the opening line. Never use ALL CAPS, never more than one exclamation mark in the whole email."
+  "body": "2-4 short paragraphs. Must include the literal merge tags {{firstName}} and {{companyName}} naturally in the opening line — these are Instantly's own personalization variables and are substituted automatically per recipient at send time, so never write a real name in their place. Never use ALL CAPS, never more than one exclamation mark in the whole email."
 }`;
+
+export interface OutreachDraftInput {
+  goal: string;
+  tone: string;
+  messageBrief: string;
+  serviceType: string;
+  /** From the matching businesses.services[].description, if the business
+   * filled one in — optional, gives the AI real grounding on what this
+   * service means for this business instead of guessing from the name alone. */
+  serviceDescription?: string | null;
+  targetRegion: string;
+  ctaText?: string;
+  ctaLink?: string;
+}
 
 export function getOutreachDraftPrompt(
   business: OutreachBusinessContext,
-  input: { goal: string; tone: string; messageBrief: string; serviceType: string; targetRegion: string; ctaText?: string; ctaLink?: string }
+  input: OutreachDraftInput
 ): { system: string; user: string } {
+  // A separate, styled CTA button (this exact text) is appended after the
+  // body automatically — the body itself must not restate it as its own
+  // closing line, or the CTA visibly appears twice in the sent email.
   const ctaLine = input.ctaText
-    ? `\n\nEnd the email with a clear call to action using this exact button text as a short closing line: "${input.ctaText}"${input.ctaLink ? ` (linking to ${input.ctaLink})` : ""}.`
+    ? `\n\nDo not write a call-to-action sentence, button text, or link in the body itself — a call-to-action button reading "${input.ctaText}" is appended automatically after the email. End the body on the sentence right before where that button would go (e.g. inviting them to take the next step), without naming the button text.`
     : "";
   return {
     system: `You are an expert cold-email copywriter for ${business.name}, a ${business.industry || "business"}.
 
 What we offer: ${business.core_offerings || "Not specified"}
 Target audience: ${business.target_audience || "Not specified"}
-Service focus for this campaign: ${input.serviceType}
+Service focus for this campaign: ${input.serviceType}${input.serviceDescription ? ` — ${input.serviceDescription}` : ""}
 Target region: ${input.targetRegion}
 Requested tone: ${input.tone}
 
@@ -44,7 +61,7 @@ ${STRUCTURE_RULES}`,
   };
 }
 
-export function getOutreachRevisionPrompt(business: OutreachBusinessContext, input: { goal: string; tone: string; messageBrief: string; serviceType: string; targetRegion: string; ctaText?: string; ctaLink?: string }, previousContent: unknown, feedback: string): { system: string; user: string } {
+export function getOutreachRevisionPrompt(business: OutreachBusinessContext, input: OutreachDraftInput, previousContent: unknown, feedback: string): { system: string; user: string } {
   const base = getOutreachDraftPrompt(business, input);
   return {
     system: base.system,

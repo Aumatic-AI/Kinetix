@@ -3,15 +3,14 @@ import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
 import { getSocialVideoScriptPrompt, getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../../prompts/social-media";
 import { getVisualPromptsPrompt } from "../../../prompts/meta-ads";
-import { KieService } from "../../ai/providers/kie";
-import { ElevenLabsService } from "../../ai/providers/elevenlabs";
 import { FFmpegService } from "../../ffmpeg";
 import { submitSceneStitchJob, downloadAndStoreVideo } from "../../ffmpeg/stitch-scenes";
 import { SOCIAL_CHARACTER_REFERENCE } from "../../ai/character-references";
+import { env } from "@/config";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 /**
@@ -85,7 +84,7 @@ export const generateSocialVideo = inngest.createFunction(
       // 4. ElevenLabs narration
       const audioResult = await step.run("audio-generation", async () => {
         const fullScript = scriptJson.script.join(" ");
-        const audioBuffer = await ElevenLabsService.generateSpeech(fullScript, voiceId);
+        const audioBuffer = await aiOrchestrator.generateSpeech(fullScript, voiceId);
         const fileName = `${businessId}/social/audio/${Date.now()}.mp3`;
         const { error } = await supabase.storage.from("business_media").upload(fileName, audioBuffer, { contentType: "audio/mpeg" });
         if (error) throw new Error("Audio upload failed: " + error.message);
@@ -97,7 +96,7 @@ export const generateSocialVideo = inngest.createFunction(
       const imageJobIds = await step.run("trigger-images", async () => {
         const ids = [];
         for (const vp of visualPromptsJson.visual_prompts) {
-          const jobId = await KieService.createImageTask(vp.prompt, "9:16", SOCIAL_CHARACTER_REFERENCE);
+          const jobId = await aiOrchestrator.createImageTask(vp.prompt, "9:16", SOCIAL_CHARACTER_REFERENCE);
           ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
         }
         return ids;
@@ -123,7 +122,7 @@ export const generateSocialVideo = inngest.createFunction(
           let pending = false;
           for (const job of imageJobIds) {
             if (job.url) continue;
-            const status = await KieService.checkSingleTaskStatus(job.id);
+            const status = await aiOrchestrator.checkTaskStatus(job.id);
             job.state = status.state; // waiting / queuing / generating / success / fail — visible in the step output for debugging
             if (status.state === "success") {
               try {
@@ -134,7 +133,7 @@ export const generateSocialVideo = inngest.createFunction(
             } else if (status.state === "fail") {
               console.error(`Kie image generation failed for scene ${job.scene} (job ${job.id}): ${status.failMsg || status.failCode || "no reason given"}`);
               if (!job.fellBack) {
-                job.id = await KieService.createImageTask(job.imagePrompt, "9:16");
+                job.id = await aiOrchestrator.createImageTask(job.imagePrompt, "9:16");
                 job.fellBack = true;
               } else {
                 throw new Error(`Kie rejected scene ${job.scene} twice (job ${job.id}): ${status.failMsg || "no reason given"}`);
@@ -160,7 +159,7 @@ export const generateSocialVideo = inngest.createFunction(
         const ids = [];
         for (const imgJob of imageJobIds) {
           const cinematicPrompt = `${imgJob.videoScenario} Cinematic social content, natural color grade, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image.`;
-          const jobId = await KieService.createVideoTask(cinematicPrompt, [imgJob.url as string], "9:16", "4");
+          const jobId = await aiOrchestrator.createVideoTask(cinematicPrompt, [imgJob.url as string], "9:16", "4");
           ids.push({ id: jobId, url: null as string | null, scene: imgJob.scene, cinematicPrompt, sourceImageUrl: imgJob.url as string, resubmitted: false, state: null as string | null });
         }
         return ids;
@@ -177,7 +176,7 @@ export const generateSocialVideo = inngest.createFunction(
           let pending = false;
           for (const job of videoJobIds) {
             if (job.url) continue;
-            const status = await KieService.checkSingleTaskStatus(job.id);
+            const status = await aiOrchestrator.checkTaskStatus(job.id);
             job.state = status.state; // waiting / queuing / generating / success / fail — visible in the step output for debugging
             if (status.state === "success") {
               try {
@@ -188,7 +187,7 @@ export const generateSocialVideo = inngest.createFunction(
             } else if (status.state === "fail") {
               console.error(`Kie video generation failed for scene ${job.scene} (job ${job.id}): ${status.failMsg || status.failCode || "no reason given"}`);
               if (!job.resubmitted) {
-                job.id = await KieService.createVideoTask(job.cinematicPrompt, [job.sourceImageUrl], "9:16", "4");
+                job.id = await aiOrchestrator.createVideoTask(job.cinematicPrompt, [job.sourceImageUrl], "9:16", "4");
                 job.resubmitted = true;
               } else {
                 throw new Error(`Kie rejected video for scene ${job.scene} twice (job ${job.id}): ${status.failMsg || "no reason given"}`);

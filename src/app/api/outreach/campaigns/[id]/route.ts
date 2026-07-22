@@ -10,8 +10,7 @@ import { aiOrchestrator } from "@/services/ai/orchestrator";
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const supabase = (await createClient()) as SupabaseClient<Database>;
-    const campaign = await OutreachCampaignsService.getCampaignById(supabase, id);
+    const campaign = await OutreachCampaignsService.getCampaignById(id);
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     return NextResponse.json({ campaign });
   } catch (error: any) {
@@ -30,12 +29,12 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const body = await request.json();
     const supabase = (await createClient()) as SupabaseClient<Database>;
 
-    const campaign = await OutreachCampaignsService.getCampaignById(supabase, id);
+    const campaign = await OutreachCampaignsService.getCampaignById(id);
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
     if (body.manualEdit) {
       const generatedBody = { subject: body.manualEdit.subject, body: body.manualEdit.body };
-      await OutreachCampaignsService.updateCampaign(supabase, id, {
+      await OutreachCampaignsService.updateCampaign(id, {
         generated_subject: generatedBody.subject,
         generated_body: generatedBody,
       });
@@ -46,16 +45,19 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const business = await MetaAdsService.getBusinessById(supabase, campaign.business_id);
       if (!business) return NextResponse.json({ error: "Business not found" }, { status: 404 });
 
+      const services: { name: string; description?: string | null }[] = business.services || [];
+      const serviceDescription = services.find((s) => s.name === campaign.service_type)?.description || undefined;
+
       const prompt = getOutreachRevisionPrompt(
         business,
-        { goal: campaign.goal || "", tone: campaign.tone || "", messageBrief: campaign.message_brief || "", serviceType: campaign.service_type || "", targetRegion: campaign.target_region || "", ctaText: campaign.cta_text || undefined, ctaLink: campaign.cta_link || undefined },
+        { goal: campaign.goal || "", tone: campaign.tone || "", messageBrief: campaign.message_brief || "", serviceType: campaign.service_type || "", serviceDescription, targetRegion: campaign.target_region || "", ctaText: campaign.cta_text || undefined, ctaLink: campaign.cta_link || undefined },
         campaign.generated_body,
         body.feedback.trim()
       );
       const responseText = (await aiOrchestrator.executeTask("text", prompt.user, "openai", { systemPrompt: prompt.system })) as string;
       const generatedBody = JSON.parse(responseText.replace(/```json\n?|\n?```/g, "").trim());
 
-      await OutreachCampaignsService.updateCampaign(supabase, id, {
+      await OutreachCampaignsService.updateCampaign(id, {
         generated_subject: generatedBody.subject,
         generated_body: generatedBody,
         revision_history: campaign.generated_body
@@ -66,7 +68,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ success: true, generatedBody });
     }
 
-    await OutreachCampaignsService.updateCampaign(supabase, id, {
+    await OutreachCampaignsService.updateCampaign(id, {
       ...(body.approve ? { status: "active" } : {}),
       ...(body.name !== undefined ? { name: body.name } : {}),
       ...(body.listId !== undefined ? { list_id: body.listId } : {}),
@@ -83,8 +85,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const supabase = (await createClient()) as SupabaseClient<Database>;
-    await OutreachCampaignsService.deleteCampaign(supabase, id);
+    await OutreachCampaignsService.deleteCampaign(id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[OUTREACH_CAMPAIGN_DELETE]", error);

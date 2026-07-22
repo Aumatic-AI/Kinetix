@@ -1,10 +1,11 @@
 import { inngest } from "@/services/inngest/client";
 import { createClient } from "@supabase/supabase-js";
 import { UploadPostService } from "@/services/upload-post";
+import { env } from "@/config";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 /**

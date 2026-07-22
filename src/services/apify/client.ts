@@ -42,7 +42,8 @@ export class ApifyService {
       );
 
       if (!response.ok) {
-        throw new Error(`Apify API error: ${response.statusText}`);
+        const body = await response.text();
+        throw new Error(`Apify API error (${response.status}): ${body || response.statusText}`);
       }
 
       const data = await response.json();
@@ -54,7 +55,7 @@ export class ApifyService {
     } catch (error) {
       console.error("Failed to run Apify actor:", error);
       throw new AppError(
-        "Failed to trigger Apify scraper",
+        `Failed to trigger Apify scraper: ${error instanceof Error ? error.message : String(error)}`,
         "APIFY_ERROR",
         500
       );

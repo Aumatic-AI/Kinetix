@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import { env } from '@/config';
 
 export async function GET(request: Request) {
-  const apiKey = process.env.ELEVENLABS_API_KEY;
+  const apiKey = env.ELEVENLABS_API_KEY;
 
   if (!apiKey) {
     return NextResponse.json({ error: "Missing ElevenLabs API Key" }, { status: 500 });

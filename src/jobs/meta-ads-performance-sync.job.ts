@@ -1,10 +1,11 @@
 import { inngest } from "@/services/inngest/client";
-import { MetaAdsInsightsService } from "@/services/meta-ads/insights.service";
+import { MetaAdsInsightsService } from "@/modules/meta-ads/services/insights.service";
 import { createClient } from "@supabase/supabase-js";
+import { env } from "@/config";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 // Daily sync of each business's own Meta ad performance into
@@ -24,8 +25,8 @@ export const metaAdsPerformanceSyncJob = inngest.createFunction(
         // Single-tenant: one Meta System User token + ad account id, set
         // once as env vars — same as the legacy project, no per-business
         // OAuth connection to look up.
-        const accessToken = process.env.META_ACCESS_TOKEN;
-        const adAccountId = process.env.META_AD_ACCOUNT_ID;
+        const accessToken = env.META_ACCESS_TOKEN;
+        const adAccountId = env.META_AD_ACCOUNT_ID;
 
         if (!accessToken || !adAccountId) {
           console.log(`META_ACCESS_TOKEN/META_AD_ACCOUNT_ID not configured — skipping business ${business.id}.`);

@@ -1,7 +1,4 @@
 import { NextResponse } from "next/server";
-import { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
-import { Database } from "@/types/supabase";
 import { LeadListsService } from "@/modules/outreach/services/outreach.service";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -10,8 +7,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { name } = await request.json();
     if (!name?.trim()) return NextResponse.json({ error: "List name is required" }, { status: 400 });
 
-    const supabase = (await createClient()) as SupabaseClient<Database>;
-    await LeadListsService.renameList(supabase, id, name.trim());
+    await LeadListsService.renameList(id, name.trim());
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[OUTREACH_LISTS_RENAME]", error);
@@ -22,8 +18,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const supabase = (await createClient()) as SupabaseClient<Database>;
-    await LeadListsService.deleteList(supabase, id);
+    await LeadListsService.deleteList(id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[OUTREACH_LISTS_DELETE]", error);

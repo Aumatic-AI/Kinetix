@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { env } from '@/config';
 
 export async function GET(request: NextRequest) {
   // Validate that the request is coming from Vercel Cron or an authorized runner
   const authHeader = request.headers.get('authorization');
-  
+
   if (
-    process.env.CRON_SECRET && 
-    authHeader !== `Bearer ${process.env.CRON_SECRET}`
+    env.CRON_SECRET &&
+    authHeader !== `Bearer ${env.CRON_SECRET}`
   ) {
     return NextResponse.json(
       { error: 'Unauthorized. Invalid CRON_SECRET.' },

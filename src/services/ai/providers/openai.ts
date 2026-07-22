@@ -1,8 +1,7 @@
 import OpenAI from 'openai';
+import { env } from '@/config';
 
-// Initialize the OpenAI client
-// It automatically uses process.env.OPENAI_API_KEY
-const openai = new OpenAI();
+const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
 export class OpenAIService {
   /**

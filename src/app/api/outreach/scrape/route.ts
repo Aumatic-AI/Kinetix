@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const businessId = await MetaAdsService.getFirstBusinessId(supabase);
     if (!businessId) return NextResponse.json({ error: "No business configured" }, { status: 400 });
 
-    const job = await ScrapeJobsService.createJob(supabase, {
+    const job = await ScrapeJobsService.createJob({
       business_id: businessId,
       list_id: body.listId,
       niches: body.niches.trim(),

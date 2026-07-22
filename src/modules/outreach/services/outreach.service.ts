@@ -1,9 +1,13 @@
-import { SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
 import { Lead, LeadFilters, PaginationOptions, LeadStatus, ListStatusBreakdown, LEAD_STATUS_BUCKET, LeadList } from "../types/leads.types";
 import { OutreachCampaign } from "../types/outreach.types";
 
+/** Server-context only (API routes) — each method opens its own
+ * request-scoped client via @/lib/supabase/server rather than taking one
+ * as a parameter. */
 export class LeadsService {
-  static async getLeads(supabase: SupabaseClient, businessId: string, filters?: LeadFilters, pagination?: PaginationOptions): Promise<{ leads: Lead[]; count: number }> {
+  static async getLeads(businessId: string, filters?: LeadFilters, pagination?: PaginationOptions): Promise<{ leads: Lead[]; count: number }> {
+    const supabase = await createClient();
     let query = supabase.from("outreach_leads").select("*", { count: "exact" }).eq("business_id", businessId);
 
     if (filters?.listId) query = query.eq("list_id", filters.listId);
@@ -30,13 +34,15 @@ export class LeadsService {
     return { leads: (data as Lead[]) || [], count: count || 0 };
   }
 
-  static async getLeadById(supabase: SupabaseClient, id: string): Promise<Lead | null> {
+  static async getLeadById(id: string): Promise<Lead | null> {
+    const supabase = await createClient();
     const { data, error } = await supabase.from("outreach_leads").select("*").eq("id", id).single();
     if (error && error.code !== "PGRST116") throw new Error(`Error fetching lead: ${error.message}`);
     return (data as Lead) || null;
   }
 
-  static async createLead(supabase: SupabaseClient, row: Partial<Lead>): Promise<Lead> {
+  static async createLead(row: Partial<Lead> & { business_id: string; email: string }): Promise<Lead> {
+    const supabase = await createClient();
     const { data, error } = await supabase.from("outreach_leads").insert(row).select("*").single();
     if (error) {
       if (error.code === "23505") throw new Error("A lead with this email already exists.");
@@ -47,7 +53,8 @@ export class LeadsService {
 
   /** Scraping/verification save path — a re-scrape naturally rediscovers
    * people already saved, so this updates them in place instead of erroring. */
-  static async upsertLead(supabase: SupabaseClient, row: Partial<Lead> & { business_id: string; email: string }): Promise<Lead> {
+  static async upsertLead(row: Partial<Lead> & { business_id: string; email: string }): Promise<Lead> {
+    const supabase = await createClient();
     const { data, error } = await supabase
       .from("outreach_leads")
       .upsert(row, { onConflict: "business_id,email", ignoreDuplicates: false })
@@ -57,22 +64,26 @@ export class LeadsService {
     return data as Lead;
   }
 
-  static async updateLead(supabase: SupabaseClient, id: string, row: Partial<Lead>): Promise<void> {
+  static async updateLead(id: string, row: Partial<Lead>): Promise<void> {
+    const supabase = await createClient();
     const { error } = await supabase.from("outreach_leads").update(row).eq("id", id);
     if (error) throw new Error(`Error updating lead: ${error.message}`);
   }
 
-  static async updateStatusByEmail(supabase: SupabaseClient, businessId: string, email: string, status: LeadStatus): Promise<void> {
+  static async updateStatusByEmail(businessId: string, email: string, status: LeadStatus): Promise<void> {
+    const supabase = await createClient();
     const { error } = await supabase.from("outreach_leads").update({ status }).eq("business_id", businessId).eq("email", email);
     if (error) throw new Error(`Error updating lead status: ${error.message}`);
   }
 
-  static async deleteLead(supabase: SupabaseClient, id: string): Promise<void> {
+  static async deleteLead(id: string): Promise<void> {
+    const supabase = await createClient();
     const { error } = await supabase.from("outreach_leads").delete().eq("id", id);
     if (error) throw new Error(`Error deleting lead: ${error.message}`);
   }
 
-  static async getListStatusBreakdown(supabase: SupabaseClient, businessId: string): Promise<Record<string, ListStatusBreakdown>> {
+  static async getListStatusBreakdown(businessId: string): Promise<Record<string, ListStatusBreakdown>> {
+    const supabase = await createClient();
     const { data, error } = await supabase.from("outreach_leads").select("list_id, status").eq("business_id", businessId);
     if (error) throw new Error(`Error computing list breakdown: ${error.message}`);
     const breakdown: Record<string, ListStatusBreakdown> = {};
@@ -87,7 +98,8 @@ export class LeadsService {
 }
 
 export class LeadListsService {
-  static async getLists(supabase: SupabaseClient, businessId: string): Promise<LeadList[]> {
+  static async getLists(businessId: string): Promise<LeadList[]> {
+    const supabase = await createClient();
     const { data, error } = await supabase
       .from("outreach_lead_lists")
       .select("*")
@@ -97,7 +109,8 @@ export class LeadListsService {
     return (data as LeadList[]) || [];
   }
 
-  static async createList(supabase: SupabaseClient, businessId: string, name: string): Promise<LeadList> {
+  static async createList(businessId: string, name: string): Promise<LeadList> {
+    const supabase = await createClient();
     const { data, error } = await supabase
       .from("outreach_lead_lists")
       .insert({ business_id: businessId, name })
@@ -107,19 +120,22 @@ export class LeadListsService {
     return data as LeadList;
   }
 
-  static async renameList(supabase: SupabaseClient, id: string, name: string): Promise<void> {
+  static async renameList(id: string, name: string): Promise<void> {
+    const supabase = await createClient();
     const { error } = await supabase.from("outreach_lead_lists").update({ name }).eq("id", id);
     if (error) throw new Error(`Error renaming list: ${error.message}`);
   }
 
-  static async deleteList(supabase: SupabaseClient, id: string): Promise<void> {
+  static async deleteList(id: string): Promise<void> {
+    const supabase = await createClient();
     const { error } = await supabase.from("outreach_lead_lists").delete().eq("id", id);
     if (error) throw new Error(`Error deleting list: ${error.message}`);
   }
 }
 
 export class OutreachCampaignsService {
-  static async getCampaigns(supabase: SupabaseClient, businessId: string): Promise<OutreachCampaign[]> {
+  static async getCampaigns(businessId: string): Promise<OutreachCampaign[]> {
+    const supabase = await createClient();
     const { data, error } = await supabase
       .from("outreach_campaigns")
       .select("*")
@@ -129,30 +145,35 @@ export class OutreachCampaignsService {
     return (data as unknown as OutreachCampaign[]) || [];
   }
 
-  static async getCampaignById(supabase: SupabaseClient, id: string): Promise<OutreachCampaign | null> {
+  static async getCampaignById(id: string): Promise<OutreachCampaign | null> {
+    const supabase = await createClient();
     const { data, error } = await supabase.from("outreach_campaigns").select("*").eq("id", id).single();
     if (error && error.code !== "PGRST116") throw new Error(`Error fetching outreach campaign: ${error.message}`);
     return (data as unknown as OutreachCampaign) || null;
   }
 
-  static async createCampaign(supabase: SupabaseClient, row: Partial<OutreachCampaign>): Promise<OutreachCampaign> {
-    const { data, error } = await supabase.from("outreach_campaigns").insert(row).select("*").single();
+  static async createCampaign(row: Partial<OutreachCampaign> & { business_id: string; list_id: string; name: string }): Promise<OutreachCampaign> {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from("outreach_campaigns").insert(row as any).select("*").single();
     if (error) throw new Error(`Error creating outreach campaign: ${error.message}`);
     return data as unknown as OutreachCampaign;
   }
 
-  static async updateCampaign(supabase: SupabaseClient, id: string, row: Partial<OutreachCampaign>): Promise<void> {
-    const { error } = await supabase.from("outreach_campaigns").update(row).eq("id", id);
+  static async updateCampaign(id: string, row: Partial<OutreachCampaign>): Promise<void> {
+    const supabase = await createClient();
+    const { error } = await supabase.from("outreach_campaigns").update(row as any).eq("id", id);
     if (error) throw new Error(`Error updating outreach campaign: ${error.message}`);
   }
 
-  static async deleteCampaign(supabase: SupabaseClient, id: string): Promise<void> {
+  static async deleteCampaign(id: string): Promise<void> {
+    const supabase = await createClient();
     const { error } = await supabase.from("outreach_campaigns").delete().eq("id", id);
     if (error) throw new Error(`Error deleting outreach campaign: ${error.message}`);
   }
 
-  static async recordRecipients(supabase: SupabaseClient, campaignId: string, leadIds: string[], status: "queued" | "sent" | "failed"): Promise<void> {
+  static async recordRecipients(campaignId: string, leadIds: string[], status: "queued" | "sent" | "failed"): Promise<void> {
     if (leadIds.length === 0) return;
+    const supabase = await createClient();
     const rows = leadIds.map((leadId) => ({ outreach_campaign_id: campaignId, lead_id: leadId, status, sent_at: status === "sent" ? new Date().toISOString() : null }));
     const { error } = await supabase.from("outreach_campaign_leads").upsert(rows, { onConflict: "outreach_campaign_id,lead_id" });
     if (error) throw new Error(`Error recording campaign recipients: ${error.message}`);

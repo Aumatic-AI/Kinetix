@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { User, LogOut, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { authService } from "@/services/auth/auth.service";
+import { authService } from "@/modules/auth/services/auth.service";
 
 import {
   DropdownMenu,

@@ -54,16 +54,24 @@ function scriptBodyText(s: ReadyScript): string {
 
 const SERVICE_KEYWORDS: [string, string][] = [
   ["hair", "Hair Transplant"],
-  ["dental", "Dental Implants"],
-  ["smile", "Dental Implants"],
-  ["teeth", "Dental Implants"],
-  ["nose", "Rhinoplasty"],
-  ["rhinoplasty", "Rhinoplasty"],
+  ["dental", "Dental Treatment"],
+  ["smile", "Dental Treatment"],
+  ["teeth", "Dental Treatment"],
+  ["nose", "Cosmetic Surgery"],
+  ["rhinoplasty", "Cosmetic Surgery"],
+  ["cosmetic", "Cosmetic Surgery"],
+  ["eye", "Eye Treatment"],
+  ["vision", "Eye Treatment"],
+  ["ivf", "IVF Fertility"],
+  ["fertility", "IVF Fertility"],
+  ["thermal", "Thermal Wellness"],
+  ["wellness", "Thermal Wellness"],
 ];
 
-/** Best-effort mapping from a script's topic to one of the fixed service
- * options — keeps the auto-filled Create Ad modal's required Service field
- * populated instead of leaving it for the user to pick manually. */
+/** Best-effort mapping from a script's topic to one of the business's
+ * configured service names (see businesses.services) — keeps the auto-filled
+ * Create Ad modal's required Service field populated instead of leaving it
+ * for the user to pick manually. */
 function guessService(topic: string): string | undefined {
   const t = topic.toLowerCase();
   return SERVICE_KEYWORDS.find(([kw]) => t.includes(kw))?.[1];

@@ -1,10 +1,11 @@
 // ElevenLabs TTS and Voice Cloning API
+import { env } from "@/config";
 
 export class ElevenLabsService {
   private static API_BASE = "https://api.elevenlabs.io/v1";
 
   private static getHeaders() {
-    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const apiKey = env.ELEVENLABS_API_KEY;
     if (!apiKey) throw new Error("ELEVENLABS_API_KEY is missing");
 
     return {

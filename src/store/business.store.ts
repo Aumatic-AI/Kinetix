@@ -1,5 +1,20 @@
 import { create } from 'zustand';
 
+export interface BusinessService {
+  name: string;
+  /** Optional — lets AI-facing features (e.g. Outreach draft generation)
+   * know what this service actually means for this business, not just its
+   * bare name. Nothing requires filling it in. */
+  description?: string | null;
+}
+
+export interface OutreachSettings {
+  daily_limit: number;
+  timezone: string;
+  days: number[];
+  send_window: { from: string; to: string };
+}
+
 // Basic business info only — see src/app/api/business/route.ts for why
 // the deeper AI/competitor-analysis config isn't part of this.
 export interface BusinessInfo {
@@ -8,6 +23,8 @@ export interface BusinessInfo {
   website_url: string | null;
   logo_asset_id: string | null;
   industry: string | null;
+  services: BusinessService[];
+  outreach_settings: OutreachSettings;
 }
 
 interface BusinessState {

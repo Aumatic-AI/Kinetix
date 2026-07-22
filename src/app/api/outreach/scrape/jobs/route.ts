@@ -10,7 +10,7 @@ export async function GET() {
     const supabase = (await createClient()) as SupabaseClient<Database>;
     const businessId = await MetaAdsService.getFirstBusinessId(supabase);
     if (!businessId) return NextResponse.json({ jobs: [] });
-    const jobs = await ScrapeJobsService.getJobs(supabase, businessId);
+    const jobs = await ScrapeJobsService.getJobs(businessId);
     return NextResponse.json({ jobs });
   } catch (error: any) {
     console.error("[OUTREACH_SCRAPE_JOBS_LIST]", error);

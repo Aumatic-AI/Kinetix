@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
-import { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
-import { Database } from "@/types/supabase";
 import { LeadsService } from "@/modules/outreach/services/outreach.service";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const body = await request.json();
-    const supabase = (await createClient()) as SupabaseClient<Database>;
 
-    await LeadsService.updateLead(supabase, id, {
+    await LeadsService.updateLead(id, {
       ...(body.firstName !== undefined ? { first_name: body.firstName } : {}),
       ...(body.lastName !== undefined ? { last_name: body.lastName } : {}),
       ...(body.phone !== undefined ? { phone: body.phone } : {}),
@@ -29,8 +25,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
-    const supabase = (await createClient()) as SupabaseClient<Database>;
-    await LeadsService.deleteLead(supabase, id);
+    await LeadsService.deleteLead(id);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error("[OUTREACH_LEADS_DELETE]", error);

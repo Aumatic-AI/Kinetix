@@ -14,8 +14,8 @@ export async function GET() {
     if (!businessId) return NextResponse.json({ lists: [] });
 
     const [lists, breakdown] = await Promise.all([
-      LeadListsService.getLists(supabase, businessId),
-      LeadsService.getListStatusBreakdown(supabase, businessId),
+      LeadListsService.getLists(businessId),
+      LeadsService.getListStatusBreakdown(businessId),
     ]);
 
     return NextResponse.json({
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     const businessId = await MetaAdsService.getFirstBusinessId(supabase);
     if (!businessId) return NextResponse.json({ error: "No business configured" }, { status: 400 });
 
-    const list = await LeadListsService.createList(supabase, businessId, name.trim());
+    const list = await LeadListsService.createList(businessId, name.trim());
     return NextResponse.json({ success: true, list });
   } catch (error: any) {
     console.error("[OUTREACH_LISTS_CREATE]", error);

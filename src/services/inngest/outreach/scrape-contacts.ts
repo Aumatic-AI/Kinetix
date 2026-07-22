@@ -3,17 +3,50 @@ import { createClient } from "@supabase/supabase-js";
 import { ApifyService } from "@/services/apify";
 import { MillionVerifierService } from "@/services/millionverifier";
 import { broadcastJobProgress } from "./broadcast-progress";
+import { env } from "@/config";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  env.NEXT_PUBLIC_SUPABASE_URL,
+  env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 // Ported from the legacy Outreach n8n workflow — a job-title + city/country
-// business-contact finder. Confirm this actor id and its input fields
-// against Apify's current listing before relying on it in production.
+// business-contact finder.
 const LEADS_FINDER_ACTOR = "code_crafter~leads-finder";
 const MAX_POLL_ATTEMPTS = 20; // 20 x 15s = 5 minutes, replacing the legacy loop's uncapped retry
+
+// A few countries the legacy workflow normalized from common abbreviations
+// before handing them to the actor — ported verbatim ("pakistan" etc. pass through as-is).
+const COUNTRY_ABBREVIATIONS: Record<string, string> = {
+  uae: "united arab emirates",
+  uk: "united kingdom",
+  usa: "united states",
+  us: "united states",
+  ksa: "saudi arabia",
+};
+
+/** Builds the leads-finder actor's exact expected input shape — every
+ * field here is an array (even city/location, which only ever hold one
+ * value), and job titles are split from the comma-separated free-text
+ * field the same way the legacy workflow did. Sending a plain string for
+ * contact_job_title/contact_location, or omitting contact_city/email_status
+ * entirely, fails the actor's input-schema validation with a 400. */
+function buildApifyInput(niches: string, location: string, maxResults: number) {
+  const jobTitles = niches.split(",").map((n) => n.trim()).filter(Boolean);
+
+  const locationParts = location.split(",").map((s) => s.trim().toLowerCase());
+  const city = locationParts[0] || "";
+  const rawCountry = locationParts[1] || "";
+  const country = COUNTRY_ABBREVIATIONS[rawCountry] || rawCountry;
+
+  return {
+    contact_job_title: jobTitles,
+    contact_city: [city],
+    contact_location: [country],
+    fetch_count: maxResults,
+    email_status: ["validated", "unknown"],
+  };
+}
 
 export const scrapeOutreachContacts = inngest.createFunction(
   { id: "outreach-scrape-contacts", triggers: [{ event: "outreach/scrape-contacts" }] },
@@ -33,11 +66,7 @@ export const scrapeOutreachContacts = inngest.createFunction(
 
     try {
       const { runId, datasetId: initialDatasetId } = await step.run("start-apify", async () => {
-        const result = await ApifyService.runActor(LEADS_FINDER_ACTOR, {
-          contact_job_title: job.niches,
-          contact_location: job.location,
-          fetch_count: job.max_results,
-        });
+        const result = await ApifyService.runActor(LEADS_FINDER_ACTOR, buildApifyInput(job.niches, job.location, job.max_results));
         return { runId: result.runId, datasetId: result.datasetId };
       });
       await broadcastJobProgress(jobId, 15, "processing");

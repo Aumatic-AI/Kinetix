@@ -1,10 +1,12 @@
+import { env } from "@/config";
+
 export class KieService {
   /**
    * Pings the API once for task status (Useful for Inngest step.sleep polling)
    */
   static async checkSingleTaskStatus(jobId: string): Promise<any> {
     const res = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${jobId}`, {
-      headers: { Authorization: `Bearer ${process.env.KIE_API_KEY}` }
+      headers: { Authorization: `Bearer ${env.KIE_API_KEY}` }
     });
     
     const response = await res.json();
@@ -54,7 +56,7 @@ export class KieService {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.KIE_API_KEY}`,
+        Authorization: `Bearer ${env.KIE_API_KEY}`,
       },
       body: JSON.stringify({
         model: "google/nano-banana",
@@ -81,7 +83,7 @@ export class KieService {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.KIE_API_KEY}`,
+        Authorization: `Bearer ${env.KIE_API_KEY}`,
       },
       body: JSON.stringify({
         model: "bytedance/seedance-1.5-pro",
