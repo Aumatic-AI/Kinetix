@@ -1,22 +1,21 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Search, Plus, MoreVertical, Pencil, Trash2, Eye } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, Eye, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Avatar } from "@/components/ui/Avatar";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { useLeadLists, useDeleteLeadList, LeadListWithCount } from "@/modules/outreach/hooks/useLeads";
-import { ListCompositionBar } from "../components/leads/ListCompositionBar";
 import { ListModal } from "../components/leads/ListModal";
 import { ScrapeProgressBanner } from "../components/leads/ScrapeProgressBanner";
 import { LeadsDrawer } from "../components/leads/LeadsDrawer";
-import { ROUTES } from "@/config/routes";
+import { FindLeadsModal } from "../components/leads/FindLeadsModal";
 
 export function LeadsPage() {
-  const router = useRouter();
   const [selected, setSelected] = useState<LeadListWithCount | null>(null);
   const [editingList, setEditingList] = useState<LeadListWithCount | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalKey, setModalKey] = useState(0);
+  const [findLeadsOpen, setFindLeadsOpen] = useState(false);
 
   const { data: lists = [], isLoading } = useLeadLists();
   const deleteList = useDeleteLeadList();
@@ -42,7 +41,7 @@ export function LeadsPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={openCreateModal} icon={<Plus className="w-4 h-4" />}>New List</Button>
-          <Button onClick={() => router.push(ROUTES.OUTREACH.FIND_LEADS)} icon={<Search className="w-4 h-4" />}>Find Leads</Button>
+          <Button onClick={() => setFindLeadsOpen(true)} icon={<Search className="w-4 h-4" />}>Find Leads</Button>
         </div>
       </div>
 
@@ -57,46 +56,45 @@ export function LeadsPage() {
         </div>
       ) : (
         <div className="border border-default rounded-lg overflow-hidden">
-          <div className="grid grid-cols-[1fr_100px_160px_80px_44px] gap-4 px-4 py-2.5 bg-surface/60 border-b border-default text-[11px] font-bold text-muted uppercase tracking-wide">
-            <span>List</span>
-            <span className="text-right">Leads</span>
-            <span>Progress</span>
-            <span />
-            <span />
-          </div>
-          <div className="divide-y divide-border">
-            {lists.map((l) => (
-              <div
-                key={l.id}
-                className="grid grid-cols-[1fr_100px_160px_80px_44px] gap-4 items-center px-4 py-3 hover:bg-surface/40 transition-colors"
-              >
-                <span className="font-semibold text-text truncate">{l.name}</span>
-                <span className="text-muted tabular-nums text-right">{l.leadCount}</span>
-                <ListCompositionBar breakdown={l.statusBreakdown} />
-                <Button size="sm" variant="outline" onClick={() => setSelected(l)} icon={<Eye className="w-3.5 h-3.5" />}>View</Button>
-                <div className="flex justify-end">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className="p-1.5 rounded-md text-muted hover:bg-surface hover:text-text">
-                      <MoreVertical className="w-4 h-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => openEditModal(l)}>
-                        <Pencil className="w-3.5 h-3.5" /> Edit
-                      </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive" onClick={() => deleteList.mutate(l.id)}>
-                        <Trash2 className="w-3.5 h-3.5" /> Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-            ))}
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>List</TableHead>
+                <TableHead className="text-right">Leads</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {lists.map((l) => (
+                <TableRow key={l.id}>
+                  <TableCell className="font-semibold text-text">
+                    <div className="flex items-center gap-3">
+                      <Avatar icon={Users} />
+                      <span>{l.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-muted">{l.leadCount}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 justify-end">
+                      <Button size="sm" variant="outline" onClick={() => setSelected(l)} icon={<Eye className="w-3.5 h-3.5" />}>View</Button>
+                      <button onClick={() => openEditModal(l)} className="text-muted hover:text-text" title="Edit">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => deleteList.mutate(l.id)} className="text-muted hover:text-danger" title="Delete">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
 
       <LeadsDrawer list={selected} onClose={() => setSelected(null)} />
       <ListModal key={modalKey} list={editingList} open={modalOpen} onClose={() => setModalOpen(false)} />
+      <FindLeadsModal open={findLeadsOpen} onClose={() => setFindLeadsOpen(false)} />
     </div>
   );
 }

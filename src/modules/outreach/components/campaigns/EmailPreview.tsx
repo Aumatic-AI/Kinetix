@@ -2,6 +2,8 @@
 import { useMemo, type ReactNode } from "react";
 import { buildOutreachEmailHtml } from "../../utils/email-html";
 
+const PREVIEW_HEIGHT = 520;
+
 export function EmailPreview({
   subject,
   body,
@@ -31,7 +33,7 @@ export function EmailPreview({
         title="Email preview"
         sandbox=""
         className="w-full block"
-        style={{ height: 420, border: "none" }}
+        style={{ height: PREVIEW_HEIGHT, border: "none" }}
       />
     </div>
   );

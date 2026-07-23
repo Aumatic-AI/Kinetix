@@ -26,7 +26,8 @@ export function useScrapeJobs() {
 export function useStartScrape() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: StartScrapeInput) => fetchJson("/api/outreach/scrape", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }),
+    mutationFn: (input: StartScrapeInput) =>
+      fetchJson<{ success: true; job: ScrapeJob }>("/api/outreach/scrape", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: scrapeJobsKeys.all }),
   });
 }

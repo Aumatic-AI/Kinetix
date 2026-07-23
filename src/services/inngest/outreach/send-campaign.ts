@@ -26,16 +26,32 @@ export const sendOutreachCampaign = inngest.createFunction(
     if (!campaign?.generated_subject || !campaign?.generated_body?.body) throw new Error("Campaign has no content to send");
 
     const recipients = await step.run("fetch-recipients", async () => {
-      const { data } = await supabase
+      // Global suppression only — matches the New Campaign form's live
+      // eligibility count. "contacted" is deliberately NOT global: being
+      // sent an email under one campaign must never block a different
+      // campaign from reaching the same lead (see
+      // docs/superpowers/specs/2026-07-20-outreach-leads-overhaul-design.md
+      // §2). Per-campaign dedup (below) is what stops a retry of THIS
+      // campaign from re-sending to the same batch.
+      const { data: alreadyInThisCampaign } = await supabase
+        .from("outreach_campaign_leads")
+        .select("lead_id")
+        .eq("outreach_campaign_id", campaignId);
+      const excludeIds = (alreadyInThisCampaign || []).map((r) => r.lead_id);
+
+      let query = supabase
         .from("outreach_leads")
         .select("id, email, first_name, last_name, company")
         .eq("business_id", campaign.business_id)
         .eq("list_id", listId || campaign.list_id)
-        // Same suppression list the New Campaign form's live eligibility
-        // count uses — also excludes already-contacted leads so re-clicking
-        // Send doesn't repeatedly re-target the same batch.
-        .not("status", "in", "(bounced,do_not_contact,replied,contacted)")
+        .not("status", "in", "(bounced,do_not_contact,replied)")
         .limit(campaign.daily_limit);
+
+      if (excludeIds.length > 0) {
+        query = query.not("id", "in", `(${excludeIds.join(",")})`);
+      }
+
+      const { data } = await query;
       return data || [];
     });
 
@@ -50,16 +66,20 @@ export const sendOutreachCampaign = inngest.createFunction(
       const { data: business } = await supabase.from("businesses").select("outreach_settings").eq("id", campaign.business_id).single();
       const settings = business?.outreach_settings;
 
+      const accounts = await InstantlyService.getAccounts();
+      const emailList = accounts.filter((a) => a.status === 1).map((a) => a.email);
+
       const html = buildOutreachEmailHtml(campaign.generated_body.body, campaign.cta_text, campaign.cta_link);
       const created = await InstantlyService.createCampaign(
         campaign.name,
         { subject: campaign.generated_subject, html },
         {
           dailyLimit: campaign.daily_limit,
+          emailList,
           schedule: {
             timezone: settings?.timezone || "America/Detroit",
             days: settings?.days || [0, 1, 2, 3, 4, 5, 6],
-            sendWindow: settings?.send_window || { from: "09:00", to: "18:00" },
+            sendWindow: settings?.send_window || { from: "00:00", to: "23:59" },
           },
         }
       );

@@ -15,6 +15,7 @@ graph TD
     Jobs -- "Read/Write" --> Supabase
     Jobs -- "HTTP APIs" --> AI["OpenAI / Kie AI / ElevenLabs / AssemblyAI / Apify"]
     Jobs -- "Publish" --> Meta["Meta Graph API / Social Platforms"]
+    Jobs -- "Send" --> Instantly["Instantly.ai (Outreach email delivery)"]
 ```
 
 ## 2. Component Responsibilities
@@ -48,10 +49,12 @@ graph TD
 | Weekly self-ad performance analysis | cron `0 2 * * 0` | — |
 | Meta ad creative generation (image) | event | `meta-ads/generate-image` |
 | Meta ad creative generation (video) | event | `meta-ads/generate-video` |
+| Outreach campaign send | event (triggered from the Campaigns list, not a cron) | `outreach/send-campaign` |
+| Outreach lead scraping | event (triggered from Find Leads) | `outreach/scrape-contacts` |
 | Social post generation *(not yet built — proposed name)* | event | `social/post.generate` |
 | Meta lead webhook *(not yet built — proposed name)* | event | `meta-ads/lead.received` |
 
-Note there's no separate "weekly competitor analysis" row anymore — the scraper worker does both the scrape and the analysis in one job (see `ai_pipelines/intelligence_engine.md`), since nothing is persisted in between for a separate job to read.
+Note there's no separate "weekly competitor analysis" row anymore — the scraper worker does both the scrape and the analysis in one job, since nothing is persisted in between for a separate job to read.
 
   Every event payload carries `business_id` explicitly. Inngest functions run with the Supabase service-role key, which bypasses RLS entirely — scoping for background writes comes from the payload, never inferred from a session (there is no user session inside a background worker).
 

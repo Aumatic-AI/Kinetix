@@ -9,7 +9,7 @@ The legacy project's code quality is poor, but its actual behavior — the featu
 1. **Read the real legacy implementation in full** before writing anything new — every relevant route/component under `projects/`, not a summary of it. Don't guess at what a legacy route does from its filename.
 2. **Port the proven logic verbatim**: business rules, API call sequences, prompt content, validation order, edge-case handling. Don't invent a "better" approach to something that already works, even if the legacy code style is bad.
 3. **Rewrite only the implementation quality**, not the behavior:
-   - Replace copy-pasted fetch/error-handling boilerplate with the shared helper for that domain (e.g. `src/services/meta-ads/graph-client.ts`).
+   - Replace copy-pasted fetch/error-handling boilerplate with the shared helper for that domain (e.g. `src/services/meta/graph-client.ts`).
    - Replace N+1 sequential API calls with a single nested/field-expansion query where the legacy code already proved that pattern works elsewhere in the same project.
    - Fit the new `businesses`/`business_users` schema and existing service-class/hook conventions instead of the legacy project's ad-hoc table names.
    - Remove hardcoded business-specific values (URLs, names) in favor of reading them from the `businesses` row.

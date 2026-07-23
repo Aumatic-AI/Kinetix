@@ -32,6 +32,24 @@ export interface InstantlySchedule {
   sendWindow: { from: string; to: string };
 }
 
+export interface InstantlyAccount {
+  email: string;
+  /** 1 = active/connected. Anything else is excluded from email_list. */
+  status: number;
+}
+
+export interface InstantlyCampaignAnalytics {
+  campaign_id: string;
+  campaign_name: string;
+  campaign_status: number;
+  emails_sent_count: number;
+  open_count_unique: number;
+  reply_count_unique: number;
+  link_click_count_unique: number;
+  bounced_count: number;
+  unsubscribed_count: number;
+}
+
 /**
  * Instantly.ai (cold-outreach ESP) — addLeads/analytics/deleteLeads are
  * ported from the legacy Outreach n8n workflows, which called them
@@ -47,13 +65,17 @@ export interface InstantlySchedule {
  * (included in the thrown error) and adjust this shape first.
  */
 export class InstantlyService {
-  static async createCampaign(name: string, content: InstantlySequenceContent, options: { dailyLimit?: number; schedule: InstantlySchedule }): Promise<{ id: string }> {
+  static async createCampaign(name: string, content: InstantlySequenceContent, options: { dailyLimit?: number; schedule: InstantlySchedule; emailList: string[] }): Promise<{ id: string }> {
+    if (options.emailList.length === 0) {
+      throw new Error("No healthy Instantly sending account is connected — connect one in Instantly before sending.");
+    }
     const days = Object.fromEntries([0, 1, 2, 3, 4, 5, 6].map((d) => [String(d), options.schedule.days.includes(d)]));
     const res = await fetch(`${API_BASE}/campaigns`, {
       method: "POST",
       headers: getHeaders(),
       body: JSON.stringify({
         name,
+        email_list: options.emailList,
         daily_limit: options?.dailyLimit,
         campaign_schedule: {
           schedules: [
@@ -110,6 +132,21 @@ export class InstantlyService {
     }
   }
 
+  /** Symmetric to activateCampaign — POST /campaigns/{id}/pause, same
+   * required-empty-JSON-body quirk. Stops the campaign from sending any
+   * further emails; reversible via activateCampaign. */
+  static async pauseCampaign(campaignId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/campaigns/${campaignId}/pause`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Instantly error pausing campaign (${res.status}): ${body || res.statusText}`);
+    }
+  }
+
   static async addLeads(campaignId: string, leads: InstantlyLead[]): Promise<void> {
     for (const lead of leads) {
       const res = await fetch(`${API_BASE}/leads`, {
@@ -127,12 +164,18 @@ export class InstantlyService {
     }
   }
 
-  static async getCampaignAnalytics(campaignId?: string): Promise<any> {
-    const url = new URL(`${API_BASE}/campaigns/analytics`);
-    if (campaignId) url.searchParams.set("campaign_id", campaignId);
-    const res = await fetch(url.toString(), { headers: getHeaders() });
-    if (!res.ok) throw new Error(`Instantly analytics error: ${res.statusText}`);
-    return res.json();
+  /** GET /campaigns/analytics returns EVERY campaign in the workspace,
+   * unscoped — confirmed live, a campaign_id query param has no filtering
+   * effect. Callers must filter the returned array down to their own
+   * campaigns themselves (see the /api/outreach/analytics route). */
+  static async getCampaignsAnalytics(): Promise<InstantlyCampaignAnalytics[]> {
+    const res = await fetch(`${API_BASE}/campaigns/analytics`, { headers: getHeaders() });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Instantly error fetching analytics (${res.status}): ${body || res.statusText}`);
+    }
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
   }
 
   static async deleteLeads(campaignId: string, emails: string[]): Promise<void> {
@@ -142,5 +185,19 @@ export class InstantlyService {
       body: JSON.stringify({ campaign_id: campaignId, emails }),
     });
     if (!res.ok) throw new Error(`Instantly error deleting leads: ${res.statusText}`);
+  }
+
+  /** The workspace's connected sending mailboxes — confirmed live via
+   * GET /accounts: this account currently has exactly one, medical@togahh.com.
+   * A campaign created with no email_list has no way to send at all and gets
+   * auto-paused by Instantly shortly after activation (confirmed live). */
+  static async getAccounts(): Promise<InstantlyAccount[]> {
+    const res = await fetch(`${API_BASE}/accounts?limit=100`, { headers: getHeaders() });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Instantly error listing accounts (${res.status}): ${body || res.statusText}`);
+    }
+    const data = await res.json();
+    return data.items || [];
   }
 }

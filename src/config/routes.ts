@@ -20,9 +20,9 @@ export const ROUTES = {
   OUTREACH: {
     DASHBOARD: "/outreach",
     LEADS: "/outreach/leads",
-    FIND_LEADS: "/outreach/leads/find",
     CAMPAIGNS: "/outreach/campaigns",
     CAMPAIGN_NEW: "/outreach/campaigns/new",
+    CAMPAIGN_DETAIL: (id: string) => `/outreach/campaigns/${id}`,
   },
   VOICE: {
     OVERVIEW: "/voice",

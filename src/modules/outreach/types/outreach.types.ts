@@ -1,3 +1,5 @@
+import { CampaignStatusInfo } from "../utils/campaign-status";
+
 export type OutreachCampaignStatus = "draft" | "active" | "paused" | "completed" | "archived";
 export type ScrapeJobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
 
@@ -61,4 +63,43 @@ export interface StartScrapeInput {
   location: string;
   maxResults: number;
   listId: string;
+}
+
+export interface OutreachCampaignStatusEntry extends CampaignStatusInfo {
+  sent: number;
+  opened: number;
+  openRate: number;
+  replied: number;
+  replyRate: number;
+  clicked: number;
+  clickRate: number;
+  bounced: number;
+  bounceRate: number;
+  unsubscribed: number;
+}
+
+export interface OutreachAnalyticsTotals {
+  sent: number;
+  opened: number;
+  replied: number;
+  bounced: number;
+}
+
+export interface OutreachAnalyticsResponse {
+  totalLeads: number;
+  totalCampaignsSent: number;
+  totals: OutreachAnalyticsTotals;
+  /** Keyed by our own outreach_campaigns.id — every campaign gets an entry,
+   * not just ones that have reached Instantly (see resolveCampaignStatus). */
+  byCampaignId: Record<string, OutreachCampaignStatusEntry>;
+}
+
+/** Shown in the Send confirmation before a "ready" campaign is actually
+ * sent — fetched on demand (only while that confirmation is open), not on
+ * page load. eligibleLeads mirrors the exact suppression rule send-campaign.ts
+ * uses, so the preview never overpromises vs. what will really happen. */
+export interface OutreachCampaignSendPreview {
+  listName: string;
+  eligibleLeads: number;
+  dailyLimit: number;
 }

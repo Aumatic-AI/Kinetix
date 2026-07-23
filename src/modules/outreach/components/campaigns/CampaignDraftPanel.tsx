@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { RotateCcw, Check, Send, Pencil, Loader2 } from "lucide-react";
+import { RotateCcw, Check, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,30 +9,24 @@ import {
   useRegenerateOutreachCampaign,
   useEditOutreachCampaignContent,
   useApproveOutreachCampaign,
-  useSendOutreachCampaign,
 } from "../../hooks/useOutreachCampaigns";
-import { OutreachCampaign } from "../../types/outreach.types";
+import { OutreachCampaign, OutreachCampaignStatusEntry } from "../../types/outreach.types";
 
-/** Shared draft/review UI for a single campaign — used both by the
- * create-a-campaign flow (right after generating) and by reopening an
- * existing draft/campaign from the Campaigns list. */
-export function CampaignDraftPanel({ campaign, onSendStarted }: { campaign: OutreachCampaign; onSendStarted?: () => void }) {
+/** The right-hand column of the campaign detail page — the email itself,
+ * plus whatever action it currently needs (edit/regenerate/approve while a
+ * draft, a pointer to the Send button on the list once ready). Status
+ * badge, campaign meta, and performance stats live in the page's left
+ * column instead (see CampaignDetailPage) — this panel only ever branches
+ * on the unified status entry passed down, never campaign.status directly. */
+export function CampaignDraftPanel({ campaign, entry }: { campaign: OutreachCampaign; entry?: OutreachCampaignStatusEntry }) {
   const [editing, setEditing] = useState(false);
   const [editSubject, setEditSubject] = useState("");
   const [editBody, setEditBody] = useState("");
   const [feedback, setFeedback] = useState("");
-  const [sendClicked, setSendClicked] = useState(false);
 
   const regenerate = useRegenerateOutreachCampaign();
   const saveEdit = useEditOutreachCampaignContent();
   const approve = useApproveOutreachCampaign();
-  const sendCampaign = useSendOutreachCampaign();
-
-  const handleSend = () => {
-    setSendClicked(true);
-    onSendStarted?.();
-    sendCampaign.mutate({ id: campaign.id });
-  };
 
   const handleRegenerate = async () => {
     if (!feedback.trim()) return;
@@ -53,7 +47,7 @@ export function CampaignDraftPanel({ campaign, onSendStarted }: { campaign: Outr
   };
 
   return (
-    <div className="bg-background border border-primary/30 rounded-xl p-5 space-y-4">
+    <div className="space-y-4">
       {editing ? (
         <div className="space-y-2">
           <label className="text-xs font-bold text-muted uppercase tracking-wide">Subject</label>
@@ -73,7 +67,7 @@ export function CampaignDraftPanel({ campaign, onSendStarted }: { campaign: Outr
             ctaText={campaign.cta_text}
             ctaLink={campaign.cta_link}
             headerAction={
-              campaign.status === "draft" && (
+              entry?.value === "draft" && (
                 <Button size="sm" variant="outline" onClick={startEditing} icon={<Pencil className="w-3.5 h-3.5" />}>Edit</Button>
               )
             }
@@ -81,8 +75,8 @@ export function CampaignDraftPanel({ campaign, onSendStarted }: { campaign: Outr
         )
       )}
 
-      {campaign.status === "draft" && !editing && (
-        <div className="space-y-4">
+      {entry?.value === "draft" && !editing && (
+        <div className="space-y-3">
           <Textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} rows={2} placeholder="Ask the AI for changes (optional)" />
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={handleRegenerate} loading={regenerate.isPending} disabled={!feedback.trim()} icon={<RotateCcw className="w-3.5 h-3.5" />}>Regenerate</Button>
@@ -91,19 +85,13 @@ export function CampaignDraftPanel({ campaign, onSendStarted }: { campaign: Outr
         </div>
       )}
 
-      {campaign.status === "active" && !campaign.external_campaign_id && (
-        sendClicked ? (
-          <div className="flex items-center gap-2 text-sm font-medium text-muted">
-            <Loader2 className="w-4 h-4 animate-spin" /> Sending — this can take a minute, the page will update automatically.
-          </div>
-        ) : (
-          <Button onClick={handleSend} loading={sendCampaign.isPending} icon={<Send className="w-4 h-4" />}>Start Sending</Button>
-        )
+      {entry?.value === "ready" && (
+        <p className="text-sm text-muted">Approved — use the Send button on the Campaigns list to send it.</p>
       )}
-      {campaign.status === "completed" && !campaign.external_campaign_id && (
+
+      {entry?.value === "no_recipients" && (
         <p className="text-sm text-muted">No eligible leads were found to send to — everyone in this list is suppressed, already contacted, or the list is empty.</p>
       )}
-      {campaign.external_campaign_id && <p className="text-sm font-semibold text-success">Sent</p>}
     </div>
   );
 }

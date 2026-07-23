@@ -13,16 +13,15 @@ export async function GET() {
     const businessId = await MetaAdsService.getFirstBusinessId(supabase);
     if (!businessId) return NextResponse.json({ lists: [] });
 
-    const [lists, breakdown] = await Promise.all([
+    const [lists, leadCounts] = await Promise.all([
       LeadListsService.getLists(businessId),
-      LeadsService.getListStatusBreakdown(businessId),
+      LeadsService.getListLeadCounts(businessId),
     ]);
 
     return NextResponse.json({
       lists: lists.map((l) => ({
         ...l,
-        leadCount: breakdown[l.id]?.total || 0,
-        statusBreakdown: breakdown[l.id] || { total: 0, muted: 0, info: 0, success: 0, danger: 0 },
+        leadCount: leadCounts[l.id] || 0,
       })),
     });
   } catch (error: any) {

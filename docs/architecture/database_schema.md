@@ -1,6 +1,6 @@
 # Kinetix — Database Architecture & Data Flows
 
-This describes the schema exactly as it exists live today — **14 tables**, migrated and verified column-by-column against `supabase/migrations/`. It is not an idealized target; every column below is what's actually in the database right now, confirmed directly against the generated Supabase types.
+This describes the schema exactly as it exists live today — migrated and verified column-by-column against `supabase/migrations/`. It is not an idealized target; every column below is what's actually in the database right now. Two groups of tables exist: the original **14-table core** (§1–§7, Meta Ads + Social Media + shared infrastructure) and the **Outreach schema** (§8, added later, independently evolving) — there's no single fixed table count worth quoting as a headline number, since the schema keeps growing as modules get built.
 
 **Multi-tenant-shaped, single-tenant in practice:** the tenant entity is `businesses`, with a `business_users` membership table, but the deployment runs with exactly **one** `businesses` row. See `system_design.md` §3 for the auto-enroll trigger that makes this cost nothing operationally.
 
@@ -12,8 +12,8 @@ A few things are worth knowing up front, because they're the result of deliberat
 - **`social_posts` is one row per platform, not one row per post.** Posting the same creative to Instagram and TikTok is two rows sharing `media_asset_id`, each with its own `connection_id`, `caption`, and `status` — this is what lets "Instagram published, TikTok failed" be tracked as two independent outcomes instead of being unrepresentable.
 - **`ad_analysis_reports.report_type` values are `'competitor'` and `'self'`** (not `'competitor_analysis'`/`'self_ad_analysis'`) — that's what the real jobs filter on.
 - **Several tables carry column names from the original 2024 migration that predate this reconciliation** (`external_campaign_id` not `meta_campaign_id`, `account_kind` not `connection_type`, `access_token_ref`/`secret_ref` not `*_vault_ref`, `type` not `kind`). These were left as-is rather than renamed, since nothing was broken and renaming would be pure churn.
-- **No RAG, no vector DB, no Pinecone.** Competitor and self-ad intelligence come from direct context-window prompting — see `system_design.md` §4.
-- **`meta_ad_creatives`, `ad_analysis_reports`, `ad_performance_daily`, and the competitor/self-ad analysis jobs are real, working code.** Performance Polling (`meta-ads-performance-sync.job.ts`) fetches from the Meta Graph API and populates `ad_performance_daily` daily. Campaign Launch, Lead Capture, and all of Social Media are schema-ready but not yet built — see `modules/meta_ads.md` and `modules/social_media.md`.
+- **No RAG, no vector DB, no Pinecone.** Competitor/self-ad intelligence and outreach email drafting all come from direct context-window prompting — see `system_design.md` §4.
+- **`meta_ad_creatives`, `ad_analysis_reports`, `ad_performance_daily`, and the competitor/self-ad analysis jobs are real, working code.** So is the entire Outreach schema in §8. Campaign Launch (paid Meta campaigns) and Meta Lead Capture are schema-ready but not yet built — see `modules/meta_ads.md`.
 
 ## 1. Core: Users & Businesses
 
@@ -51,6 +51,8 @@ erDiagram
         uuid logo_asset_id FK "media_assets"
         jsonb settings "incl. settings.competitor_scrape: only_active/max_ads/sort"
         jsonb ad_script_topics "required ready_ad_scripts topics+formats for competitor analysis"
+        jsonb services "array of {name, description} — shared across Outreach/Meta Ads/Social, see §8"
+        jsonb outreach_settings "daily_limit, timezone, days, send_window — see §8"
         timestamptz created_at
         timestamptz updated_at
     }
@@ -122,7 +124,9 @@ erDiagram
 
 There's no stored `public_url` column on `media_assets` — public URLs are derived at request time via Supabase Storage's `getPublicUrl(bucket, storage_path)`, not persisted.
 
-## 3. Ad Creative Generation (Meta Ads) — the one module with real, working code
+**`platform_connections` in practice today only has one real writer: Social Media, and only with `account_kind = "upload_post"`.** Accounts aren't connected via OAuth from Kinetix — they're connected by hand on upload-post.com's own dashboard; Kinetix's `/api/social/upload-post/sync` route mirrors that connection state into this table (plus the Facebook/LinkedIn Page IDs needed at publish time) purely for local display and lookup. The `access_token_ref`/`refresh_token_ref`/`scopes` columns shown above are part of the general-purpose shape but are unused by this writer — see `modules/social_media.md` §1 for the full mechanism. Meta Ads does not use this table at all as of today (it reads Meta credentials from `process.env` — see `CLAUDE.md`'s Meta Ads section).
+
+## 3. Ad Creative Generation (Meta Ads) — the first module with real, working code
 
 ```mermaid
 erDiagram
@@ -251,25 +255,20 @@ erDiagram
     }
 ```
 
-`ad_performance_daily` inherited its `bigint` identity PK from the original 2024 migration (`ad_metrics_daily`) — it was never a UUID, and there's no reason to change it. `ad_id`/`ctr`/`cpc_cents`/`cpm_cents`/`raw_data`/`reach` are original columns; `meta_ad_id`, `roas`, `cpa`, `hook_rate`, `hold_rate`, `ad_text`, `media_url`, `format` were added when this table absorbed what used to be a separate `meta_self_ad_metrics` table (see §11 for that history).
+`ad_performance_daily` inherited its `bigint` identity PK from the original 2024 migration (`ad_metrics_daily`) — it was never a UUID, and there's no reason to change it. `ad_id`/`ctr`/`cpc_cents`/`cpm_cents`/`raw_data`/`reach` are original columns; `meta_ad_id`, `roas`, `cpa`, `hook_rate`, `hold_rate`, `ad_text`, `media_url`, `format` were added when this table absorbed what used to be a separate `meta_self_ad_metrics` table (see §10 for that history).
 
-**Competitor analysis — weekly, fully automatic, no persisted gallery** (ported from the legacy n8n workflow's actual depth — see `ai_pipelines/intelligence_engine.md`):
+**Competitor analysis — weekly, fully automatic, no persisted gallery** (ported from the legacy n8n workflow's actual depth):
 1. Weekly cron fans out `jobs/competitor-ad-scraper` per business, building one Facebook Ads Library URL per `target_countries` × `competitor_keywords` combination and sending them to Apify's `curious_coder~facebook-ads-library-scraper` actor.
-2. Apify's raw results are filtered for relevance (dynamically, from the business's own keywords/name), deduplicated, and run through a full processing pipeline **in memory** — ad-type detection, copy extraction, framework/angle tagging, scoring, competitor grouping, market-wide stats, gap detection. Nothing here is written to the database.
-3. The top-scored ads and market stats are assembled into a prompt (no RAG) requesting an 11-section report (executive summary, market insights, per-competitor analysis, hook analysis, framework breakdown, gap opportunities, exactly-N ready-made ad scripts driven by `businesses.ad_script_topics`, hashtag strategy, budget recommendation, action plan). The full response is written to `ad_analysis_reports` (`report_type = 'competitor'`) — the only row this workflow ever persists.
+2. Apify's raw results are filtered for relevance, deduplicated, and run through a full processing pipeline **in memory** — nothing here is written to the database.
+3. The top-scored ads and market stats are assembled into a prompt (no RAG) requesting a report, written to `ad_analysis_reports` (`report_type = 'competitor'`) — the only row this workflow ever persists.
 
-**Performance sync — daily** (`meta-ads-performance-sync.job.ts`, cron `0 4 * * *`): fetches each business's own ads, campaigns, and insights directly from the Meta Graph API (via a connected `platform_connections` ad-account token, or `META_ACCESS_TOKEN`/`META_AD_ACCOUNT_ID` env vars for dev), and upserts one `ad_performance_daily` row per ad per day.
+**Performance sync — daily** (`meta-ads-performance-sync.job.ts`, cron `0 4 * * *`): fetches each business's own ads, campaigns, and insights directly from the Meta Graph API, and upserts one `ad_performance_daily` row per ad per day.
 
-**Self-ad analysis — weekly, conditional** (`jobs-business-ad-analysis`, cron `0 2 * * 0`):
-1. All of a business's `ad_performance_daily` rows are aggregated **per ad** first (summed spend/impressions/clicks, true first-seen date) — a business is skipped entirely unless it has **more than 10 distinct ads** tracked this way.
-2. Only ads whose aggregated lifetime is **7 or more days** ("seasoned") are scored — using the same CTR-curve scoring formula (5-100, labeled Excellent/Good/Average/Needs Work/Critical) and pattern diagnosis (A: never delivered, B: seen but no clicks, C: clicks but weak CTR, D: good CTR but starved for reach, E: fine CTR but expensive clicks) proven in the legacy project's Meta Ads dashboard — not a simple ROAS threshold, which was never a meaningful metric for a lead-gen business without purchase-value tracking.
-3. Ads scoring 40+ are "top performers"; everything else is an "underperformer" needing a specific, pattern-matched suggestion.
-4. The prior week's `ad_analysis_reports` row (`report_type = 'self'`) is fetched for delta framing.
-5. Result written to `ad_analysis_reports` (`report_type = 'self'`) — if the AI call fails, a deterministic rule-based report is written instead, so this job always produces something usable.
+**Self-ad analysis — weekly, conditional** (`business-ad-analysis.job.ts`): aggregates `ad_performance_daily` per ad (skipping businesses with 10 or fewer distinct ads), scores "seasoned" (7+ day) ads on a CTR-curve formula, and writes a report to `ad_analysis_reports` (`report_type = 'self'`).
 
-Both reports are read back in every time the Ad Creative Generation pipeline runs (`ai_pipelines/media_generation.md` §1).
+Both reports are read back in every time the Ad Creative Generation pipeline runs (business context + latest `competitor`/`self` reports feed the AI script-generation prompt).
 
-## 6. Leads — schema ready, not yet built
+## 6. Leads — schema ready, not yet built (Meta Ads Instant Forms)
 
 ```mermaid
 erDiagram
@@ -289,9 +288,9 @@ erDiagram
     }
 ```
 
-Kept permanently — Meta purges leads after 90 days. `meta_lead_id` uniqueness means the webhook can be retried safely without creating duplicates.
+Kept permanently — Meta purges leads after 90 days. `meta_lead_id` uniqueness means the webhook can be retried safely without creating duplicates. Not to be confused with `outreach_leads` (§8) — this table is exclusively for inbound Meta Instant Forms leads; outreach leads are sourced by Apify scraping or manual entry, not this webhook.
 
-## 7. Social Media — schema ready, not yet built
+## 7. Social Media — built, real
 
 ```mermaid
 erDiagram
@@ -302,13 +301,17 @@ erDiagram
     social_posts {
         uuid id PK
         uuid business_id FK
-        uuid connection_id FK "platform_connections — one platform per row"
-        text status "generating, review, approved, scheduled, published, failed"
-        text format "video, image"
+        uuid connection_id FK "platform_connections — one platform per row, nullable for uploads pre-selection"
+        text status "generating, draft, publishing, scheduled, published, failed — 'review'/'approved' are also legal in the CHECK constraint but dead in code, see below"
+        text format "video, image, text — 'carousel' is NOT yet a legal value despite media_asset_ids existing"
         text idea_prompt
         text caption "this row's platform-specific caption"
+        text title "YouTube's real title; every other platform reuses this for internal bookkeeping only"
         jsonb generation_inputs "duration, style, voice_id — same shape as meta_ad_creatives"
         uuid media_asset_id FK
+        uuid[] media_asset_ids "future carousel support — format CHECK doesn't allow 'carousel' yet, so this is unreachable today"
+        text upload_post_job_id "upload-post.com's own job/schedule id, for status polling and cancel"
+        text upload_post_request_id "set instead of job_id when upload-post.com falls back to async processing"
         timestamptz scheduled_at
         timestamptz published_at
         text error_message
@@ -319,7 +322,112 @@ erDiagram
 
 One row = one platform: posting the same generated video to Instagram and TikTok creates **two** `social_posts` rows, sharing `media_asset_id` and `idea_prompt`, each with its own `connection_id`, `caption`, and `status` — see `modules/social_media.md`.
 
-## 8. Row Level Security
+## 8. Outreach — built, real (added after the original 14-table core)
+
+Unlike Newsletter and Voice Agents, Outreach's schema was built out fully and has kept evolving (7 migrations from `20260725000000_newsletter_outreach_schema.sql` through `20260731000000_outreach_send_window_24h.sql`). See `modules/outreach.md` for the module's full architecture — this section is the schema reference only.
+
+```mermaid
+erDiagram
+    businesses ||--o{ outreach_lead_lists : "organizes into"
+    outreach_lead_lists ||--o{ outreach_leads : "contains"
+    outreach_lead_lists ||--o{ outreach_campaigns : "targets"
+    outreach_lead_lists ||--o{ outreach_scrape_jobs : "fed by"
+    outreach_campaigns ||--o{ outreach_campaign_leads : "tracks sends to"
+    outreach_leads ||--o{ outreach_campaign_leads : "targeted by"
+    outreach_campaigns ||--o{ email_events : "logs"
+
+    outreach_lead_lists {
+        uuid id PK
+        uuid business_id FK
+        text name
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    outreach_leads {
+        uuid id PK
+        uuid business_id FK
+        uuid list_id FK "nullable — ON DELETE SET NULL, deleting a list orphans leads rather than deleting them"
+        text first_name
+        text last_name
+        text email "UNIQUE per business_id"
+        text phone
+        text linkedin_url
+        text company
+        text city
+        text country
+        text source "scraped | manual | import"
+        text email_verification_status "unverified | verified | invalid | catch_all | risky"
+        lead_status status "new | contacted | replied | interested | not_interested | bounced | do_not_contact"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    outreach_campaigns {
+        uuid id PK
+        uuid business_id FK
+        uuid list_id FK "NOT NULL, no cascade — a list with campaigns can't be deleted"
+        text name
+        text goal
+        text tone
+        text message_brief
+        text service_type
+        text target_region
+        text cta_text
+        text cta_link
+        text status "draft | active | paused | completed | archived — see modules/outreach.md for the unified 6-value status derived from this"
+        text generated_subject
+        jsonb generated_body "{subject, body}"
+        jsonb revision_history
+        text external_campaign_id "the Instantly.ai campaign id, once created"
+        integer daily_limit "default 50"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    outreach_campaign_leads {
+        uuid id PK
+        uuid outreach_campaign_id FK
+        uuid lead_id FK
+        text status "queued | sent | failed"
+        timestamptz sent_at
+    }
+
+    outreach_scrape_jobs {
+        uuid id PK
+        uuid business_id FK
+        uuid list_id FK "ON DELETE CASCADE"
+        text niches
+        text location
+        integer max_results
+        integer total_scraped
+        integer valid_emails
+        integer invalid_emails
+        text apify_run_id
+        text status "queued | running | succeeded | failed | cancelled"
+        text error_message
+        timestamptz created_at
+    }
+
+    email_events {
+        uuid id PK
+        uuid business_id FK
+        uuid outreach_campaign_id FK "nullable"
+        text event_type
+        text provider_message_id
+        jsonb raw_data
+        timestamptz occurred_at
+    }
+```
+
+Notes on this schema, most relevant for anyone about to alter it:
+- **`outreach_campaign_leads` is deliberately per-campaign, not a global "already contacted" flag.** A lead can be queued again by a *different* campaign — its own `status` (on `outreach_leads`) is the general-purpose signal, while `outreach_campaign_leads.status` tracks this specific campaign's send outcome.
+- **`outreach_campaigns.list_id` has no cascade** (a list with campaigns pointing at it can't be deleted), while **`outreach_scrape_jobs.list_id` cascades** (deleting a list deletes its scrape-job history) — an intentional asymmetry, not an oversight.
+- **`email_events`** predates the Outreach/Newsletter split — it was originally a shared table with a `channel` check constraint (`'newsletter' | 'outreach'`) and a `contact_id` column. Newsletter's tables were dropped entirely (see below), so in practice this table is outreach-only today, though some newsletter-era column/constraint remnants may still be present — verify against `src/types/supabase.ts` before relying on an exact constraint shape here.
+- **`businesses.services`** (`jsonb`, array of `{name, description}`) and **`businesses.outreach_settings`** (`jsonb` — `daily_limit`, `timezone`, `days`, `send_window: {from, to}`) were added specifically for Outreach but are shared/available to every module. `outreach_settings` currently defaults to a full-day send window (`00:00`–`23:59`) — an earlier default of business-hours-only (`09:00`–`18:00`) made a freshly-created campaign look "broken" (no visible send activity outside those hours) with no settings UI yet to explain or change it.
+- **Tables that existed briefly and were dropped**: `contact_categories` and `contacts` (replaced by `outreach_lead_lists`/`outreach_leads`), `outreach_campaign_contacts` (replaced by `outreach_campaign_leads`), `newsletters` and `newsletter_campaign_contacts` (Newsletter module deferred — see `modules/newsletter.md`).
+
+## 9. Row Level Security
 
 ```sql
 CREATE OR REPLACE FUNCTION public.user_business_ids()
@@ -333,9 +441,7 @@ RETURNS SETOF UUID LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
     WHERE user_id = auth.uid() AND role IN ('owner', 'admin', 'editor');
 $$;
 
--- Applied to every business_id-scoped table (businesses, api_credentials,
--- media_assets, platform_connections, meta_ad_creatives, campaigns, ad_sets,
--- ads, ad_performance_daily, ad_analysis_reports, leads, social_posts):
+-- Applied to every business_id-scoped table:
 CREATE POLICY meta_ad_creatives_read ON meta_ad_creatives
     FOR SELECT TO authenticated
     USING (business_id IN (SELECT public.user_business_ids()));
@@ -350,23 +456,28 @@ With one `businesses` row and every user auto-enrolled into it (`system_design.m
 
 Inngest jobs write with the service-role key, which bypasses RLS entirely — expected, since it's the only way a background worker can write at all. Every job payload carries `businessId` explicitly; there's no session inside a worker to derive it from.
 
-## 9. Media & Captions
+## 10. Media & Captions
 
-`media_assets.metadata` also holds the AssemblyAI transcript and word-level timing for any video with dynamic subtitles — no dedicated column for this. See `ai_pipelines/media_generation.md` §7.
+`media_assets.metadata` also holds the AssemblyAI transcript and word-level timing for any video with dynamic subtitles (used to burn in synced captions during final video assembly) — no dedicated column for this.
 
-## 10. Newsletter, Outreach, Voice have no schema at all right now
+## 11. Newsletter and Voice Agents have no schema at all right now
 
-These modules had tables at one point (from the original single-tenant migration) but they were dropped entirely when the schema was cut down to exactly the 14 tables in active use. When any of them actually get built, their tables get created fresh, `business_id`-scoped from day one — there's no cost to that sequencing.
+Newsletter had tables at one point (`newsletters`, `subscribers`, `newsletter_sends`, `newsletter_recipients`, plus a shared `contacts`/`contact_categories` pair with Outreach) — all dropped when Outreach was split out to build on its own dedicated tables (§8) and Newsletter itself remained deferred. Voice Agents never had a schema designed at all. When either module actually gets built, their tables get created fresh, `business_id`-scoped from day one — there's no cost to that sequencing. Outreach went through exactly this path first (dropped shared tables → dedicated schema) and is the reference example if either module gets picked up next.
 
-## 11. History — how this schema got here
+## 12. History — how this schema got here
 
-Three migrations, in order, none touching real client data (only seed-script demo data existed at any point):
+1. **`brands` → `businesses`.** Renamed the tenant table, added `business_users` + the auto-enroll trigger, renamed `connected_accounts`→`platform_connections`, `provider_credentials`→`api_credentials`, `ad_campaigns`/`ad_metrics_daily`→`campaigns`/`ad_performance_daily`, `meta_ad_intelligence`→`ad_analysis_reports`. Added `leads` and `social_posts` (new). Retired `posts`/`post_assets`/`post_metric_snapshots` in favor of `social_posts`, and a batch of already-dead tables.
+2. **Forced down to exactly 14 tables (temporary — see below).** Dropped `newsletters`/`subscribers`/`newsletter_sends`/`newsletter_recipients`, all 6 `outreach_*` tables that existed at the time, `generation_jobs`, and `audit_logs`. Folded `meta_self_ad_metrics`'s columns into `ad_performance_daily`. Retired `meta_competitor_ads` entirely — the competitor scraper now dedupes/scores in memory within a single run instead of persisting a gallery.
+3. **Terminology + cleanup.** Renamed `businesses.brand_voice`→`business_voice`, `brand_colors`→`business_colors`, cleaned up stale constraint names, dropped an orphaned column.
+4. **Newsletter + Outreach schema added together** (`20260725000000_newsletter_outreach_schema.sql`) — shared `contacts`/`contact_categories`/`email_events` plus module-specific tables for both.
+5. **Outreach campaign fields** (`20260726000000_outreach_campaign_fields.sql`) — added `service_type`/`target_region`/`cta_text`/`cta_link` to `outreach_campaigns`, made `category_id` (the predecessor to `list_id`) required.
+6. **Outreach's own lead schema** (`20260727000000_leads_schema.sql`) — replaced the shared `contacts`/`contact_categories`/`outreach_campaign_contacts` with dedicated `outreach_leads`/`outreach_lead_lists`/`outreach_campaign_leads`, renamed the `contact_status` enum to `lead_status`.
+7. **Newsletter schema dropped** (`20260728000000_drop_newsletter_schema.sql`) — Newsletter remained deferred; its tables and `newsletter_campaign_id`/enum remnants were removed rather than left half-built.
+8. **`businesses.services`** (`20260729000000_business_services.sql`) — added as a plain array, then converted to the current `jsonb` `{name, description}[]` shape one migration later.
+9. **`businesses.outreach_settings`** (`20260730000000_business_outreach_settings.sql`) — daily limit / timezone / send days / send window, JSON, no dedicated settings UI yet.
+10. **Send window widened** (`20260731000000_outreach_send_window_24h.sql`) — default send window changed from business-hours-only to all-day, since a campaign sent outside the narrower window looked broken with no UI to explain why.
 
-1. **`brands` → `businesses`.** Renamed the tenant table, added `business_users` + the auto-enroll trigger, renamed `connected_accounts`→`platform_connections`, `provider_credentials`→`api_credentials`, `ad_campaigns`/`ad_metrics_daily`→`campaigns`/`ad_performance_daily`, `meta_ad_intelligence`→`ad_analysis_reports`. Added `leads` and `social_posts` (new). Retired `posts`/`post_assets`/`post_metric_snapshots` in favor of `social_posts`, and a batch of already-dead tables (`competitors`, `scrape_jobs`, old `competitor_ads`, `ad_analyses`, `ad_analysis_sources`, old `ad_creatives`, `ad_creative_assets`, `jobs`).
-2. **Forced down to exactly 14 tables.** Dropped `newsletters`/`subscribers`/`newsletter_sends`/`newsletter_recipients`, all 6 `outreach_*` tables, `generation_jobs`, and `audit_logs`. Folded `meta_self_ad_metrics`'s columns into `ad_performance_daily` (making `ad_id` nullable, adding `meta_ad_id` as the fallback key). Retired `meta_competitor_ads` entirely — the competitor scraper now dedupes/scores in memory within a single run instead of persisting a gallery.
-3. **Terminology + cleanup.** Renamed `businesses.brand_voice`→`business_voice`, `brand_colors`→`business_colors`, cleaned up a handful of stale `*_brand_id_fkey` constraint names, and dropped `media_assets.generation_job_id` (an orphaned column left over from step 2 dropping `generation_jobs`).
-
-## 12. Worked Examples
+## 13. Worked Examples
 
 ### A. Ad Generation & Refinement
 
@@ -376,16 +487,6 @@ Three migrations, in order, none touching real client data (only seed-script dem
 
 // meta_ad_creatives — after generation
 { "status": "review", "ad_script": { "script": ["..."], "audioUrl": "https://..." }, "media_urls": ["https://kie.ai/..."] }
-
-// meta_ad_creatives — after Quick Edit
-{
-  "status": "review",
-  "media_asset_id": "media-v2",
-  "revision_history": [
-    { "action": "Quick Edit: change his shirt to blue", "previous_media_asset_id": "media-v1",
-      "previous_ad_script": { "headline": "Summer Sale: 50% Off" }, "timestamp": "2026-07-14T10:00:00Z" }
-  ]
-}
 ```
 
 ### B. Competitor Analysis (weekly, automatic — nothing persisted before this)
@@ -395,29 +496,12 @@ Three migrations, in order, none touching real client data (only seed-script dem
   "business_id": "b1…", "report_type": "competitor",
   "insights": {
     "executive_summary": "Competitors are heavily using user-generated content (UGC)...",
-    "market_insights": { "dominant_ad_format": "video", "dominant_emotional_angle": "trust/proof", "key_observation": "No competitor shows a facility tour." },
-    "competitor_analysis": [
-      { "page_name": "Smile Direct Club", "ad_score": 8, "strategy_summary": "Leans on price comparisons.",
-        "weaknesses": ["No clinical proof shown"], "best_hook": "Get the perfect smile for 60% less.", "threat_level": "high" }
-    ]
+    "market_insights": { "dominant_ad_format": "video", "dominant_emotional_angle": "trust/proof" }
   }
 }
 ```
 
-### C. Self-Ad Analysis (weekly, conditional on >10 rows in `ad_performance_daily`)
-
-```json
-{
-  "business_id": "b1…", "report_type": "self",
-  "insights": {
-    "performance_summary": "Overall ROAS is up 5% vs last week.",
-    "scaling_winners": ["Summer Sale - Video 2"],
-    "consistent_losers": ["Spring Promo - Image 1"]
-  }
-}
-```
-
-### D. Social Post (one row per platform)
+### C. Social Post (one row per platform)
 
 ```json
 // social_posts — Instagram
@@ -429,4 +513,16 @@ Three migrations, in order, none touching real client data (only seed-script dem
 { "business_id": "b1…", "connection_id": "tt-conn…", "idea_prompt": "Day in the life at our clinic",
   "media_asset_id": "m9z…", "caption": "Wait until the end... 😱 #clinic #bts",
   "status": "scheduled", "scheduled_at": "2026-07-20T10:00:00Z" }
+```
+
+### D. Outreach Campaign Send
+
+```json
+// outreach_campaigns — after AI drafting, before approval
+{ "business_id": "b1…", "list_id": "l1…", "name": "Q3 Dental Clinics", "status": "draft",
+  "generated_subject": "Thinking about hair restoration options?",
+  "generated_body": { "subject": "...", "body": "Hi {{firstName}}, ..." } }
+
+// outreach_campaign_leads — after a send
+{ "outreach_campaign_id": "c1…", "lead_id": "ld1…", "status": "sent", "sent_at": "2026-07-22T14:00:00Z" }
 ```

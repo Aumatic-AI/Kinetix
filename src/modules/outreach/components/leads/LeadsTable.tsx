@@ -1,67 +1,67 @@
 "use client";
-import { Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Trash2, History } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Avatar } from "@/components/ui/Avatar";
 import { Lead } from "../../types/leads.types";
 import { useDeleteLead } from "../../hooks/useLeads";
-
-const STATUS_STYLE: Record<string, string> = {
-  new: "text-muted bg-surface",
-  contacted: "text-info bg-info-bg",
-  replied: "text-success bg-success-bg",
-  interested: "text-success bg-success-bg",
-  not_interested: "text-muted bg-surface",
-  bounced: "text-danger bg-danger-bg",
-  do_not_contact: "text-danger bg-danger-bg",
-};
-const STATUS_LABEL: Record<string, string> = {
-  new: "New",
-  contacted: "Contacted",
-  replied: "Replied",
-  interested: "Interested",
-  not_interested: "Not a fit",
-  bounced: "Bounced",
-  do_not_contact: "Opted out",
-};
+import { LeadHistoryModal } from "./LeadHistoryModal";
 
 export function LeadsTable({ leads }: { leads: Lead[] }) {
   const deleteLead = useDeleteLead();
+  const [historyTarget, setHistoryTarget] = useState<Lead | null>(null);
 
   if (leads.length === 0) {
     return <div className="py-16 text-center text-muted border border-default rounded-2xl border-dashed text-sm">No leads yet.</div>;
   }
 
   return (
-    <div className="border border-default rounded-lg overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Name</TableHead>
-            <TableHead>Company</TableHead>
-            <TableHead>Email</TableHead>
-            <TableHead>Phone</TableHead>
-            <TableHead>Location</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="w-10" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {leads.map((l) => (
-            <TableRow key={l.id}>
-              <TableCell className="font-semibold text-text">{[l.first_name, l.last_name].filter(Boolean).join(" ") || "—"}</TableCell>
-              <TableCell className="text-muted">{l.company || "—"}</TableCell>
-              <TableCell className="text-muted">{l.email}</TableCell>
-              <TableCell className="text-muted">{l.phone || "—"}</TableCell>
-              <TableCell className="text-muted">{[l.city, l.country].filter(Boolean).join(", ") || "—"}</TableCell>
-              <TableCell>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${STATUS_STYLE[l.status] || "text-muted bg-surface"}`}>{STATUS_LABEL[l.status] || l.status}</span>
-              </TableCell>
-              <TableCell>
-                <button onClick={() => deleteLead.mutate(l.id)} className="text-muted hover:text-danger"><Trash2 className="w-3.5 h-3.5" /></button>
-              </TableCell>
+    <>
+      <div className="border border-default rounded-lg overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Location</TableHead>
+              <TableHead />
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+          </TableHeader>
+          <TableBody>
+            {leads.map((l) => {
+              const name = [l.first_name, l.last_name].filter(Boolean).join(" ");
+              return (
+                <TableRow key={l.id}>
+                  <TableCell className="font-semibold text-text">
+                    <div className="flex items-center gap-3">
+                      <Avatar label={name || l.email} />
+                      <span>{name || "—"}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-muted">{l.email}</TableCell>
+                  <TableCell className="text-muted">{[l.city, l.country].filter(Boolean).join(", ") || "—"}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2 justify-end">
+                      <button onClick={() => setHistoryTarget(l)} className="text-muted hover:text-text" title="Campaign history">
+                        <History className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => deleteLead.mutate(l.id)} className="text-muted hover:text-danger" title="Delete">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+
+      <LeadHistoryModal
+        leadId={historyTarget?.id ?? null}
+        leadName={historyTarget ? [historyTarget.first_name, historyTarget.last_name].filter(Boolean).join(" ") || historyTarget.email : ""}
+        onClose={() => setHistoryTarget(null)}
+      />
+    </>
   );
 }

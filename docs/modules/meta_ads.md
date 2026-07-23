@@ -3,10 +3,10 @@
 The Meta Ads module automates the creation of high-converting Meta advertising campaigns, ad sets, and ads, using AI-generated video and image creatives. This module is in active development now, alongside Social Media.
 
 ## Core Capabilities
-1. **Ad Creative Generation:** Users input a basic prompt (e.g., "Summer sale for dental implants"). The AI writes the copy and visual prompts and generates the final video/image via the `meta-ads/generate-image` / `meta-ads/generate-video` Inngest events — see `ai_pipelines/media_generation.md`.
+1. **Ad Creative Generation:** Users input a basic prompt (e.g., "Summer sale for dental implants"). The AI writes the copy and visual prompts and generates the final video/image via the `meta-ads/generate-image` / `meta-ads/generate-video` Inngest events (script generation → visual prompting → voiceover → image generation → video generation → caption timing → final FFmpeg assembly).
 2. **Campaign Launching:** Deploy complete Campaign → Ad Set → Ad hierarchies directly to the Meta Graph API. *(Schema exists already — `campaigns`/`ad_sets`/`ads`; the launch flow itself isn't built yet.)*
-3. **Performance Polling:** `meta-ads-performance-sync.job.ts` runs daily, fetching each business's ads/campaigns/insights straight from the Meta Graph API and writing into `ad_performance_daily` — the input to the self-ad analysis described in `ai_pipelines/intelligence_engine.md`. Works against a real connected ad account (`platform_connections`) or `META_ACCESS_TOKEN`/`META_AD_ACCOUNT_ID` env vars for development; does not depend on Campaign Launch existing.
-4. **Competitor & Self-Ad Analysis:** weekly jobs that scrape the Facebook Ads Library and analyze real performance data — see `ai_pipelines/intelligence_engine.md` for the full pipeline. Required ad-script topics/formats for competitor analysis come from `businesses.ad_script_topics`, configurable per business.
+3. **Performance Polling:** `meta-ads-performance-sync.job.ts` runs daily, fetching each business's ads/campaigns/insights straight from the Meta Graph API and writing into `ad_performance_daily` — the input to the weekly self-ad analysis. Works against a real connected ad account (`platform_connections`) or `META_ACCESS_TOKEN`/`META_AD_ACCOUNT_ID` env vars for development; does not depend on Campaign Launch existing.
+4. **Competitor & Self-Ad Analysis:** weekly jobs (`competitor-ad-scraper.job.ts` / `business-ad-analysis.job.ts`) that scrape the Facebook Ads Library and analyze real ad performance, writing reports to `ad_analysis_reports`. Required ad-script topics/formats for competitor analysis come from `businesses.ad_script_topics`, configurable per business.
 5. **Lead Capture:** Real-time webhooks receive incoming Meta leads and permanently store them in `leads` (Meta itself purges leads after 90 days). *(Not yet built.)*
 
 ## Database Relationships
@@ -16,7 +16,7 @@ The Meta Ads module automates the creation of high-converting Meta advertising c
 - `campaigns`, `ad_sets`, `ads`: mirror Meta's own object structure. *(Schema exists; Campaign Launch itself isn't built yet.)*
 - `leads`: permanent lead storage.
 
-See `architecture/database_schema.md` for the full, finalized table list — this doc only covers what's specific to Meta Ads.
+See `architecture/database_schema.md` for the full table list — this doc only covers what's specific to Meta Ads.
 
 ## Campaign Launch Flow
 When a user clicks "Launch Campaign", the API:

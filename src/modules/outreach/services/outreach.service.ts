@@ -1,6 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
-import { Lead, LeadFilters, PaginationOptions, LeadStatus, ListStatusBreakdown, LEAD_STATUS_BUCKET, LeadList } from "../types/leads.types";
+import { Lead, LeadFilters, PaginationOptions, LeadStatus, LeadList, LeadCampaignHistoryEntry } from "../types/leads.types";
 import { OutreachCampaign } from "../types/outreach.types";
+
+interface CampaignLeadHistoryRow {
+  status: "queued" | "sent" | "failed";
+  sent_at: string | null;
+  outreach_campaigns: { id: string; name: string } | null;
+}
 
 /** Server-context only (API routes) — each method opens its own
  * request-scoped client via @/lib/supabase/server rather than taking one
@@ -82,18 +88,38 @@ export class LeadsService {
     if (error) throw new Error(`Error deleting lead: ${error.message}`);
   }
 
-  static async getListStatusBreakdown(businessId: string): Promise<Record<string, ListStatusBreakdown>> {
+  /** Every campaign this lead was ever queued for, most recent first — from
+   * our own outreach_campaign_leads, not a live Instantly call (see
+   * LeadCampaignHistoryEntry for why open/reply aren't included here). */
+  static async getCampaignHistory(leadId: string): Promise<LeadCampaignHistoryEntry[]> {
     const supabase = await createClient();
-    const { data, error } = await supabase.from("outreach_leads").select("list_id, status").eq("business_id", businessId);
-    if (error) throw new Error(`Error computing list breakdown: ${error.message}`);
-    const breakdown: Record<string, ListStatusBreakdown> = {};
+    const { data, error } = await supabase
+      .from("outreach_campaign_leads")
+      .select("status, sent_at, outreach_campaigns(id, name)")
+      .eq("lead_id", leadId)
+      .order("sent_at", { ascending: false, nullsFirst: false });
+    if (error) throw new Error(`Error fetching lead campaign history: ${error.message}`);
+
+    return ((data as unknown as CampaignLeadHistoryRow[]) || [])
+      .filter((row) => row.outreach_campaigns !== null)
+      .map((row) => ({
+        campaignId: row.outreach_campaigns!.id,
+        campaignName: row.outreach_campaigns!.name,
+        status: row.status,
+        sentAt: row.sent_at,
+      }));
+  }
+
+  static async getListLeadCounts(businessId: string): Promise<Record<string, number>> {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from("outreach_leads").select("list_id").eq("business_id", businessId);
+    if (error) throw new Error(`Error computing list lead counts: ${error.message}`);
+    const counts: Record<string, number> = {};
     for (const row of data || []) {
       const key = row.list_id || "unassigned";
-      if (!breakdown[key]) breakdown[key] = { total: 0, muted: 0, info: 0, success: 0, danger: 0 };
-      breakdown[key].total += 1;
-      breakdown[key][LEAD_STATUS_BUCKET[row.status as LeadStatus]] += 1;
+      counts[key] = (counts[key] || 0) + 1;
     }
-    return breakdown;
+    return counts;
   }
 }
 

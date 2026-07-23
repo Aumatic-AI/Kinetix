@@ -6,6 +6,7 @@ import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
 import { OutreachCampaignsService } from "@/modules/outreach/services/outreach.service";
 import { getOutreachRevisionPrompt } from "@/prompts/outreach";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
+import { InstantlyService } from "@/services/instantly";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -66,6 +67,25 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       });
 
       return NextResponse.json({ success: true, generatedBody });
+    }
+
+    if (body.pause) {
+      if (campaign.external_campaign_id) {
+        await InstantlyService.pauseCampaign(campaign.external_campaign_id);
+      }
+      await OutreachCampaignsService.updateCampaign(id, { status: "paused" });
+      return NextResponse.json({ success: true });
+    }
+
+    // Instantly's own docs title this same endpoint "Activate(start), or
+    // resume a campaign" — one action serves both, confirmed against their
+    // API reference. No separate resume call exists.
+    if (body.resume) {
+      if (campaign.external_campaign_id) {
+        await InstantlyService.activateCampaign(campaign.external_campaign_id);
+      }
+      await OutreachCampaignsService.updateCampaign(id, { status: "active" });
+      return NextResponse.json({ success: true });
     }
 
     await OutreachCampaignsService.updateCampaign(id, {

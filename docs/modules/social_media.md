@@ -1,26 +1,174 @@
 # Social Media Module
 
-The Social Media module creates and publishes organic content (image or video posts) across Facebook, Instagram, YouTube, X, LinkedIn, and TikTok. Built this session — OAuth connections, content generation, and publishing are all real and wired end-to-end; only the 6 platforms' own developer-app credentials are outstanding (see `docs/architecture/database_schema.md` and the Connected Accounts page for what's needed per platform).
+**Status: built and active.**
 
-## Core Capabilities
-1. **OAuth Integrations** (`Connected Accounts` tab): users connect accounts via real OAuth 2.0 flows (`src/services/social/oauth/providers.ts`, `/api/social/connect/[provider]`, `/api/social/callback/[provider]`) into `platform_connections` — the same table Meta Ads' ad-account connections would use, no separate connections table. Facebook and Instagram share one Meta app under the hood (Instagram has no independent OAuth — it's reached through a Facebook Page's token).
-2. **Content Generation** (`Posts` tab, "Create Post"): reuses the exact proven Kie AI / ElevenLabs / FFmpeg pipeline built for Meta Ads (`src/services/inngest/social/generate-social-{image,video}.ts` mirror `generate-{image,video}-ad.ts` step for step), with organic-content prompts ported from the legacy n8n workflows (`src/services/ai/prompts/social-media.ts`) instead of the ad-conversion prompts. One generation call produces one image or video plus a per-platform caption for every platform selected.
-3. **Media Library** (`Media` tab): every generated or uploaded asset is saved to `media_assets` — a durable, reusable library independent of any one post (generated media is downloaded from Kie and re-uploaded to our own storage specifically so it doesn't depend on a third-party temporary URL).
-4. **Publishing**: a dispatcher (`src/services/social/publish.ts`) calls each platform's real API (Meta Graph API, LinkedIn UGC API, X API v2, TikTok Content Posting API, YouTube Data API v3) with that connection's stored token.
+> **Correction:** earlier versions of this doc described publishing as real per-platform OAuth + direct API calls. That was true for one commit and was replaced the very next commit with a third-party publishing service (Upload-Post) — the doc was never updated to match. This version describes what's actually running today. See §3 for what changed and why it matters.
 
-## Database Relationships
-- `social_posts`: one row per platform per post — publishing the same creative to Instagram and TikTok is two rows, not one, so each platform's publish status is tracked independently. Carries its own generation-config columns (`idea_prompt`, `generation_inputs`), plus `media_asset_id` for the shared asset and `connection_id` for which platform this row targets. `media_asset_ids` (array) exists for a future carousel format — not yet wired to generation.
-- `platform_connections`: OAuth tokens per platform. Vault isn't wired up yet — `access_token_ref`/`refresh_token_ref` currently hold the raw token directly, same simplification already in place for Meta Ads.
-- `media_assets`: the shared library — `source` (`ai_generated`/`uploaded`/`scraped`) and `type` (`image`/`video`/`audio`/`document`) distinguish what's in it.
+## 1. What It Is
 
-See `architecture/database_schema.md` §7 for the full reasoning behind the one-row-per-platform design.
+Social Media generates image or video posts with AI, shows exactly how each one will look on every target platform before anything goes live, and publishes them — now or on a schedule — across Facebook, Instagram, LinkedIn, X, TikTok, and YouTube.
 
-## Posting Flow (as built)
-1. User opens "Create Post," picks a format (image or video — carousel and text-only formats exist in the schema but aren't wired to generation yet), selects which *connected* platforms to post to, and describes the idea (or uploads existing media directly, skipping generation).
-2. The API route (`/api/social/posts/generate` or `/upload`) creates one `social_posts` row per selected platform, all `status = 'generating'` (or `'draft'` immediately for uploads), sharing the same `idea_prompt`/`generation_inputs`.
-3. For AI generation, one Inngest event fires; the shared pipeline produces one `media_asset_id`, which every row points to, and one caption-metadata AI call whose output is deterministically reformatted per platform (`formatPlatformCaptions` — character budgets and per-platform structure ported from the proven legacy formatter, not re-invented).
-4. Each row moves to `status = 'draft'` once ready for review. The user reviews, edits if needed, and clicks "Publish" — `/api/social/posts/publish` calls that connection's real platform API with that row's caption + the shared media.
-5. Each row updates independently to `published` or `failed` — one platform's failure doesn't block or roll back the others.
+Like Outreach, it's built around one idea: **what you approve is what goes out.** A post is generated once, previewed exactly as it'll appear on each platform, and only then published — with every platform tracked as its own independent outcome, so one platform failing never drags the others down with it.
 
-## What's ported from the legacy n8n workflows vs. rebuilt
-The legacy project (`projects/meta/src/app/SocialDash.tsx` + `workflows/Toga Social media Images posts.json` / `Toga Social media video creation.json`) never called an AI provider directly — 100% of generation was delegated to n8n webhooks, and actual publishing went through a third-party aggregator (upload-post.com) rather than direct platform APIs. This rebuild ports the **proven prompt content** (the caption/metadata prompt, the platform character-budget formatter, the 4-act SAD → MEET BUSINESS → JOURNEY → HAPPY video story structure) genericized for any business, but replaces the SaaS-aggregator publishing step with direct OAuth + direct platform API calls (`src/services/social/*.ts`), and replaces the single 3,000-line UI component with a modular, original composer.
+## 2. Features
+
+| Feature | What it does |
+|---|---|
+| **AI Content Generation** | One idea in, one image or video out — plus a tailored caption per platform, in one step. |
+| **Idea Expansion** | Turns a rough one-line idea into three ready-to-use angles before you commit to generating anything. |
+| **Text-Only Posts** | Skip media entirely and publish a caption-only post where the platform supports it. |
+| **Upload Existing Media** | Skip generation entirely and publish something you already have. |
+| **Per-Platform Preview** | See a realistic mock of the post as it'll actually look on each platform — same layout, avatar, and caption — before publishing. |
+| **Caption Editing & AI Improve** | Edit any caption by hand, or ask AI to improve it, right up until you publish. |
+| **Scheduling** | Publish now, or queue a post for a specific future time. |
+| **Independent Per-Platform Status** | Posting the same content to 3 platforms is 3 independent outcomes — one platform failing never blocks or rolls back the others. |
+| **Retry** | Failed posts can be retried — regenerated from scratch for image/video, or simply resubmitted for text. |
+| **Cancel a Schedule** | Pull back a scheduled post any time before it fires, reverting it to a draft. |
+| **Media Library** | Every piece of generated or uploaded media is kept in a shared library, independent of any single post. |
+
+## 3. Connecting Accounts — How It Actually Works
+
+Kinetix does **not** perform OAuth for social accounts. Connecting an account happens on a separate service's own dashboard (Upload-Post); Kinetix simply mirrors that connection status so the app knows what it's allowed to publish to.
+
+```mermaid
+flowchart LR
+    A[You connect an account] -->|on the Upload-Post dashboard, outside Kinetix| B[(Upload-Post)]
+    C[Connected Accounts page] -->|"Sync" reads current status| B
+    C --> D[(Local copy — used to decide what you can publish to)]
+```
+
+A few things worth knowing about this:
+- **The "Connected Accounts" page in Kinetix is a mirror, not a control panel** — to actually connect or disconnect something, you go to Upload-Post's own dashboard (a link on that page takes you there directly). Kinetix's "Sync" button just refreshes what it already knows.
+- For Facebook and LinkedIn specifically, the sync step also resolves which **Page** you actually publish as — the underlying account can be logged in as a person but posting as a business Page, and Kinetix needs to know which Page that is before it can publish there.
+- If a sync shows an account as disconnected, that's Upload-Post reporting it as revoked (e.g. an expired login) — reconnecting happens on their side, not by clicking anything in Kinetix.
+
+## 4. Post Status, at a Glance
+
+```mermaid
+stateDiagram-v2
+    [*] --> generating : AI generation started
+    [*] --> draft : Text/upload post, ready immediately
+    generating --> draft : Media finished
+    generating --> failed : Generation failed
+    draft --> publishing : Publish now (still resolving)
+    draft --> scheduled : Publish later
+    draft --> failed : Publish attempt failed
+    publishing --> published : Confirmed live
+    scheduled --> published : Scheduled time reached
+    scheduled --> draft : Schedule cancelled
+    failed --> generating : Retry (image/video — regenerates)
+    failed --> draft : Retry (text — resubmits)
+```
+
+Every platform a post targets tracks this independently — publishing the same content to three platforms produces three rows, each moving through this diagram on its own. One platform ending up `failed` never changes the others.
+
+## 5. Platforms Supported
+
+| Platform | Image | Video | Text-only |
+|---|:---:|:---:|:---:|
+| Facebook | ✅ | ✅ | ✅ |
+| Instagram | ✅ | ✅ | ❌ |
+| LinkedIn | ✅ | ✅ | ✅ |
+| X (Twitter) | ✅ | ✅ | ✅ |
+| TikTok | ❌ | ✅ | ❌ |
+| YouTube | ❌ | ✅ | ❌ |
+
+These capabilities gate what you can even attempt — e.g. a text-only post only offers Facebook, X, and LinkedIn as targets, since the others have nowhere to put caption-only content.
+
+## 6. Pages
+
+| Page | Route | What you can do there |
+|---|---|---|
+| Posts | `/social/posts` | Browse everything generated or uploaded so far, grouped by status, and start a new post. |
+| Publish | `/social/posts/publish` | The review wizard for a post already created — pick platforms, preview, then schedule or publish. |
+| Connected Accounts | `/social/connected-accounts` | See which accounts are connected right now and jump to Upload-Post to manage them. |
+
+## 7. How Publishing Works
+
+```mermaid
+flowchart TD
+    A[Create Post] --> B{How?}
+    B -->|Generate image/video| C[AI generation — background job]
+    B -->|Generate text only| D[AI writes captions — instant]
+    B -->|Upload existing media| E[Straight to review]
+    C --> F[Review: preview per platform, edit captions]
+    D --> F
+    E --> F
+    F --> G{Publish now or later?}
+    G -->|Now| H[Sent to each platform independently]
+    G -->|Later| I[Waits until the scheduled time, then sends]
+    H --> J[Published / Failed, per platform]
+    I --> J
+```
+
+Generation itself (writing the script, generating the image/video, adding voiceover) is entirely Kinetix's own AI pipeline — the same one built for Meta Ads. Only the final "publish this to Facebook/Instagram/etc." step is handed off to Upload-Post, which is what makes independent per-platform status possible: each platform is its own request, so one failing never affects the others.
+
+### 7.1 Scheduling, in a bit more detail
+
+A scheduled post is checked exactly once, right around its scheduled time — not on a recurring timer — so scheduling a post a month out doesn't cost anything until it's actually due. The same one-time check also covers a "publish now" post that Upload-Post itself couldn't resolve instantly (larger videos in particular sometimes finish processing a little after the request returns) — it's the same waiting mechanism either way, just with a different wait time.
+
+### 7.2 Review, in a bit more detail
+
+The review step is where you see the post as it'll really look — not a generic form, but a mock of each platform's actual feed (its own layout, avatar, and action icons), one tab per selected platform. Captions can be adjusted per platform independently, since the same idea often needs a different tone or length depending on where it's going, and an "Improve with AI" pass is available on any caption without leaving this screen.
+
+## 8. Data Model
+
+Full column-level detail lives in [`../architecture/database_schema.md`](../architecture/database_schema.md) §7 — summary:
+
+| Table | Holds |
+|---|---|
+| `social_posts` | One row per platform per post — its status, caption/title, generation inputs, and links to its media and connection. |
+| `media_assets` | The shared library of every generated or uploaded image/video, independent of any one post. |
+| `platform_connections` | A local mirror of which accounts are connected on Upload-Post (`account_kind = "upload_post"`), plus the Facebook/LinkedIn Page IDs needed to publish. |
+
+Posting the same generated video to Instagram and TikTok is genuinely **two rows** in `social_posts`, sharing the same underlying media but tracked, captioned, and published completely independently.
+
+## 9. API Surface (`/api/social/**`)
+
+| Route | What it does |
+|---|---|
+| `posts/generate` | Starts AI image/video generation for one or more platforms. |
+| `posts/generate-text` | Writes a caption-only post immediately, no background job. |
+| `posts/generate-idea` | Expands a rough idea into a few angle variations — doesn't save anything. |
+| `posts/improve-caption` | Rewrites a single caption with AI feedback. |
+| `posts/upload` | Publishes existing media directly, skipping generation. |
+| `posts/prepare-platforms` | Builds/refreshes the per-platform preview data for the Publish wizard. |
+| `posts/publish` | The actual hand-off to Upload-Post — now or scheduled. |
+| `posts/cancel-schedule` | Pulls back a scheduled post, reverting it to a draft. |
+| `posts/retry` | Retries a failed post — regenerates media, or just resubmits for text. |
+| `upload-post/sync` | Refreshes the local connection mirror from Upload-Post. |
+
+## 10. Notable UI Touches
+
+- **The per-platform previews are realistic mockups, not a live embed** — each one recreates that platform's real feed layout (avatar, name, caption placement, action icons) so what you see is a faithful stand-in for the real thing, but the engagement numbers shown alongside it are just placeholder styling, not actual data pulled from anywhere.
+- **The Posts grid uses a true masonry layout**, not a simple multi-column list — media of very different shapes (a tall video next to a wide image) sit next to each other without leaving awkward gaps, the way a naive column layout would.
+- **Connected Accounts and the Publish flow's platform picker share one component** — the same platform "tile" just switches between showing status only and being clickable/selectable, so the two screens always look and behave consistently rather than drifting into two different pickers over time.
+
+## 11. Why It's Built This Way
+
+- **Publishing is delegated, generation isn't.** Writing and rendering the content is Kinetix's own pipeline because that's the part with real product value and AI cost worth owning; getting bytes onto six different platforms' APIs reliably is a solved, maintained problem elsewhere, so it's bought rather than rebuilt.
+- **One row per platform, not one row per post.** This is what makes "Instagram published, TikTok failed" representable at all — a single post row could only ever hold one outcome.
+- **One-shot scheduled checks instead of a recurring cron.** A cron that scans "what's due" every few minutes would do most of its work checking posts that aren't due yet. A single job per post that wakes up once, right when it's needed, costs nothing while waiting.
+
+## 12. Known Limitations
+
+- A background "song" can be attached to a video post, but it isn't mixed into the final audio yet.
+- Carousel (multi-image) posts aren't available yet, even though some groundwork for them exists in the data model.
+- A scheduled/publishing post that takes unusually long to resolve on the publishing side has no automatic follow-up after the first check window — it would need a manual look.
+- No way to edit a post that's already scheduled — only cancel it and start over.
+- Retrying an image/video post always regenerates the media from scratch, even if only the publish step actually failed.
+
+<details>
+<summary>Key implementation files (for developers going deeper)</summary>
+
+| Concept | File |
+|---|---|
+| Pages | `src/modules/social/pages/*.tsx` |
+| Publishing service (Upload-Post) | `src/services/upload-post/*.ts` |
+| Generation jobs | `src/services/inngest/social/*.ts` |
+| Scheduling reconciliation job | `src/jobs/social-scheduled-post-check.job.ts` |
+| Per-platform preview components | `src/modules/social/components/previews/*.tsx` |
+| API routes | `src/app/api/social/**` |
+| Connection status table | `platform_connections` (`account_kind = "upload_post"`) — see [`../architecture/database_schema.md`](../architecture/database_schema.md) §2 |
+
+</details>

@@ -9,26 +9,6 @@ export type LeadSource = "scraped" | "manual" | "import";
 export type EmailVerificationStatus = "unverified" | "verified" | "invalid" | "catch_all" | "risky";
 export type LeadStatus = "new" | "contacted" | "replied" | "interested" | "not_interested" | "bounced" | "do_not_contact";
 
-export type LeadStatusBucket = "muted" | "info" | "success" | "danger";
-
-export const LEAD_STATUS_BUCKET: Record<LeadStatus, LeadStatusBucket> = {
-  new: "muted",
-  not_interested: "muted",
-  contacted: "info",
-  replied: "success",
-  interested: "success",
-  bounced: "danger",
-  do_not_contact: "danger",
-};
-
-export interface ListStatusBreakdown {
-  total: number;
-  muted: number;
-  info: number;
-  success: number;
-  danger: number;
-}
-
 export interface LeadList {
   id: string;
   business_id: string;
@@ -66,4 +46,16 @@ export interface LeadFilters {
 export interface PaginationOptions {
   page?: number;
   limit?: number;
+}
+
+/** One row per campaign this lead was ever queued for — from our own
+ * outreach_campaign_leads table, not a live Instantly call. Deliberately
+ * doesn't include open/reply/click: that's only available from Instantly
+ * per-campaign in aggregate, not reliably per-lead without an extra live
+ * lookup per entry. */
+export interface LeadCampaignHistoryEntry {
+  campaignId: string;
+  campaignName: string;
+  status: "queued" | "sent" | "failed";
+  sentAt: string | null;
 }

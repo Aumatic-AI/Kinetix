@@ -9,7 +9,7 @@ The Newsletter module allows businesses to automate their email marketing by uti
 4. **Third-Party Integrations:** Connects directly to mailing services (e.g., SendGrid, Mailgun) — credentials stored via `api_credentials` (Vault-referenced, see `architecture/database_schema.md` §1), not a separate config table.
 
 ## Database Relationships
-*(Note: this module is deferred — Meta Ads and Social Media are being built first. There is no schema for it today: `newsletters`, `subscribers`, `newsletter_sends`, and `newsletter_recipients` existed at one point but were dropped when the schema was cut down to exactly the 14 tables in active use — see `architecture/database_schema.md` §10/§11. When this module actually gets built, these tables get created fresh, `business_id`-scoped from day one.)*
+*(Note: this module is deferred — Meta Ads, Social Media, and Outreach were built first. There is no schema for it today: `newsletters`, `subscribers`, `newsletter_sends`, and `newsletter_recipients` existed briefly — added alongside Outreach's first schema pass, then dropped again once Outreach was split out onto its own dedicated tables and Newsletter itself remained deferred (`20260728000000_drop_newsletter_schema.sql`) — see `architecture/database_schema.md` §8/§11/§12. When this module actually gets built, these tables get created fresh, `business_id`-scoped from day one — Outreach's own split from a shared schema into dedicated tables is the reference example for how that went.)*
 - `newsletters`: status (draft, scheduled, sent), HTML content, AI prompts, scoped to `business_id`.
 - `subscribers`: mailing list, scoped to `business_id`.
 - `newsletter_sends` / `newsletter_recipients`: per-send recipient tracking and engagement events.
