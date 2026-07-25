@@ -1,15 +1,16 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Play, Check, X, Clock, Video, Image as ImageIcon, Sparkles, Plus, Eye, Rocket } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { CreateAdModal } from "../components/CreateAdModal";
 import { AdDetailsModal } from "../components/AdDetailsModal";
 import { AdCreativeCard } from "../components/AdCreativeCard";
-import { LaunchCampaignModal } from "../components/campaigns/LaunchCampaignModal";
 import { Button } from "@/components/ui/Button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ROUTES } from "@/config/routes";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useMetaAdCreatives, useUpdateMetaAdCreative, useDeleteMetaAdCreative, useRetryMetaAdCreative, metaAdsKeys } from "../hooks/useMetaAds";
@@ -17,6 +18,7 @@ import { useLaunchedCreativeIds } from "../hooks/useCampaigns";
 import { MetaAdCreative } from "../types/meta-ads.types";
 
 export function AdLibrary() {
+  const router = useRouter();
   const { data: ads = [], isLoading: loading } = useMetaAdCreatives();
   const { data: launchedIds } = useLaunchedCreativeIds();
   const updateMutation = useUpdateMetaAdCreative();
@@ -27,7 +29,6 @@ export function AdLibrary() {
   const [filter, setFilter] = useState("all");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAd, setSelectedAd] = useState<MetaAdCreative | null>(null);
-  const [launchingAd, setLaunchingAd] = useState<MetaAdCreative | null>(null);
   const [prefillValues, setPrefillValues] = useState<{ type?: "video" | "image"; duration?: string; idea?: string; service?: string } | undefined>();
   const supabase = createClient();
 
@@ -152,7 +153,7 @@ export function AdLibrary() {
             onRetry={handleRetry}
             isRetrying={retryMutation.isPending && retryMutation.variables === ad.id}
             launched={launchedIds?.has(ad.id)}
-            onLaunch={setLaunchingAd}
+            onLaunch={(a) => router.push(`${ROUTES.META_ADS.CAMPAIGN_CREATE}?creativeId=${a.id}`)}
           />
         ))}
       </div>
@@ -190,12 +191,6 @@ export function AdLibrary() {
       />
 
       <AdDetailsModal ad={selectedAd} onClose={() => setSelectedAd(null)} />
-
-      <LaunchCampaignModal
-        creative={launchingAd}
-        onClose={() => setLaunchingAd(null)}
-        onLaunched={() => queryClient.invalidateQueries({ queryKey: metaAdsKeys.creatives() })}
-      />
     </div>
   );
 }

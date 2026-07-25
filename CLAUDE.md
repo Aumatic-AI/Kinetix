@@ -40,14 +40,14 @@ This file covers cross-cutting conventions only. For anything deeper, read the r
 - [`docs/index.md`](docs/index.md) — start here for an overview of the whole system.
 - [`docs/architecture/database_schema.md`](docs/architecture/database_schema.md) — every table, column, and relationship, verified against `supabase/migrations/`.
 - [`docs/architecture/system_design.md`](docs/architecture/system_design.md) — how Next.js, Supabase, and Inngest fit together, and the single-tenant-on-multi-tenant-schema model.
-- [`docs/modules/*.md`](docs/modules/) — one file per product module (Meta Ads, Social Media, Outreach, Newsletter, Voice Agents), what's actually built vs. deferred.
+- [`docs/modules/*.md`](docs/modules/) — one file per product module (Meta Ads, Social Media, Outreach), what's actually built.
 - [`DESIGN.md`](DESIGN.md) (imported above, always in context) — the UI design system: tokens, component specs, and rules for building consistent UI.
 
 ## Architecture
 
-Kinetix is a single-tenant marketing-automation platform for one client (Toga Health, medical tourism). It is a Next.js App Router app with several product "modules" (Meta Ads, Social Media, Outreach, Newsletter, Voice Agents, Settings), navigated via a two-tier sidebar (`PrimarySidebar` = modules, `SecondarySidebar` = per-module tabs) driven by the URL's pathname prefix in `src/app/(app)/layout.tsx`.
+Kinetix is a single-tenant marketing-automation platform for one client (Toga Health, medical tourism). It is a Next.js App Router app with several product "modules" (Meta Ads, Social Media, Outreach, Settings), navigated via a two-tier sidebar (`PrimarySidebar` = modules, `SecondarySidebar` = per-module tabs) driven by the URL's pathname prefix in `src/app/(app)/layout.tsx`.
 
-**Meta Ads, Social Media, and Outreach have real functionality built.** Newsletter and Voice Agents are still single placeholder overview pages (`src/modules/<name>/pages/*OverviewPage.tsx`) with no logic behind them yet — Newsletter briefly had a schema, which was later dropped (see `docs/architecture/database_schema.md`).
+**Meta Ads, Social Media, and Outreach have real functionality built** — these are the only three product modules in the app today.
 
 ### Module structure — always follow this split
 

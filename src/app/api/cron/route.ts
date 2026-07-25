@@ -19,10 +19,9 @@ export async function GET(request: NextRequest) {
   try {
     // ---------------------------------------------------------
     // CRON JOB LOGIC GOES HERE
-    // Example: 
+    // Example:
     // - Check for scheduled social media posts and publish them
     // - Pull latest ads metrics from Meta API
-    // - Send daily summary emails via Resend
     // ---------------------------------------------------------
     
     console.log("[CRON] Executing scheduled background tasks...", new Date().toISOString());

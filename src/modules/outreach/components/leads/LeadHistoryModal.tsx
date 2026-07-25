@@ -1,5 +1,6 @@
 "use client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { formatDate } from "@/utils/datetime";
 import { useLeadCampaignHistory } from "../../hooks/useLeads";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -31,7 +32,7 @@ export function LeadHistoryModal({ leadId, leadName, onClose }: { leadId: string
               <div key={h.campaignId} className="py-3 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-semibold text-text">{h.campaignName}</p>
-                  <p className="text-xs text-muted">{h.sentAt ? new Date(h.sentAt).toLocaleDateString() : "Not sent yet"}</p>
+                  <p className="text-xs text-muted">{h.sentAt ? formatDate(h.sentAt) : "Not sent yet"}</p>
                 </div>
                 <span className="text-xs font-bold uppercase tracking-wide text-muted shrink-0">{STATUS_LABEL[h.status] || h.status}</span>
               </div>

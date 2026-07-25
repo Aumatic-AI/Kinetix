@@ -16,9 +16,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // Basic routing logic to determine current module
   let currentModule: ProductModule = "dashboard";
   if (pathname.startsWith("/meta-ads")) currentModule = "metaAds";
-  else if (pathname.startsWith("/newsletter")) currentModule = "newsletter";
   else if (pathname.startsWith("/outreach")) currentModule = "outreach";
-  else if (pathname.startsWith("/voice")) currentModule = "voice";
   else if (pathname.startsWith("/social")) currentModule = "social";
   else if (pathname.startsWith("/settings")) currentModule = "settings";
 

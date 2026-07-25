@@ -13,7 +13,7 @@ A few things are worth knowing up front, because they're the result of deliberat
 - **`ad_analysis_reports.report_type` values are `'competitor'` and `'self'`** (not `'competitor_analysis'`/`'self_ad_analysis'`) — that's what the real jobs filter on.
 - **Several tables carry column names from the original 2024 migration that predate this reconciliation** (`external_campaign_id` not `meta_campaign_id`, `account_kind` not `connection_type`, `access_token_ref`/`secret_ref` not `*_vault_ref`, `type` not `kind`). These were left as-is rather than renamed, since nothing was broken and renaming would be pure churn.
 - **No RAG, no vector DB, no Pinecone.** Competitor/self-ad intelligence and outreach email drafting all come from direct context-window prompting — see `system_design.md` §4.
-- **`meta_ad_creatives`, `ad_analysis_reports`, `ad_performance_daily`, and the competitor/self-ad analysis jobs are real, working code.** So is the entire Outreach schema in §8. Campaign Launch (paid Meta campaigns) and Meta Lead Capture are schema-ready but not yet built — see `modules/meta_ads.md`.
+- **`meta_ad_creatives`, `ad_analysis_reports`, `ad_performance_daily`, and the competitor/self-ad analysis jobs are real, working code.** So is the entire Outreach schema in §8. Campaign Launch (paid Meta campaigns) and Meta Lead Capture are also real, working code — see `modules/meta_ads.md`.
 
 ## 1. Core: Users & Businesses
 
@@ -154,9 +154,9 @@ erDiagram
     }
 ```
 
-`revision_history` is an append-only array — prior `media_asset_id`, prior `ad_script`, a human-readable action string, and a timestamp — powering Quick Edit / Undo (see §12).
+`revision_history` is an append-only array — prior `media_asset_id`, prior `ad_script`, a human-readable action string, and a timestamp — powering Quick Edit / Undo (see §11).
 
-## 4. Meta Ads (paid campaign structure) — schema ready, not yet built
+## 4. Meta Ads (paid campaign structure) — built
 
 ```mermaid
 erDiagram
@@ -208,11 +208,14 @@ erDiagram
         text name
         campaign_status status
         text external_ad_id
+        text external_creative_id "Meta creatives are immutable — editing ad copy repoints this to a new creative"
         timestamptz created_at
     }
 ```
 
 `ad_sets` and `ads` carry `business_id` directly even though it's implied by their parent chain — this keeps RLS on those tables a flat check instead of a nested join, and lets both be indexed by `business_id` directly.
+
+`ad_sets.placements` shape: `{ mode: "advantage_plus" }` (Meta picks automatically — the default) or `{ mode: "manual", publisher_platforms, facebook_positions?, instagram_positions? }`. Sent to Meta for real when "manual" is chosen — unlike the legacy project's equivalent UI, which collected manual placement choices but never actually forwarded them to Meta.
 
 ## 5. Intelligence Engine — Competitor + Self Analysis
 
@@ -268,7 +271,7 @@ erDiagram
 
 Both reports are read back in every time the Ad Creative Generation pipeline runs (business context + latest `competitor`/`self` reports feed the AI script-generation prompt).
 
-## 6. Leads — schema ready, not yet built (Meta Ads Instant Forms)
+## 6. Leads — built (Meta Ads Instant Forms)
 
 ```mermaid
 erDiagram
@@ -324,7 +327,7 @@ One row = one platform: posting the same generated video to Instagram and TikTok
 
 ## 8. Outreach — built, real (added after the original 14-table core)
 
-Unlike Newsletter and Voice Agents, Outreach's schema was built out fully and has kept evolving (7 migrations from `20260725000000_newsletter_outreach_schema.sql` through `20260731000000_outreach_send_window_24h.sql`). See `modules/outreach.md` for the module's full architecture — this section is the schema reference only.
+Outreach's schema was built out fully and has kept evolving (7 migrations from `20260725000000_newsletter_outreach_schema.sql` through `20260731000000_outreach_send_window_24h.sql` — the first migration's filename predates a later module that was since removed entirely). See `modules/outreach.md` for the module's full architecture — this section is the schema reference only.
 
 ```mermaid
 erDiagram
@@ -423,9 +426,9 @@ erDiagram
 Notes on this schema, most relevant for anyone about to alter it:
 - **`outreach_campaign_leads` is deliberately per-campaign, not a global "already contacted" flag.** A lead can be queued again by a *different* campaign — its own `status` (on `outreach_leads`) is the general-purpose signal, while `outreach_campaign_leads.status` tracks this specific campaign's send outcome.
 - **`outreach_campaigns.list_id` has no cascade** (a list with campaigns pointing at it can't be deleted), while **`outreach_scrape_jobs.list_id` cascades** (deleting a list deletes its scrape-job history) — an intentional asymmetry, not an oversight.
-- **`email_events`** predates the Outreach/Newsletter split — it was originally a shared table with a `channel` check constraint (`'newsletter' | 'outreach'`) and a `contact_id` column. Newsletter's tables were dropped entirely (see below), so in practice this table is outreach-only today, though some newsletter-era column/constraint remnants may still be present — verify against `src/types/supabase.ts` before relying on an exact constraint shape here.
+- **`email_events`** predates a later schema split — it was originally a shared table with a `channel` check constraint (`'newsletter' | 'outreach'`) and a `contact_id` column. The other module that once shared this table was removed entirely (see below), so in practice this table is outreach-only today, though the `channel` constraint may still literally allow the now-unused `'newsletter'` value — verify against `src/types/supabase.ts` before relying on an exact constraint shape here, and consider a follow-up migration to tighten the constraint to `'outreach'`-only.
 - **`businesses.services`** (`jsonb`, array of `{name, description}`) and **`businesses.outreach_settings`** (`jsonb` — `daily_limit`, `timezone`, `days`, `send_window: {from, to}`) were added specifically for Outreach but are shared/available to every module. `outreach_settings` currently defaults to a full-day send window (`00:00`–`23:59`) — an earlier default of business-hours-only (`09:00`–`18:00`) made a freshly-created campaign look "broken" (no visible send activity outside those hours) with no settings UI yet to explain or change it.
-- **Tables that existed briefly and were dropped**: `contact_categories` and `contacts` (replaced by `outreach_lead_lists`/`outreach_leads`), `outreach_campaign_contacts` (replaced by `outreach_campaign_leads`), `newsletters` and `newsletter_campaign_contacts` (Newsletter module deferred — see `modules/newsletter.md`).
+- **Tables that existed briefly and were dropped**: `contact_categories` and `contacts` (replaced by `outreach_lead_lists`/`outreach_leads`), `outreach_campaign_contacts` (replaced by `outreach_campaign_leads`), plus a full set of tables belonging to a module that has since been removed from the product entirely (see the migration history below).
 
 ## 9. Row Level Security
 
@@ -460,11 +463,7 @@ Inngest jobs write with the service-role key, which bypasses RLS entirely — ex
 
 `media_assets.metadata` also holds the AssemblyAI transcript and word-level timing for any video with dynamic subtitles (used to burn in synced captions during final video assembly) — no dedicated column for this.
 
-## 11. Newsletter and Voice Agents have no schema at all right now
-
-Newsletter had tables at one point (`newsletters`, `subscribers`, `newsletter_sends`, `newsletter_recipients`, plus a shared `contacts`/`contact_categories` pair with Outreach) — all dropped when Outreach was split out to build on its own dedicated tables (§8) and Newsletter itself remained deferred. Voice Agents never had a schema designed at all. When either module actually gets built, their tables get created fresh, `business_id`-scoped from day one — there's no cost to that sequencing. Outreach went through exactly this path first (dropped shared tables → dedicated schema) and is the reference example if either module gets picked up next.
-
-## 12. History — how this schema got here
+## 11. History — how this schema got here
 
 1. **`brands` → `businesses`.** Renamed the tenant table, added `business_users` + the auto-enroll trigger, renamed `connected_accounts`→`platform_connections`, `provider_credentials`→`api_credentials`, `ad_campaigns`/`ad_metrics_daily`→`campaigns`/`ad_performance_daily`, `meta_ad_intelligence`→`ad_analysis_reports`. Added `leads` and `social_posts` (new). Retired `posts`/`post_assets`/`post_metric_snapshots` in favor of `social_posts`, and a batch of already-dead tables.
 2. **Forced down to exactly 14 tables (temporary — see below).** Dropped `newsletters`/`subscribers`/`newsletter_sends`/`newsletter_recipients`, all 6 `outreach_*` tables that existed at the time, `generation_jobs`, and `audit_logs`. Folded `meta_self_ad_metrics`'s columns into `ad_performance_daily`. Retired `meta_competitor_ads` entirely — the competitor scraper now dedupes/scores in memory within a single run instead of persisting a gallery.
@@ -472,7 +471,7 @@ Newsletter had tables at one point (`newsletters`, `subscribers`, `newsletter_se
 4. **Newsletter + Outreach schema added together** (`20260725000000_newsletter_outreach_schema.sql`) — shared `contacts`/`contact_categories`/`email_events` plus module-specific tables for both.
 5. **Outreach campaign fields** (`20260726000000_outreach_campaign_fields.sql`) — added `service_type`/`target_region`/`cta_text`/`cta_link` to `outreach_campaigns`, made `category_id` (the predecessor to `list_id`) required.
 6. **Outreach's own lead schema** (`20260727000000_leads_schema.sql`) — replaced the shared `contacts`/`contact_categories`/`outreach_campaign_contacts` with dedicated `outreach_leads`/`outreach_lead_lists`/`outreach_campaign_leads`, renamed the `contact_status` enum to `lead_status`.
-7. **Newsletter schema dropped** (`20260728000000_drop_newsletter_schema.sql`) — Newsletter remained deferred; its tables and `newsletter_campaign_id`/enum remnants were removed rather than left half-built.
+7. **Newsletter schema dropped** (`20260728000000_drop_newsletter_schema.sql`) — that module wasn't being pursued; its tables and `newsletter_campaign_id`/enum remnants were removed rather than left half-built.
 8. **`businesses.services`** (`20260729000000_business_services.sql`) — added as a plain array, then converted to the current `jsonb` `{name, description}[]` shape one migration later.
 9. **`businesses.outreach_settings`** (`20260730000000_business_outreach_settings.sql`) — daily limit / timezone / send days / send window, JSON, no dedicated settings UI yet.
 10. **Send window widened** (`20260731000000_outreach_send_window_24h.sql`) — default send window changed from business-hours-only to all-day, since a campaign sent outside the narrower window looked broken with no UI to explain why.

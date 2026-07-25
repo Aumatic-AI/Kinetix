@@ -1,6 +1,6 @@
 # Kinetix Marketing Automation Platform
 
-Kinetix is a single-tenant marketing automation platform built for one client (Toga Health, medical tourism) with Next.js, Supabase, and Tailwind CSS. It consolidates six product areas — Meta Ads, Social Media, Outreach, Newsletter, Voice Agents, and Settings — into one codebase, one Postgres schema, and one background-job runner (Inngest).
+Kinetix is a single-tenant marketing automation platform built for one client (Toga Health, medical tourism) with Next.js, Supabase, and Tailwind CSS. It consolidates four product areas — Meta Ads, Social Media, Outreach, and Settings — into one codebase, one Postgres schema, and one background-job runner (Inngest).
 
 For a deeper tour of the system than this file covers, see [`docs/index.md`](docs/index.md). For AI-assistant-specific conventions (Claude Code), see [`CLAUDE.md`](CLAUDE.md) and [`DESIGN.md`](DESIGN.md).
 
@@ -90,8 +90,6 @@ kinetix/
 │   │   ├── meta-ads/         # Ad creative generation, competitor/self-ad intelligence (built)
 │   │   ├── social/            # OAuth, content generation, publishing (built)
 │   │   ├── outreach/          # Lead lists, scraping, campaigns, Instantly.ai sending (built)
-│   │   ├── newsletter/        # Placeholder — not built yet
-│   │   ├── voice/             # Placeholder — not built yet
 │   │   └── settings/
 │   │       └── each module has its own pages/, components/, hooks/, services/, types/
 │   ├── services/              # External integrations (Supabase, Inngest jobs, AI orchestrator, Instantly, Meta Graph API, …)

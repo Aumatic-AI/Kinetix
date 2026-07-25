@@ -38,6 +38,20 @@ export class CampaignsService {
     return (data as AdSet[]) || [];
   }
 
+  static async getAdSetById(id: string): Promise<AdSet | null> {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from("ad_sets").select("*").eq("id", id).single();
+    if (error && error.code !== "PGRST116") throw new Error(`Error fetching ad set: ${error.message}`);
+    return (data as AdSet) || null;
+  }
+
+  static async getAdById(id: string): Promise<Ad | null> {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from("ads").select("*").eq("id", id).single();
+    if (error && error.code !== "PGRST116") throw new Error(`Error fetching ad: ${error.message}`);
+    return (data as Ad) || null;
+  }
+
   static async getAdsByAdSets(adSetIds: string[]): Promise<Ad[]> {
     if (adSetIds.length === 0) return [];
     const supabase = await createClient();

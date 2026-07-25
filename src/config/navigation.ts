@@ -1,17 +1,12 @@
 import {
   LayoutDashboard,
   Megaphone,
-  Mail,
   Send,
-  Mic,
   Share2,
   Settings,
-  BarChart,
   Users,
   BookOpen,
   Link,
-  CreditCard,
-  Bot,
   PlayCircle,
   FileText,
 } from "lucide-react";
@@ -41,13 +36,6 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
     module: "social",
   },
   {
-    id: "newsletter",
-    label: "Newsletter",
-    href: ROUTES.NEWSLETTER.DASHBOARD,
-    icon: Mail,
-    module: "newsletter",
-  },
-  {
     id: "outreach",
     label: "Outreach",
     href: ROUTES.OUTREACH.DASHBOARD,
@@ -55,16 +43,9 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
     module: "outreach",
   },
   {
-    id: "voice",
-    label: "Voice Agents",
-    href: ROUTES.VOICE.OVERVIEW,
-    icon: Mic,
-    module: "voice",
-  },
-  {
     id: "settings",
     label: "Settings",
-    href: ROUTES.SETTINGS.WORKSPACE,
+    href: ROUTES.SETTINGS.ROOT,
     icon: Settings,
     module: "settings",
   },
@@ -106,14 +87,7 @@ export const SECONDARY_NAV_ITEMS: Record<
       href: ROUTES.META_ADS.LEADS,
       icon: Users,
     },
-    {
-      id: "ma-account",
-      label: "Ad Account",
-      href: ROUTES.META_ADS.AD_ACCOUNT,
-      icon: Link,
-    },
   ],
-  newsletter: [],
   outreach: [
     {
       id: "or-dashboard",
@@ -134,28 +108,6 @@ export const SECONDARY_NAV_ITEMS: Record<
       icon: Megaphone,
     },
   ],
-  voice: [
-    {
-      id: "va-overview",
-      label: "Overview",
-      href: ROUTES.VOICE.OVERVIEW,
-      icon: LayoutDashboard,
-    },
-    { id: "va-agents", label: "Agents", href: ROUTES.VOICE.AGENTS, icon: Bot },
-    {
-      id: "va-kb",
-      label: "Knowledge Base",
-      href: ROUTES.VOICE.KNOWLEDGE_BASE,
-      icon: BookOpen,
-    },
-    { id: "va-calls", label: "Calls", href: ROUTES.VOICE.CALLS, icon: Mic },
-    {
-      id: "va-analytics",
-      label: "Analytics",
-      href: ROUTES.VOICE.ANALYTICS,
-      icon: BarChart,
-    },
-  ],
   social: [
     {
       id: "sm-posts",
@@ -170,36 +122,9 @@ export const SECONDARY_NAV_ITEMS: Record<
       icon: Link,
     },
   ],
-  settings: [
-    {
-      id: "st-workspace",
-      label: "Workspace",
-      href: ROUTES.SETTINGS.WORKSPACE,
-      icon: LayoutDashboard,
-    },
-    {
-      id: "st-users",
-      label: "Users",
-      href: ROUTES.SETTINGS.USERS,
-      icon: Users,
-    },
-    {
-      id: "st-accounts",
-      label: "Connected Accounts",
-      href: ROUTES.SETTINGS.CONNECTED_ACCOUNTS,
-      icon: Link,
-    },
-    {
-      id: "st-providers",
-      label: "AI Providers",
-      href: ROUTES.SETTINGS.AI_PROVIDERS,
-      icon: Bot,
-    },
-    {
-      id: "st-billing",
-      label: "Billing",
-      href: ROUTES.SETTINGS.BILLING,
-      icon: CreditCard,
-    },
-  ],
+  // Settings is a single flat page (no sub-tabs) — everything lives on
+  // /settings itself, organized by in-page Tabs instead of a secondary
+  // sidebar. SecondarySidebar already renders nothing when its module's
+  // list is empty (same as "dashboard").
+  settings: [],
 };

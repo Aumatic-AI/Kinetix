@@ -2,6 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Play, Check, Clock, Video, Image as ImageIcon, Sparkles, Eye, Rocket, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { formatDate } from "@/utils/datetime";
 import { MetaAdCreative } from "../types/meta-ads.types";
 
 interface AdCreativeCardProps {
@@ -130,7 +131,7 @@ export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRet
         <div>
           <div className="flex items-center justify-between text-[10px] text-muted font-medium mb-3">
             <div className="flex items-center gap-2">
-              <span>{new Date(ad.created_at).toLocaleDateString()}</span>
+              <span>{formatDate(ad.created_at)}</span>
               {ad.duration && (
                 <>
                   <span className="w-1 h-1 rounded-full bg-border" />

@@ -10,6 +10,7 @@ import { CampaignListItem } from "@/modules/meta-ads/types/meta-ads.types";
 interface LiveCampaign {
   id: string;
   status: string;
+  created_time?: string;
   adsets?: { data?: { id: string; status: string; ads?: { data?: { id: string; status: string }[] } }[] };
 }
 
@@ -30,7 +31,7 @@ export async function GET() {
 
     const { accessToken, adAccountId } = requireMetaAdAccountEnv();
     const live = await graphGet<{ data?: LiveCampaign[] }>(`act_${adAccountId}/campaigns`, accessToken, {
-      fields: "id,status,adsets{id,status,ads{id,status}}",
+      fields: "id,status,created_time,adsets{id,status,ads{id,status}}",
       limit: "200",
     });
     const liveById = new Map((live.data || []).map((c) => [c.id, c]));
@@ -67,6 +68,11 @@ export async function GET() {
         status: liveData?.status || (c.status === "draft" ? "NOT_ON_META" : c.status.toUpperCase()),
         dailyBudgetCents: c.daily_budget_cents,
         lifetimeBudgetCents: c.lifetime_budget_cents,
+        // Meta's own creation date, not ours — our pointer row's created_at
+        // is just when we synced/launched it, which for backfilled
+        // campaigns is today regardless of how long the campaign has
+        // actually been running on Meta.
+        createdAt: liveData?.created_time || c.created_at,
         adSetCount: adSets.length,
         adCount,
         creativeThumbnailUrl: thumbnailByCampaignId.get(c.id),

@@ -143,6 +143,7 @@ export type Database = {
           end_at: string | null
           external_adset_id: string | null
           id: string
+          lifetime_budget_cents: number | null
           name: string
           optimization_goal: string | null
           placements: Json
@@ -159,6 +160,7 @@ export type Database = {
           end_at?: string | null
           external_adset_id?: string | null
           id?: string
+          lifetime_budget_cents?: number | null
           name: string
           optimization_goal?: string | null
           placements?: Json
@@ -175,6 +177,7 @@ export type Database = {
           end_at?: string | null
           external_adset_id?: string | null
           id?: string
+          lifetime_budget_cents?: number | null
           name?: string
           optimization_goal?: string | null
           placements?: Json

@@ -200,9 +200,9 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
     <>
       <Dialog 
         open={isOpen} 
-        onOpenChange={(open, event, reason) => { 
-          // Base UI passes reason as 3rd arg. If it's a click outside, ignore it to fix the dropdown bug.
-          if (reason === 'backdropClick') return;
+        onOpenChange={(open, eventDetails) => {
+          // Ignore outside-clicks (e.g. a Select dropdown closing) so they don't also close this modal.
+          if (eventDetails.reason === "outside-press") return;
           if (!open) { setIdea(""); setService(""); setGeneratedIdeas(null); setIdeaError(""); onClose(); }
         }}
       >

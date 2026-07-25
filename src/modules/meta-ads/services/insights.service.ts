@@ -10,6 +10,7 @@
  */
 
 import { graphGetAllPages } from "@/services/meta/graph-client";
+import { MetaMetrics } from "../types/meta-ads.types";
 
 export interface MetaAdWithInsights {
   metaAdId: string;
@@ -34,6 +35,38 @@ function countLeads(actions: Array<{ action_type: string; value: string }> | und
   const lead = actions.find((a) => a.action_type === "lead")?.value;
   const onsiteLead = actions.find((a) => a.action_type === "onsite_conversion.lead_grouped")?.value;
   return parseInt(lead || "0", 10) + parseInt(onsiteLead || "0", 10);
+}
+
+/** Lifetime-to-date metrics for one Campaign/Ad Set/Ad — used by the three
+ * detail pages (Campaign/Ad Set/Ad). Insights live directly on any object's
+ * own id as an edge, so no filtering/account-wide fetch is needed the way
+ * the Reports page does it. Zeroed rather than thrown when Meta has no
+ * insights yet (e.g. a brand-new or never-delivered object). */
+export async function fetchObjectMetrics(objectId: string, accessToken: string): Promise<MetaMetrics> {
+  try {
+    const rows = await graphGetAllPages<Record<string, any>>(`${objectId}/insights`, accessToken, {
+      fields: "spend,impressions,inline_link_clicks,inline_link_click_ctr,cpm,reach,actions",
+      date_preset: "maximum",
+    });
+    const ins = rows[0] || {};
+    const spend = parseFloat(ins.spend || "0");
+    const impressions = parseInt(ins.impressions || "0", 10);
+    const clicks = parseInt(ins.inline_link_clicks || "0", 10);
+    const ctr = parseFloat(ins.inline_link_click_ctr || "0");
+    const cpm = parseFloat(ins.cpm || "0");
+    const reach = parseInt(ins.reach || "0", 10);
+    return {
+      spend: parseFloat(spend.toFixed(2)),
+      impressions,
+      clicks,
+      ctr: parseFloat(ctr.toFixed(4)),
+      cpm: parseFloat(cpm.toFixed(2)),
+      reach,
+      leads: countLeads(ins.actions),
+    };
+  } catch {
+    return { spend: 0, impressions: 0, clicks: 0, ctr: 0, cpm: 0, reach: 0, leads: 0 };
+  }
 }
 
 export class MetaAdsInsightsService {

@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Play, Sparkles, Clock, Video, Image as ImageIcon, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { formatDateTime } from "@/utils/datetime";
 import { MetaAdCreative } from "../types/meta-ads.types";
 
 interface AdDetailsModalProps {
@@ -57,7 +58,7 @@ export function AdDetailsModal({ ad, onClose }: AdDetailsModalProps) {
               )}
             </div>
             <DialogTitle className="text-2xl font-bold mb-1 text-text">Ad Details</DialogTitle>
-            <p className="text-sm text-muted">Created on {ad && new Date(ad.created_at).toLocaleString()}</p>
+            <p className="text-sm text-muted">Created on {ad && formatDateTime(ad.created_at)}</p>
           </div>
 
           {ad?.idea_prompt && (

@@ -1,57 +1,59 @@
 import { NextResponse } from "next/server";
-import { SupabaseClient } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/server";
-import { Database } from "@/types/supabase";
 import { requireMetaAdAccountEnv, graphGet, graphPost } from "@/services/meta/graph-client";
+import { fetchObjectMetrics } from "@/modules/meta-ads/services/insights.service";
 import { CampaignsService } from "@/modules/meta-ads/services/campaigns.service";
-import { CampaignDetail } from "@/modules/meta-ads/types/meta-ads.types";
+import { CampaignPageDetail } from "@/modules/meta-ads/types/meta-ads.types";
 
 interface LiveCampaign {
   id: string;
   name: string;
   status: string;
   objective?: string;
+  buying_type?: string;
   daily_budget?: string;
   lifetime_budget?: string;
-  adsets?: { data?: { id: string; name: string; status: string; ads?: { data?: { id: string; name: string; status: string }[] } }[] };
+  start_time?: string;
+  stop_time?: string;
+  created_time?: string;
+  adsets?: { data?: { id: string; name: string; status: string; ads?: { data?: { id: string }[] } }[] };
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ campaignId: string }> }) {
   try {
     const { campaignId } = await params;
-    const supabase = (await createClient()) as SupabaseClient<Database>;
     const ourCampaign = await CampaignsService.getCampaignById(campaignId);
     if (!ourCampaign?.external_campaign_id) {
       return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
     const { accessToken } = requireMetaAdAccountEnv();
-    const live = await graphGet<LiveCampaign>(ourCampaign.external_campaign_id, accessToken, {
-      fields: "id,name,status,objective,daily_budget,lifetime_budget,adsets{id,name,status,ads{id,name,status}}",
-    });
+    const [live, metrics] = await Promise.all([
+      graphGet<LiveCampaign>(ourCampaign.external_campaign_id, accessToken, {
+        fields: "id,name,status,objective,buying_type,daily_budget,lifetime_budget,start_time,stop_time,created_time,adsets{id,name,status,ads{id}}",
+      }),
+      fetchObjectMetrics(ourCampaign.external_campaign_id, accessToken),
+    ]);
 
     const ourAdSets = await CampaignsService.getAdSetsByCampaign(campaignId);
-    const ourAds = await CampaignsService.getAdsByAdSets(ourAdSets.map((a) => a.id));
-    const creativeIds = ourAds.map((a) => a.creative_id).filter(Boolean) as string[];
-    const { data: creatives } = creativeIds.length
-      ? await supabase.from("meta_ad_creatives").select("id, media_urls").in("id", creativeIds)
-      : { data: [] as { id: string; media_urls: unknown }[] };
-    const thumbnailByCreativeId = new Map(
-      (creatives || []).map((c) => [c.id, Array.isArray(c.media_urls) ? (c.media_urls as string[])[0] : undefined])
-    );
-    const ourAdByExternalId = new Map(ourAds.map((a) => [a.external_ad_id, a]));
+    const liveAdSets = live.adsets?.data || [];
 
-    const detail: CampaignDetail = {
+    const detail: CampaignPageDetail = {
       id: ourCampaign.id,
       externalCampaignId: ourCampaign.external_campaign_id,
       name: live.name,
       objective: live.objective || ourCampaign.objective,
       status: live.status,
+      buyingType: live.buying_type || null,
       dailyBudgetCents: live.daily_budget ? parseInt(live.daily_budget, 10) : ourCampaign.daily_budget_cents,
       lifetimeBudgetCents: live.lifetime_budget ? parseInt(live.lifetime_budget, 10) : ourCampaign.lifetime_budget_cents,
-      adSetCount: live.adsets?.data?.length || 0,
-      adCount: (live.adsets?.data || []).reduce((sum, as) => sum + (as.ads?.data?.length || 0), 0),
-      adSets: (live.adsets?.data || []).map((as) => {
+      currency: ourCampaign.currency,
+      startAt: live.start_time || ourCampaign.start_at,
+      endAt: live.stop_time || ourCampaign.end_at,
+      createdAt: live.created_time || ourCampaign.created_at,
+      adSetCount: liveAdSets.length,
+      adCount: liveAdSets.reduce((sum, as) => sum + (as.ads?.data?.length || 0), 0),
+      metrics,
+      adSets: liveAdSets.map((as) => {
         const ourAdSet = ourAdSets.find((o) => o.external_adset_id === as.id);
         return {
           id: ourAdSet?.id || as.id,
@@ -59,18 +61,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cam
           name: as.name,
           status: as.status,
           dailyBudgetCents: ourAdSet?.daily_budget_cents ?? null,
-          ads: (as.ads?.data || []).map((ad) => {
-            const ourAd = ourAdByExternalId.get(ad.id);
-            return {
-              id: ourAd?.id || ad.id,
-              externalAdId: ad.id,
-              name: ad.name,
-              status: ad.status,
-              creativeId: ourAd?.creative_id || null,
-              externalCreativeId: ourAd?.external_creative_id || null,
-              thumbnailUrl: ourAd?.creative_id ? thumbnailByCreativeId.get(ourAd.creative_id) : undefined,
-            };
-          }),
+          lifetimeBudgetCents: ourAdSet?.lifetime_budget_cents ?? null,
+          optimizationGoal: ourAdSet?.optimization_goal ?? null,
+          adCount: as.ads?.data?.length || 0,
         };
       }),
     };

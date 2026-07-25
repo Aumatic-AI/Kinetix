@@ -105,7 +105,7 @@ Tailwind's own `@theme inline`-generated `rounded-lg` would compute to 10px (`va
 - **Library: `lucide-react` only** — used consistently across the whole app (68+ files). Never mix icon sets.
 - **Sizing** (observed convention, not a strictly enforced system today — codify it going forward): `w-4 h-4` / `size-4` (16px) is the default for buttons, inputs, and table row actions. `w-3.5 h-3.5` (14px) for smaller inline labels and dense row actions (e.g. `LeadsTable`'s row icons).
 - **Stroke width:** lucide's own default (`2`) — there's no global override. Don't add one for a single component.
-- Icons are never the sole control without a text label or a `title`/tooltip attribute (see every icon-only button in `LeadsTable.tsx`/`CampaignsPage.tsx` for the pattern: `<button title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>`).
+- Icons are never the sole control without a text label or a `title`/tooltip attribute (see the preview button in `CampaignPickCreativeDialog.tsx` for the pattern: `<button title="Preview"><Play className="w-3.5 h-3.5" /></button>`). On pages with real room (the Campaign/Ad Set/Ad detail pages), prefer a plain text label over an icon-only button — see `StatusActions.tsx`'s Pause/Resume/Archive buttons.
 
 ---
 
@@ -178,15 +178,24 @@ Everything below is in `src/components/ui/`. **Check this list before writing ne
 - **Fixed style: `w-9 h-9 rounded-lg bg-secondary border border-default text-muted`** — neutral, not primary-colored, and `rounded-lg` (**not** `rounded-full`) per explicit product direction. Don't reintroduce a circular or primary-tinted avatar.
 - Use letter-fallback mode for per-record rows where each item has a distinguishing name (e.g. a lead's initial in `LeadsTable`); use a single fixed icon (not a per-row guessed icon) when every row in a table represents the same kind of thing (e.g. every row in the Leads-lists table uses the same `Users` icon, every row in the Campaigns table uses the same `Megaphone` icon) — a per-row keyword-guessed icon was tried and explicitly reverted in favor of this simpler, more consistent rule.
 
+### Breadcrumb (`breadcrumb.tsx`) — shadcn-scaffolded, built on `@base-ui/react/use-render`
+- Added for the Meta Ads Campaign/Ad Set/Ad detail pages, which replaced a single "← Back" button — since those three pages share one layout, the breadcrumb (`Campaigns / {campaign} / {ad set} / {ad}`) is what tells you which one you're actually on and lets you jump back to any ancestor level directly, not just one step back.
+- `BreadcrumbLink` renders an `<a>` by default; pass Next's `Link` via the `render` prop for real client-side navigation — `<BreadcrumbLink render={<Link href={...} />}>` (see `CampaignDetailPage.tsx`). The current page is `BreadcrumbPage` (plain text, not a link).
+- Uses shadcn's default `text-foreground`/`text-muted-foreground` classes as-is — unlike some other shadcn scaffolding in this repo, those *do* resolve correctly here (`globals.css` aliases `--foreground`/`--muted-foreground` straight to `--color-text`/`--color-text-muted`), so no manual token fixup was needed.
+
+### LevelChip (`campaigns/shared.tsx`)
+- A small neutral pill ("Campaign" / "Ad Set" / "Ad") shown next to the title on each of the three detail pages — `bg-secondary text-muted border-border`, deliberately not colored, so it's never confused with `StatusChip` (which is always semantic-colored). Exists because those three pages are visually identical enough that a quick glance needs to confirm which level you're on, alongside the breadcrumb.
+
 ### Loader (`Loader.tsx`) / Skeleton (`skeleton.tsx`)
 - `Loader`: one spinner style app-wide (primary stroke, border-color track), sizes `sm` 16px / `md` 24px / `lg` 32px. Never mix in a second spinner style.
 - `Skeleton`: `bg-secondary`, calm 1.5s pulse (no shimmer sweep). Shape it to mirror the real content (a text-line skeleton is a thin rounded bar, a row skeleton is the row's real height) so layout doesn't jump on load.
 
 ### Tabs (`tabs.tsx`) — built on `@base-ui/react/tabs`
-- Underline style only: inactive `text-muted`, active `text-text font-semibold border-primary` (2px bottom border). Don't introduce a segmented/pill tab style elsewhere — pick one pattern app-wide.
+- Default is underline style: inactive `text-muted`, active `text-text font-semibold border-primary` (2px bottom border). Don't introduce a segmented/pill tab style elsewhere without good reason — pick one pattern app-wide.
+- **Known exception:** `LeadsPage.tsx`'s Leads/Instant Forms tabs override `TabsList`/`TabsTrigger` via `className` to render as a segmented pill control (`bg-surface rounded-lg p-1` container, active tab `bg-background shadow-sm`), matching the day-range buttons on the Reports page. This is a per-instance `className` override on the shared component, not a fork — `tabs.tsx` itself is unchanged, and `AdLibrary.tsx`/`CreateAdModal.tsx` still use the default underline style.
 
 ### Stepper (`stepper.tsx`)
-- Deliberately monochrome by design (see the component's own source comment) — reached step is `bg-text`, not `bg-primary`. It's UI chrome, not another place for the accent color.
+- Reached-step circle and connector line use `bg-info` (not `bg-primary`, not black) — a deliberate choice so the step indicator reads as its own UI chrome without competing with the page's one primary action button.
 
 ### DateTimePicker (`date-time-picker.tsx`)
 - Composes `Popover` + `Calendar` (`react-day-picker`) + a manual time input. Treat `Popover` and `Calendar` as **internal to `DateTimePicker`**, not general-purpose components to import directly elsewhere — nothing in the app currently uses them standalone.

@@ -33,9 +33,13 @@ export function LeadsPage() {
       {syncMutation.error && <p className="text-sm text-danger">{(syncMutation.error as Error).message}</p>}
 
       <Tabs defaultValue="leads">
-        <TabsList>
-          <TabsTrigger value="leads">Leads {leads.length > 0 && `(${leads.length})`}</TabsTrigger>
-          <TabsTrigger value="forms">Instant Forms</TabsTrigger>
+        <TabsList className="w-fit border-b-0 gap-1 bg-surface rounded-lg p-1">
+          <TabsTrigger value="leads" className="rounded-md border-b-0 mb-0 px-3 py-1.5 text-xs font-bold data-[active]:bg-background data-[active]:shadow-sm">
+            Leads {leads.length > 0 && `(${leads.length})`}
+          </TabsTrigger>
+          <TabsTrigger value="forms" className="rounded-md border-b-0 mb-0 px-3 py-1.5 text-xs font-bold data-[active]:bg-background data-[active]:shadow-sm">
+            Instant Forms
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="leads">
           {isLoading ? (

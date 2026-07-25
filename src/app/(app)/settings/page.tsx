@@ -1,8 +1,5 @@
-export default function SettingsPage() {
-  return (
-    <div className="flex flex-col gap-4">
-      <h1 className="text-2xl font-bold text-text">SettingsPage</h1>
-      <p className="text-muted">This page is currently under construction.</p>
-    </div>
-  );
+import { SettingsPage } from "@/modules/settings/pages/SettingsPage";
+
+export default function Page() {
+  return <SettingsPage />;
 }

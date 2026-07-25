@@ -22,11 +22,6 @@ const envSchema = z.object({
   // Web scraping (Apify) — used by Meta Ads competitor intel and Outreach lead-finding
   APIFY_API_TOKEN: z.string().optional(),
 
-  // Newsletter (Resend) — module is currently deferred, but the provider client stays
-  RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM_ADDRESS: z.string().email().optional(),
-  RESEND_WEBHOOK_SECRET: z.string().optional(),
-
   // Outreach (lead verification & cold email sending)
   MILLIONVERIFIER_API_KEY: z.string().optional(),
   INSTANTLY_API_KEY: z.string().optional(),
@@ -72,10 +67,6 @@ const _env = envSchema.safeParse({
   UPLOAD_POST_PROFILE: process.env.UPLOAD_POST_PROFILE,
 
   APIFY_API_TOKEN: process.env.APIFY_API_TOKEN,
-
-  RESEND_API_KEY: process.env.RESEND_API_KEY,
-  EMAIL_FROM_ADDRESS: process.env.EMAIL_FROM_ADDRESS,
-  RESEND_WEBHOOK_SECRET: process.env.RESEND_WEBHOOK_SECRET,
 
   MILLIONVERIFIER_API_KEY: process.env.MILLIONVERIFIER_API_KEY,
   INSTANTLY_API_KEY: process.env.INSTANTLY_API_KEY,

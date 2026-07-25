@@ -1,8 +1,7 @@
 /**
- * Outreach's own lead data — fully separate from Newsletter (which is
- * deferred and will get its own model later). "List" is the one term used
- * everywhere for what the DB calls `outreach_lead_lists` — no "category"
- * anywhere in this module's naming, DB, or UI.
+ * Outreach's own lead data. "List" is the one term used everywhere for what
+ * the DB calls `outreach_lead_lists` — no "category" anywhere in this
+ * module's naming, DB, or UI.
  */
 
 export type LeadSource = "scraped" | "manual" | "import";

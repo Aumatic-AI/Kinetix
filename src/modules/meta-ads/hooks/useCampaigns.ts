@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import { CampaignListItem, CampaignDetail, LaunchCampaignInput } from "../types/meta-ads.types";
+import { CampaignListItem, CampaignPageDetail, AdSetPageDetail, AdPageDetail, LaunchCampaignInput, CreateAdSetInput, CreateAdInput } from "../types/meta-ads.types";
 
 const supabase = createClient();
 
@@ -8,6 +8,8 @@ export const campaignsKeys = {
   all: ["campaigns"] as const,
   list: () => [...campaignsKeys.all, "list"] as const,
   detail: (id: string) => [...campaignsKeys.all, "detail", id] as const,
+  adSetDetail: (id: string) => [...campaignsKeys.all, "adset-detail", id] as const,
+  adDetail: (id: string) => [...campaignsKeys.all, "ad-detail", id] as const,
   launchedCreativeIds: () => [...campaignsKeys.all, "launched-creative-ids"] as const,
 };
 
@@ -31,9 +33,27 @@ export function useCampaignsList() {
 export function useCampaignDetail(id: string | null) {
   return useQuery({
     queryKey: campaignsKeys.detail(id || ""),
-    queryFn: () => fetchJson<{ campaign: CampaignDetail }>(`/api/meta-ads/campaigns/${id}`).then((d) => d.campaign),
+    queryFn: () => fetchJson<{ campaign: CampaignPageDetail }>(`/api/meta-ads/campaigns/${id}`).then((d) => d.campaign),
     enabled: !!id,
-    staleTime: 30 * 1000,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useAdSetDetail(id: string | null) {
+  return useQuery({
+    queryKey: campaignsKeys.adSetDetail(id || ""),
+    queryFn: () => fetchJson<{ adSet: AdSetPageDetail }>(`/api/meta-ads/campaigns/ad-sets/${id}`).then((d) => d.adSet),
+    enabled: !!id,
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useAdDetail(id: string | null) {
+  return useQuery({
+    queryKey: campaignsKeys.adDetail(id || ""),
+    queryFn: () => fetchJson<{ ad: AdPageDetail }>(`/api/meta-ads/campaigns/ads/${id}`).then((d) => d.ad),
+    enabled: !!id,
+    staleTime: 60 * 1000,
   });
 }
 
@@ -52,10 +72,15 @@ export function useLaunchedCreativeIds() {
   });
 }
 
-function invalidateCampaigns(queryClient: ReturnType<typeof useQueryClient>, id?: string) {
+function invalidateCampaigns(
+  queryClient: ReturnType<typeof useQueryClient>,
+  opts?: { campaignId?: string; adSetId?: string; adId?: string }
+) {
   queryClient.invalidateQueries({ queryKey: campaignsKeys.list() });
   queryClient.invalidateQueries({ queryKey: campaignsKeys.launchedCreativeIds() });
-  if (id) queryClient.invalidateQueries({ queryKey: campaignsKeys.detail(id) });
+  if (opts?.campaignId) queryClient.invalidateQueries({ queryKey: campaignsKeys.detail(opts.campaignId) });
+  if (opts?.adSetId) queryClient.invalidateQueries({ queryKey: campaignsKeys.adSetDetail(opts.adSetId) });
+  if (opts?.adId) queryClient.invalidateQueries({ queryKey: campaignsKeys.adDetail(opts.adId) });
 }
 
 export function useLaunchCampaign() {
@@ -80,7 +105,12 @@ export function useUpdateStatus() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       }),
-    onSuccess: (_data, variables) => invalidateCampaigns(queryClient, variables.campaignId),
+    onSuccess: (_data, variables) =>
+      invalidateCampaigns(queryClient, {
+        campaignId: variables.campaignId,
+        adSetId: variables.level === "adset" ? variables.id : undefined,
+        adId: variables.level === "ad" ? variables.id : undefined,
+      }),
   });
 }
 
@@ -93,7 +123,7 @@ export function useSmartRun() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ adId: input.adId }),
       }),
-    onSuccess: (_data, variables) => invalidateCampaigns(queryClient, variables.campaignId),
+    onSuccess: (_data, variables) => invalidateCampaigns(queryClient, { campaignId: variables.campaignId, adId: variables.adId }),
   });
 }
 
@@ -106,7 +136,7 @@ export function useEditAdCreative() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       }),
-    onSuccess: (_data, variables) => invalidateCampaigns(queryClient, variables.campaignId),
+    onSuccess: (_data, variables) => invalidateCampaigns(queryClient, { campaignId: variables.campaignId, adId: variables.adId }),
   });
 }
 
@@ -114,6 +144,35 @@ export function useArchiveCampaign() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (campaignId: string) => fetchJson(`/api/meta-ads/campaigns/${campaignId}`, { method: "DELETE" }),
-    onSuccess: () => invalidateCampaigns(queryClient),
+    onSuccess: (_data, campaignId) => invalidateCampaigns(queryClient, { campaignId }),
+  });
+}
+
+/** "+ Add Ad Set" on an existing campaign — Campaign Detail page. Creates
+ * an empty Ad Set only, no Ad yet. */
+export function useCreateAdSet(campaignId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateAdSetInput) =>
+      fetchJson<{ success: true; adSetId: string; externalAdSetId: string }>(`/api/meta-ads/campaigns/${campaignId}/ad-sets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => invalidateCampaigns(queryClient, { campaignId }),
+  });
+}
+
+/** "Create Ad" on an existing Ad Set — Ad Set Detail page. */
+export function useCreateAd(adSetId: string, campaignId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: CreateAdInput) =>
+      fetchJson<{ success: true; adId: string }>(`/api/meta-ads/campaigns/ad-sets/${adSetId}/ads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: () => invalidateCampaigns(queryClient, { campaignId, adSetId }),
   });
 }

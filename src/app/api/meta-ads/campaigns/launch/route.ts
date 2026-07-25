@@ -3,7 +3,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { Database } from "@/types/supabase";
 import { requireMetaAdAccountEnv, graphPost } from "@/services/meta/graph-client";
-import { uploadMediaToMeta, resolvePageId, fetchExistingCampaignInfo, getOrCreatePixelId } from "@/modules/meta-ads/services/launch.service";
+import { uploadMediaToMeta, resolvePageId, getOrCreatePixelId, buildTargeting, buildPlacements, resolveDeliverySettings, budgetField } from "@/modules/meta-ads/services/launch.service";
 import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
 import { CampaignsService } from "@/modules/meta-ads/services/campaigns.service";
 import { LaunchCampaignInput } from "@/modules/meta-ads/types/meta-ads.types";
@@ -11,22 +11,29 @@ import { LaunchCampaignInput } from "@/modules/meta-ads/types/meta-ads.types";
 export const maxDuration = 60; // video upload polling can take up to ~45s
 
 /**
- * Creative -> live Campaign/Ad Set/Creative/Ad, all created PAUSED. Going
- * live afterward is a separate, explicit action (Smart Run or Resume) —
- * Launch itself never starts spending money. Ported from the legacy
- * project's /api/meta/launch route: same media-upload/thumbnail/pixel/DSA
- * steps, split into named functions (launch.service.ts) instead of one
- * 600-line handler, and every object created is now written to our own
- * campaigns/ad_sets/ads tables as a pointer (external_*_id), which the
- * legacy version never did.
+ * Creative -> a brand-new live Campaign + Ad Set + Creative + Ad, all
+ * created PAUSED. Going live afterward is a separate, explicit action
+ * (Smart Run or Resume) — Launch itself never starts spending money.
+ * Adding to an *existing* campaign/ad set is deliberately NOT handled here
+ * — that's "+ Add Ad Set" / "+ Add Creative" from the Campaign Details
+ * view instead (see campaigns/[campaignId]/ad-sets and
+ * campaigns/ad-sets/[adSetId]/ads), so this route only ever has one job.
+ * Ported from the legacy project's /api/meta/launch route: same media-
+ * upload/thumbnail/pixel/DSA steps, split into named functions
+ * (launch.service.ts) instead of one 600-line handler, and every object
+ * created is now written to our own campaigns/ad_sets/ads tables as a
+ * pointer (external_*_id), which the legacy version never did.
  */
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as LaunchCampaignInput;
 
-    const required: (keyof LaunchCampaignInput)[] = ["creativeId", "campaignName", "objective", "headline", "primaryText", "dailyBudgetCents", "ctaType", "websiteUrl"];
+    const required: (keyof LaunchCampaignInput)[] = ["creativeId", "campaignName", "objective", "adSetName", "adName", "headline", "primaryText", "ctaType", "websiteUrl"];
     for (const field of required) {
       if (!body[field]) return NextResponse.json({ error: `Missing required field: ${field}` }, { status: 400 });
+    }
+    if (body.budgetType === "lifetime" ? !body.lifetimeBudgetCents : !body.dailyBudgetCents) {
+      return NextResponse.json({ error: `Missing required field: ${body.budgetType === "lifetime" ? "lifetimeBudgetCents" : "dailyBudgetCents"}` }, { status: 400 });
     }
 
     const { accessToken, adAccountId } = requireMetaAdAccountEnv();
@@ -46,85 +53,55 @@ export async function POST(request: Request) {
     const business = await MetaAdsService.getBusinessById(supabase, businessId);
     if (!business) return NextResponse.json({ error: "Business not found" }, { status: 404 });
 
-    let existingExternalCampaignId: string | null = null;
-    let objective = body.objective;
-    let isCbo = false;
-    if (body.existingCampaignId) {
-      const existingRow = await CampaignsService.getCampaignById(body.existingCampaignId);
-      if (!existingRow?.external_campaign_id) {
-        return NextResponse.json({ error: "The selected existing campaign could not be found." }, { status: 404 });
-      }
-      existingExternalCampaignId = existingRow.external_campaign_id;
-      const info = await fetchExistingCampaignInfo(existingExternalCampaignId, accessToken);
-      objective = info.objective as LaunchCampaignInput["objective"];
-      isCbo = info.isCbo;
-    }
-
+    const objective = body.objective;
+    const isCbo = !!body.cbo;
     const leadGenFormId = body.leadGenFormId || null;
-    const isLeadGenForm = objective === "OUTCOME_LEADS" && !!leadGenFormId;
-    const isPixelRequired = !isLeadGenForm && (objective === "OUTCOME_SALES" || objective === "OUTCOME_LEADS");
 
     const [mediaPayload, pageId] = await Promise.all([
       uploadMediaToMeta(mediaUrls[0], isVideo, accessToken, adAccountId),
       resolvePageId(accessToken),
     ]);
 
-    let promotedObject: Record<string, unknown> | undefined;
-    let trackingSpecs: unknown[] | undefined;
-    let optimizationGoal = isLeadGenForm ? "LEAD_GENERATION" : "LINK_CLICKS";
-
-    if (isLeadGenForm) {
-      promotedObject = { page_id: pageId };
-    } else if (isPixelRequired) {
-      const pixelId = await getOrCreatePixelId(accessToken, adAccountId);
-      const customEvent = objective === "OUTCOME_SALES" ? "PURCHASE" : "LEAD";
-      promotedObject = { pixel_id: pixelId, custom_event_type: customEvent };
-      trackingSpecs = [{ "action.type": ["offsite_conversion"], fb_pixel: [pixelId] }];
-      optimizationGoal = "OFFSITE_CONVERSIONS";
-    }
+    const delivery = await resolveDeliverySettings(objective, leadGenFormId, body.optimizationGoal, pageId, () => getOrCreatePixelId(accessToken, adAccountId));
+    const isLeadGenForm = objective === "OUTCOME_LEADS" && !!leadGenFormId;
 
     const startTime = body.startAt ? Math.floor(new Date(body.startAt).getTime() / 1000) : Math.floor(Date.now() / 1000);
     const endTime = body.endAt ? Math.floor(new Date(body.endAt).getTime() / 1000) : undefined;
 
-    const targeting = {
-      geo_locations: { countries: body.countries?.length ? body.countries : ["US"], location_types: ["home", "recent"] },
-      age_min: body.ageMin || 18,
-      age_max: body.ageMax || 65,
-      ...(body.gender === 1 || body.gender === 2 ? { genders: [body.gender] } : {}),
-      targeting_automation: { advantage_audience: 0 },
-    };
+    const targeting = buildTargeting(body);
+    const placements = buildPlacements(body);
 
     // Meta requires these transparency fields on every ACTIVE ad globally, not just in the EU.
     const dsaFields = { dsa_beneficiary: business.name, dsa_payor: business.name };
 
     // ── Campaign ──
-    const externalCampaignId =
-      existingExternalCampaignId ||
-      (
-        await graphPost<{ id: string }>(`act_${adAccountId}/campaigns`, accessToken, {
-          name: body.campaignName,
-          objective,
-          status: "PAUSED",
-          special_ad_categories: ["NONE"],
-          ...(isCbo ? { daily_budget: body.dailyBudgetCents } : { is_adset_budget_sharing_enabled: false }),
-        })
-      ).id;
+    const externalCampaignId = (
+      await graphPost<{ id: string }>(`act_${adAccountId}/campaigns`, accessToken, {
+        name: body.campaignName,
+        objective,
+        status: "PAUSED",
+        special_ad_categories: ["NONE"],
+        buying_type: body.buyingType || "AUCTION",
+        ...(isCbo ? budgetField(body) : { is_adset_budget_sharing_enabled: false }),
+      })
+    ).id;
 
     // ── Ad Set ──
     const externalAdSetId = (
       await graphPost<{ id: string }>(`act_${adAccountId}/adsets`, accessToken, {
-        name: `${body.campaignName} - Ad Set`,
+        name: body.adSetName,
         campaign_id: externalCampaignId,
-        ...(!isCbo ? { daily_budget: body.dailyBudgetCents } : {}),
+        ...(!isCbo ? budgetField(body) : {}),
         start_time: startTime,
         ...(endTime ? { end_time: endTime } : {}),
         billing_event: "IMPRESSIONS",
-        optimization_goal: optimizationGoal,
+        optimization_goal: delivery.optimizationGoal,
         bid_strategy: "LOWEST_COST_WITHOUT_CAP",
         targeting,
+        ...placements,
         ...dsaFields,
         ...(isLeadGenForm ? { destination_type: "ON_AD" } : {}),
-        ...(promotedObject ? { promoted_object: promotedObject } : {}),
+        ...(delivery.promotedObject ? { promoted_object: delivery.promotedObject } : {}),
         status: "PAUSED",
       })
     ).id;
@@ -139,7 +116,7 @@ export async function POST(request: Request) {
             image_hash: mediaPayload.imageHash,
             title: body.headline,
             message: body.primaryText,
-            link_description: body.headline,
+            ...(body.description ? { link_description: body.description } : {}),
             call_to_action: { type: body.ctaType, value: ctaValue },
           },
         }
@@ -150,13 +127,14 @@ export async function POST(request: Request) {
             link: body.websiteUrl,
             message: body.primaryText,
             name: body.headline,
+            ...(body.description ? { description: body.description } : {}),
             call_to_action: { type: body.ctaType, value: ctaValue },
           },
         };
 
     const externalCreativeId = (
       await graphPost<{ id: string }>(`act_${adAccountId}/adcreatives`, accessToken, {
-        name: `Creative_${body.campaignName}`,
+        name: `Creative_${body.adName}`,
         object_story_spec: objectStorySpec,
       })
     ).id;
@@ -164,41 +142,39 @@ export async function POST(request: Request) {
     // ── Ad ──
     const externalAdId = (
       await graphPost<{ id: string }>(`act_${adAccountId}/ads`, accessToken, {
-        name: body.campaignName,
+        name: body.adName,
         adset_id: externalAdSetId,
         creative: { creative_id: externalCreativeId },
         status: "PAUSED",
-        ...(trackingSpecs ? { tracking_specs: trackingSpecs } : {}),
+        ...(delivery.trackingSpecs ? { tracking_specs: delivery.trackingSpecs } : {}),
       })
     ).id;
 
     // ── Persist our own pointer rows ──
-    let ourCampaignId = body.existingCampaignId;
-    if (!ourCampaignId) {
-      const campaignRow = await CampaignsService.createCampaign({
-        business_id: businessId,
-        name: body.campaignName,
-        objective,
-        status: "paused",
-        daily_budget_cents: isCbo ? body.dailyBudgetCents : null,
-        currency: "USD",
-        start_at: body.startAt || new Date().toISOString(),
-        end_at: body.endAt || null,
-        ad_account_id: null,
-        external_campaign_id: externalCampaignId,
-      });
-      ourCampaignId = campaignRow.id;
-    }
+    const campaignRow = await CampaignsService.createCampaign({
+      business_id: businessId,
+      name: body.campaignName,
+      objective,
+      status: "paused",
+      daily_budget_cents: isCbo && body.budgetType === "daily" ? body.dailyBudgetCents ?? null : null,
+      lifetime_budget_cents: isCbo && body.budgetType === "lifetime" ? body.lifetimeBudgetCents ?? null : null,
+      currency: "USD",
+      start_at: body.startAt || new Date().toISOString(),
+      end_at: body.endAt || null,
+      ad_account_id: null,
+      external_campaign_id: externalCampaignId,
+    });
 
     const adSetRow = await CampaignsService.createAdSet({
       business_id: businessId,
-      campaign_id: ourCampaignId,
-      name: `${body.campaignName} - Ad Set`,
+      campaign_id: campaignRow.id,
+      name: body.adSetName,
       status: "paused",
-      daily_budget_cents: isCbo ? null : body.dailyBudgetCents,
+      daily_budget_cents: !isCbo && body.budgetType === "daily" ? body.dailyBudgetCents ?? null : null,
+      lifetime_budget_cents: !isCbo && body.budgetType === "lifetime" ? body.lifetimeBudgetCents ?? null : null,
       targeting,
-      placements: { advantage_plus: true },
-      optimization_goal: optimizationGoal,
+      placements: { mode: body.placementsMode || "advantage_plus", ...placements },
+      optimization_goal: delivery.optimizationGoal,
       bid_strategy: "LOWEST_COST_WITHOUT_CAP",
       start_at: body.startAt || new Date().toISOString(),
       end_at: body.endAt || null,
@@ -208,7 +184,7 @@ export async function POST(request: Request) {
     const adRow = await CampaignsService.createAd({
       business_id: businessId,
       ad_set_id: adSetRow.id,
-      name: body.campaignName,
+      name: body.adName,
       status: "paused",
       creative_id: creative.id,
       external_ad_id: externalAdId,
@@ -217,7 +193,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      campaignId: ourCampaignId,
+      campaignId: campaignRow.id,
       adSetId: adSetRow.id,
       adId: adRow.id,
       externalCampaignId,

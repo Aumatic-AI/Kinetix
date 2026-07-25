@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { formatDate } from "@/utils/datetime";
 import { KpiRow } from "../components/competitors/KpiRow";
 import { FormatBreakdown } from "../components/competitors/FormatBreakdown";
 import { MarketPulse } from "../components/competitors/MarketPulse";
@@ -67,7 +68,7 @@ export function Dashboard() {
       <div>
         <h2 className="text-2xl font-bold text-text">Dashboard</h2>
         <p className="text-muted text-sm mt-1">
-          {generatedAt ? `Competitor intelligence last synced ${new Date(generatedAt).toLocaleDateString()}` : "Competitor intelligence, updated automatically every week."}
+          {generatedAt ? `Competitor intelligence last synced ${formatDate(generatedAt)}` : "Competitor intelligence, updated automatically every week."}
         </p>
       </div>
 

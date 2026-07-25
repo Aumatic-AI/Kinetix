@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Loader2, Video, Image as ImageIcon, MessageSquareText, AlertCircle, Send, Info, RotateCcw, Clock, X } from "lucide-react";
 import { PostGroup, groupState } from "../lib/postGroups";
 import { Lightbox } from "./Lightbox";
+import { formatDateTime } from "@/utils/datetime";
 
 interface PostTileProps {
   group: PostGroup;
@@ -11,11 +12,6 @@ interface PostTileProps {
   onViewDetails: (group: PostGroup) => void;
   onRetry: (group: PostGroup) => void;
   onCancelSchedule: (group: PostGroup) => void;
-}
-
-function formatScheduledAt(iso: string | null) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }
 
 const ASPECT_CLASS: Record<PostGroup["aspectRatio"], string> = {
@@ -81,7 +77,7 @@ export function PostTile({ group, onPublish, onViewDetails, onRetry, onCancelSch
         )}
         {state === "scheduled" && (
           <span className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-black/60 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full pointer-events-none">
-            <Clock className="w-3 h-3" /> {formatScheduledAt(scheduledAt)}
+            <Clock className="w-3 h-3" /> {formatDateTime(scheduledAt)}
           </span>
         )}
 

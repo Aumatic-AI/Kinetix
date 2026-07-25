@@ -9,6 +9,7 @@ import { CampaignDraftPanel } from "../components/campaigns/CampaignDraftPanel";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ROUTES } from "@/config/routes";
+import { formatDate } from "@/utils/datetime";
 import { OutreachCampaign, OutreachCampaignStatusEntry } from "../types/outreach.types";
 
 const TONE_STYLE: Record<string, string> = {
@@ -56,7 +57,7 @@ function CampaignMeta({ campaign, listName }: { campaign: OutreachCampaign; list
       <Field label="Goal" value={campaign.goal || "—"} wide />
       <Field label="Tone" value={campaign.tone || "—"} wide />
       {campaign.cta_text && <Field label="CTA" value={campaign.cta_text} wide />}
-      <Field label="Created" value={new Date(campaign.created_at).toLocaleDateString()} />
+      <Field label="Created" value={formatDate(campaign.created_at)} />
     </InfoCard>
   );
 }

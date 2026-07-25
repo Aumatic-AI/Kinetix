@@ -4,20 +4,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { PostGroup } from "../lib/postGroups";
 import { platformMeta } from "../lib/platforms";
 import { PlatformPreview } from "./previews";
+import { formatDateTime } from "@/utils/datetime";
 
 interface PostDetailsModalProps {
   group: PostGroup | null;
   onClose: () => void;
 }
 
-function formatDate(iso: string | null) {
-  if (!iso) return "";
-  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
-}
-
 function statusLabel(row: PostGroup["rows"][number]): string {
-  if (row.status === "published") return `Published ${formatDate(row.published_at)}`;
-  if (row.status === "scheduled") return `Scheduled for ${formatDate(row.scheduled_at)}`;
+  if (row.status === "published") return `Published ${formatDateTime(row.published_at)}`;
+  if (row.status === "scheduled") return `Scheduled for ${formatDateTime(row.scheduled_at)}`;
   if (row.status === "failed") return "Failed";
   if (row.status === "draft") return "Draft — not posted yet";
   return row.status.charAt(0).toUpperCase() + row.status.slice(1);

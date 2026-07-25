@@ -1,7 +1,7 @@
 "use client";
-import { Fragment, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Avatar } from "@/components/ui/Avatar";
+import { formatDateTime } from "@/utils/datetime";
 import { EmptyState } from "../competitors/shared";
 import { Lead } from "../../hooks/useLeads";
 
@@ -15,16 +15,6 @@ function pick(fieldData: Record<string, string>, keys: string[]): string {
 }
 
 export function LeadsTable({ leads }: { leads: Lead[] }) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
   if (leads.length === 0) return <EmptyState message="No leads yet — they'll appear here the moment someone submits a form." />;
 
   return (
@@ -32,49 +22,31 @@ export function LeadsTable({ leads }: { leads: Lead[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-8" />
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Phone</TableHead>
             <TableHead>Campaign</TableHead>
+            <TableHead>Ad</TableHead>
             <TableHead>Received</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {leads.map((lead) => {
-            const isOpen = expanded.has(lead.id);
-            const extraFields = Object.entries(lead.field_data).filter(
-              ([key]) => ![...NAME_KEYS, ...EMAIL_KEYS, ...PHONE_KEYS].includes(key)
-            );
+            const name = pick(lead.field_data, NAME_KEYS);
             return (
-              <Fragment key={lead.id}>
-                <TableRow className="cursor-pointer" onClick={() => toggle(lead.id)}>
-                  <TableCell>{isOpen ? <ChevronDown className="w-3.5 h-3.5 text-muted" /> : <ChevronRight className="w-3.5 h-3.5 text-muted" />}</TableCell>
-                  <TableCell className="font-semibold text-text">{pick(lead.field_data, NAME_KEYS)}</TableCell>
-                  <TableCell className="text-muted">{pick(lead.field_data, EMAIL_KEYS)}</TableCell>
-                  <TableCell className="text-muted">{pick(lead.field_data, PHONE_KEYS)}</TableCell>
-                  <TableCell className="text-muted truncate max-w-[160px]">{lead.campaign_name || "—"}</TableCell>
-                  <TableCell className="text-muted whitespace-nowrap">{new Date(lead.created_at).toLocaleString()}</TableCell>
-                </TableRow>
-                {isOpen && (
-                  <TableRow className="bg-surface/50 hover:bg-surface/50">
-                    <TableCell />
-                    <TableCell colSpan={5}>
-                      <div className="py-2 grid sm:grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
-                        {extraFields.length === 0 ? (
-                          <span className="text-muted">No additional fields.</span>
-                        ) : (
-                          extraFields.map(([key, value]) => (
-                            <p key={key}><span className="font-semibold text-text capitalize">{key.replace(/_/g, " ")}: </span><span className="text-muted">{value}</span></p>
-                          ))
-                        )}
-                        {lead.ad_name && <p><span className="font-semibold text-text">Ad: </span><span className="text-muted">{lead.ad_name}</span></p>}
-                        {lead.adset_name && <p><span className="font-semibold text-text">Ad set: </span><span className="text-muted">{lead.adset_name}</span></p>}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </Fragment>
+              <TableRow key={lead.id}>
+                <TableCell>
+                  <div className="flex items-center gap-2.5">
+                    <Avatar label={name} />
+                    <span className="font-semibold text-text">{name}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="text-muted">{pick(lead.field_data, EMAIL_KEYS)}</TableCell>
+                <TableCell className="text-muted">{pick(lead.field_data, PHONE_KEYS)}</TableCell>
+                <TableCell className="text-muted truncate max-w-40">{lead.campaign_name || "—"}</TableCell>
+                <TableCell className="text-muted truncate max-w-40">{lead.ad_name || "—"}</TableCell>
+                <TableCell className="text-muted whitespace-nowrap">{formatDateTime(lead.created_at)}</TableCell>
+              </TableRow>
             );
           })}
         </TableBody>
