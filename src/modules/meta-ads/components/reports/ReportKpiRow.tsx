@@ -1,5 +1,5 @@
 import { DollarSign, Eye, MousePointerClick, Percent } from "lucide-react";
-import { ACCENT, Card } from "../competitors/shared";
+import { ACCENT, Card } from "../dashboard/shared";
 import { ReportSummary } from "../../hooks/useReports";
 
 function KpiCard({ icon: Icon, label, value, accent }: { icon: any; label: string; value: string; accent: { solid: string; tint: string } }) {

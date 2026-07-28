@@ -43,4 +43,13 @@ export interface BusinessSettings {
   adScriptTopics: AdScriptTopicInput[];
   outreachSettings: OutreachSettingsInput;
   metaAdsAdvantageAudienceDefault: boolean;
+  videoReferenceEnabled: boolean;
+  videoReferenceMaleUrl: string | null;
+  videoReferenceFemaleUrl: string | null;
+  competitorAnalysisScheduleDay: number;
+  competitorAnalysisScheduleHour: number;
+  competitorAnalysisLastRunAt: string | null;
+  selfAdAnalysisScheduleDay: number;
+  selfAdAnalysisScheduleHour: number;
+  selfAdAnalysisLastRunAt: string | null;
 }

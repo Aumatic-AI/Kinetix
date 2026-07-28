@@ -3,14 +3,13 @@ import { useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Play } from "lucide-react";
-import { useOutreachCampaign, useOutreachAnalytics, useResumeOutreachCampaign } from "../hooks/useOutreachCampaigns";
-import { useLeadLists } from "@/modules/outreach/hooks/useLeads";
-import { CampaignDraftPanel } from "../components/campaigns/CampaignDraftPanel";
+import { useOutreachCampaign, useResumeOutreachCampaign } from "../../hooks/useCampaigns";
+import { CampaignDraftPanel } from "./CampaignDraftPanel";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ROUTES } from "@/config/routes";
 import { formatDate } from "@/utils/datetime";
-import { OutreachCampaign, OutreachCampaignStatusEntry } from "../types/outreach.types";
+import { OutreachCampaignDetail } from "../../types/outreach.types";
 
 const TONE_STYLE: Record<string, string> = {
   success: "text-success bg-success-bg",
@@ -19,7 +18,7 @@ const TONE_STYLE: Record<string, string> = {
   muted: "text-muted bg-surface",
 };
 
-const STATS: { key: keyof OutreachCampaignStatusEntry; label: string; rateKey?: keyof OutreachCampaignStatusEntry }[] = [
+const STATS: { key: keyof OutreachCampaignDetail; label: string; rateKey?: keyof OutreachCampaignDetail }[] = [
   { key: "sent", label: "Sent" },
   { key: "opened", label: "Opened", rateKey: "openRate" },
   { key: "replied", label: "Replied", rateKey: "replyRate" },
@@ -47,30 +46,30 @@ function InfoCard({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function CampaignMeta({ campaign, listName }: { campaign: OutreachCampaign; listName: string }) {
+function CampaignMeta({ campaign }: { campaign: OutreachCampaignDetail }) {
   return (
     <InfoCard title="Campaign Details">
-      <Field label="List" value={listName} />
-      <Field label="Service" value={campaign.service_type || "—"} />
-      <Field label="Region" value={campaign.target_region || "—"} />
-      <Field label="Daily limit" value={String(campaign.daily_limit)} />
+      <Field label="List" value={campaign.listName} />
+      <Field label="Service" value={campaign.serviceType || "—"} />
+      <Field label="Region" value={campaign.targetRegion || "—"} />
+      <Field label="Daily limit" value={String(campaign.dailyLimit)} />
       <Field label="Goal" value={campaign.goal || "—"} wide />
       <Field label="Tone" value={campaign.tone || "—"} wide />
-      {campaign.cta_text && <Field label="CTA" value={campaign.cta_text} wide />}
-      <Field label="Created" value={formatDate(campaign.created_at)} />
+      {campaign.ctaText && <Field label="CTA" value={campaign.ctaText} wide />}
+      <Field label="Created" value={formatDate(campaign.createdAt)} />
     </InfoCard>
   );
 }
 
-function CampaignStats({ entry }: { entry: OutreachCampaignStatusEntry }) {
+function CampaignStats({ campaign }: { campaign: OutreachCampaignDetail }) {
   return (
     <InfoCard title="Performance">
       {STATS.map((s) => (
         <div key={s.key} className="min-w-0">
           <p className="text-[10px] font-semibold text-muted uppercase tracking-wide">{s.label}</p>
           <p className="text-base font-bold text-text tabular-nums mt-0.5">
-            {(entry[s.key] as number).toLocaleString()}
-            {s.rateKey && <span className="text-xs text-muted font-normal ml-1">({entry[s.rateKey] as number}%)</span>}
+            {(campaign[s.key] as number).toLocaleString()}
+            {s.rateKey && <span className="text-xs text-muted font-normal ml-1">({campaign[s.rateKey] as number}%)</span>}
           </p>
         </div>
       ))}
@@ -80,12 +79,7 @@ function CampaignStats({ entry }: { entry: OutreachCampaignStatusEntry }) {
 
 export function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: campaign, isLoading: campaignLoading } = useOutreachCampaign(id);
-  const { data: analytics, isLoading: analyticsLoading } = useOutreachAnalytics();
-  const { data: lists = [] } = useLeadLists();
-  const isLoading = campaignLoading || analyticsLoading || !campaign;
-  const entry = campaign ? analytics?.byCampaignId[campaign.id] : undefined;
-  const listName = campaign ? lists.find((l) => l.id === campaign.list_id)?.name || "—" : "—";
+  const { data: campaign, isLoading } = useOutreachCampaign(id);
 
   const resumeCampaign = useResumeOutreachCampaign();
   const [confirmingResume, setConfirmingResume] = useState(false);
@@ -116,14 +110,12 @@ export function CampaignDetailPage() {
             <div>
               <div className="flex items-center gap-2.5 flex-wrap">
                 <h2 className="text-2xl font-bold text-text">{campaign.name}</h2>
-                {entry && (
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${TONE_STYLE[entry.tone]}`}>
-                    {entry.label}
-                  </span>
-                )}
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${TONE_STYLE[campaign.statusTone]}`}>
+                  {campaign.statusLabel}
+                </span>
               </div>
-              {entry?.reason && <p className="text-xs text-muted mt-1">{entry.reason}</p>}
-              {entry?.value === "paused" && (
+              {campaign.statusReason && <p className="text-xs text-muted mt-1">{campaign.statusReason}</p>}
+              {campaign.status === "paused" && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -136,14 +128,14 @@ export function CampaignDetailPage() {
               )}
             </div>
 
-            <CampaignMeta campaign={campaign} listName={listName} />
+            <CampaignMeta campaign={campaign} />
 
-            {entry && (entry.value === "sending" || entry.value === "sent" || entry.value === "paused") && (
-              <CampaignStats entry={entry} />
+            {(campaign.status === "sending" || campaign.status === "sent" || campaign.status === "paused") && (
+              <CampaignStats campaign={campaign} />
             )}
           </div>
 
-          <CampaignDraftPanel campaign={campaign} entry={entry} />
+          <CampaignDraftPanel campaign={campaign} />
         </div>
       )}
 

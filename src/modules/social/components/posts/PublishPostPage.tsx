@@ -9,9 +9,9 @@ import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/config/routes";
-import { groupPosts, PostRow } from "../lib/postGroups";
-import { PLATFORMS, platformMeta } from "../lib/platforms";
-import { PlatformPreview } from "../components/previews";
+import { groupPosts, PostRow } from "../../lib/postGroups";
+import { PLATFORMS, platformMeta } from "../../lib/platforms";
+import { PlatformPreview } from "./previews";
 import {
   useSocialPosts,
   useConnections,
@@ -20,7 +20,7 @@ import {
   useImproveCaption,
   useUpdateCaption,
   PreparedPlatformRow,
-} from "../hooks/useSocialPosts";
+} from "../../hooks/usePosts";
 
 const STEP_NUMBER = { select: 1, preview: 2, schedule: 3 } as const;
 type Step = keyof typeof STEP_NUMBER;

@@ -1,6 +1,8 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
   MetaAdCreative,
+  MetaAdCreativeListItem,
+  MetaAdCreativePickerItem,
   CreativeFilters,
   PaginationOptions,
   MetaAdIntelligence
@@ -11,12 +13,23 @@ export class MetaAdsService {
   // CREATIVES
   // ==========================================
   
+  // Ad Library's grid is the only consumer of this list — it doesn't read
+  // business_id/created_at/idea_prompt/ad_script/service/media_asset_id/
+  // revision_history/video_style/audio_style/language/character_type/
+  // voice_id, so only what's actually rendered is fetched. The campaign
+  // creative picker (CampaignPickCreativeDialog) needs idea_prompt/
+  // ad_script/service to pre-fill ad copy on pick, so it uses
+  // getCreativesForPicker below instead of this one. getCreativeById
+  // further below still selects "*" since editing/retry needs the full
+  // row. created_at is still filterable/sortable below even though it's
+  // not selected — order()/ilike() operate on the underlying table, not
+  // the projection.
   static async getCreatives(
-    supabase: SupabaseClient, 
-    filters?: CreativeFilters, 
+    supabase: SupabaseClient,
+    filters?: CreativeFilters,
     pagination?: PaginationOptions
-  ): Promise<MetaAdCreative[]> {
-    let query = supabase.from("meta_ad_creatives").select("*");
+  ): Promise<MetaAdCreativeListItem[]> {
+    let query = supabase.from("meta_ad_creatives").select("id, type, status, media_urls, duration");
 
     if (filters?.status) {
       query = query.eq("status", filters.status);
@@ -38,6 +51,26 @@ export class MetaAdsService {
       const to = from + limit - 1;
       query = query.range(from, to);
     }
+
+    const { data, error } = await query;
+    if (error) throw new Error(`Error fetching creatives: ${error.message}`);
+    return data || [];
+  }
+
+  /** Same list, but for the "pick a creative to launch" dialog — it needs
+   * enough fields to pre-fill the ad-copy step (name/headline/primary
+   * text) once a creative is picked, not just what's shown on the card. */
+  static async getCreativesForPicker(supabase: SupabaseClient, filters?: CreativeFilters): Promise<MetaAdCreativePickerItem[]> {
+    let query = supabase.from("meta_ad_creatives").select("id, type, status, media_urls, duration, idea_prompt, ad_script, service");
+
+    if (filters?.status) {
+      query = query.eq("status", filters.status);
+    }
+    if (filters?.type) {
+      query = query.eq("type", filters.type);
+    }
+
+    query = query.order("created_at", { ascending: false });
 
     const { data, error } = await query;
     if (error) throw new Error(`Error fetching creatives: ${error.message}`);

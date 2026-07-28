@@ -9,6 +9,7 @@ const RANGE_TO_PRESET: Record<string, string> = {
   "7d": "last_7d",
   "14d": "last_14d",
   "30d": "last_30d",
+  all: "maximum",
 };
 
 interface LiveAd {

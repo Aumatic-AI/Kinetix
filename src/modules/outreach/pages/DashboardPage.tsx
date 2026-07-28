@@ -1,6 +1,6 @@
 "use client";
 import { Send, MessageSquare, AlertTriangle, Users, Megaphone, Eye } from "lucide-react";
-import { useOutreachAnalytics } from "../hooks/useOutreachCampaigns";
+import { useOutreachAnalytics } from "../hooks/useCampaigns";
 import { KpiCard } from "../components/dashboard/KpiCard";
 
 export function DashboardPage() {

@@ -5,6 +5,7 @@ import { generateCompetitorAnalysisPrompt } from "@/prompts/competitor-analysis"
 import { processCompetitorAds, trimForPrompt } from "@/services/ai/competitor-ad-processor";
 import { createClient } from "@supabase/supabase-js";
 import { env } from "@/config";
+import { shouldRunScheduledJob } from "@/services/scheduling/business-schedule";
 
 const supabase = createClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
@@ -16,8 +17,16 @@ const supabase = createClient(
 // placeholder actor id this job called before.
 const FACEBOOK_ADS_LIBRARY_ACTOR = "curious_coder~facebook-ads-library-scraper";
 
+// Hourly checker, not the user-facing schedule itself — Inngest cron
+// triggers are fixed strings baked in at deploy time, so they can't read
+// businesses.competitor_analysis_schedule_day/hour (Settings > Automation
+// Defaults > Analysis Schedule) directly. Each tick asks
+// shouldRunScheduledJob() whether THIS business's configured day+hour has
+// just been reached (in its own timezone) and only then actually fans out
+// the real scrape — most ticks do nothing for a business whose slot
+// hasn't arrived yet.
 export const competitorAdScraperJob = inngest.createFunction(
-  { id: "jobs-competitor-ad-scraper", triggers: [{ cron: "0 0 * * 0" }] },
+  { id: "jobs-competitor-ad-scraper", triggers: [{ cron: "0 * * * *" }] },
   async ({ step }: any) => {
     const businesses = await step.run("fetch-businesses", async () => {
       const { data } = await supabase.from("businesses").select("*");
@@ -25,6 +34,21 @@ export const competitorAdScraperJob = inngest.createFunction(
     });
 
     for (const business of businesses) {
+      const timezone = business.outreach_settings?.timezone || "America/Detroit";
+      const isDue = shouldRunScheduledJob({
+        scheduleDay: business.competitor_analysis_schedule_day,
+        scheduleHour: business.competitor_analysis_schedule_hour,
+        lastRunAt: business.competitor_analysis_last_run_at,
+        timezone,
+      });
+      if (!isDue) continue;
+
+      // Marked before the real work starts (not after), so a slow scrape
+      // can't leave the window open for the same hourly tick to fire twice.
+      await step.run(`mark-scheduled-${business.id}`, async () => {
+        await supabase.from("businesses").update({ competitor_analysis_last_run_at: new Date().toISOString() }).eq("id", business.id);
+      });
+
       await step.sendEvent("trigger-scrape", {
         name: "jobs/competitor-ad-scraper",
         data: { businessId: business.id },

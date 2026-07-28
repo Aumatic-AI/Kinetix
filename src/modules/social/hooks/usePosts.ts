@@ -15,7 +15,7 @@ export function useSocialPosts() {
     queryKey: socialKeys.posts(),
     queryFn: async () => {
       const { data, error } = await (supabase.from("social_posts") as any)
-        .select("id, business_id, connection_id, status, format, idea_prompt, caption, title, media_asset_id, error_message, published_at, scheduled_at, created_at, generation_inputs, platform_connections(platform, display_name, metadata), media_assets(type, metadata)")
+        .select("id, status, format, idea_prompt, caption, title, media_asset_id, published_at, scheduled_at, created_at, generation_inputs, platform_connections(platform, display_name, metadata), media_assets(type, metadata)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data || [];
@@ -38,7 +38,10 @@ export interface SocialConnection {
   metadata: any;
 }
 
-export function useConnections() {
+/** enabled defaults to true (PublishPostPage needs this as soon as it
+ * loads); CreatePostModal passes its own open state instead, so this never
+ * fires just from the Posts page being open behind an unopened modal. */
+export function useConnections(enabled = true) {
   return useQuery({
     queryKey: [...socialKeys.all, "connections"] as const,
     queryFn: async () => {
@@ -50,28 +53,7 @@ export function useConnections() {
       if (error) throw error;
       return (data || []) as SocialConnection[];
     },
-  });
-}
-
-export interface ConnectedAccount extends SocialConnection {
-  created_at: string;
-}
-
-/** Connected Accounts page — pulls every platform's live status (including
- * "not connected") from Upload-Post and upserts our own platform_connections
- * cache. This is a real account-status change, not something that happens
- * throughout the day, so it's cached for a while instead of re-fetching on
- * every visit to the page. */
-export function useConnectedAccountsSync() {
-  return useQuery({
-    queryKey: [...socialKeys.all, "connected-accounts-sync"] as const,
-    queryFn: async () => {
-      const res = await fetch("/api/social/upload-post/sync", { method: "POST" });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to sync connection status");
-      return (data.connections || []) as ConnectedAccount[];
-    },
-    staleTime: 5 * 60 * 1000,
+    enabled,
   });
 }
 
@@ -180,17 +162,6 @@ export function useRetryPosts() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to retry");
       return data;
-    },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: socialKeys.posts() }),
-  });
-}
-
-export function useDeletePosts() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (socialPostIds: string[]) => {
-      const { error } = await supabase.from("social_posts").delete().in("id", socialPostIds);
-      if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: socialKeys.posts() }),
   });

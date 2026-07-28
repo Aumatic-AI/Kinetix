@@ -1,14 +1,21 @@
 "use client";
-import { RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { Plus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { useLeadsList, useSyncLeads } from "../hooks/useLeads";
+import { TabSwitch } from "@/components/global/TabSwitch";
+import { useLeadsList, useSyncLeads, useLeadForms, Lead } from "../hooks/useLeads";
 import { LeadsTable } from "../components/leads/LeadsTable";
+import { LeadDetailsModal } from "../components/leads/LeadDetailsModal";
 import { LeadFormsPanel } from "../components/leads/LeadFormsPanel";
+import { CreateLeadFormModal } from "../components/leads/CreateLeadFormModal";
 
 export function LeadsPage() {
   const { data: leads = [], isLoading } = useLeadsList();
+  const { data: forms = [] } = useLeadForms();
   const syncMutation = useSyncLeads();
+  const [viewingLead, setViewingLead] = useState<Lead | null>(null);
+  const [tab, setTab] = useState("leads");
+  const [creatingForm, setCreatingForm] = useState(false);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-10">
@@ -32,26 +39,35 @@ export function LeadsPage() {
       )}
       {syncMutation.error && <p className="text-sm text-danger">{(syncMutation.error as Error).message}</p>}
 
-      <Tabs defaultValue="leads">
-        <TabsList className="w-fit border-b-0 gap-1 bg-surface rounded-lg p-1">
-          <TabsTrigger value="leads" className="rounded-md border-b-0 mb-0 px-3 py-1.5 text-xs font-bold data-[active]:bg-background data-[active]:shadow-sm">
-            Leads {leads.length > 0 && `(${leads.length})`}
-          </TabsTrigger>
-          <TabsTrigger value="forms" className="rounded-md border-b-0 mb-0 px-3 py-1.5 text-xs font-bold data-[active]:bg-background data-[active]:shadow-sm">
-            Instant Forms
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="leads">
-          {isLoading ? (
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <TabSwitch
+          value={tab}
+          onValueChange={setTab}
+          items={[
+            { value: "leads", label: "Leads", count: leads.length },
+            { value: "forms", label: "Instant Forms", count: forms.length },
+          ]}
+        />
+        {tab === "forms" && (
+          <Button size="sm" onClick={() => setCreatingForm(true)} icon={<Plus className="w-3.5 h-3.5" />}>
+            New Instant Form
+          </Button>
+        )}
+      </div>
+      <div>
+        {tab === "leads" ? (
+          isLoading ? (
             <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-12 rounded-lg bg-surface animate-pulse" />)}</div>
           ) : (
-            <LeadsTable leads={leads} />
-          )}
-        </TabsContent>
-        <TabsContent value="forms">
+            <LeadsTable leads={leads} onView={setViewingLead} />
+          )
+        ) : (
           <LeadFormsPanel />
-        </TabsContent>
-      </Tabs>
+        )}
+      </div>
+
+      <LeadDetailsModal lead={viewingLead} onClose={() => setViewingLead(null)} />
+      <CreateLeadFormModal open={creatingForm} onClose={() => setCreatingForm(false)} />
     </div>
   );
 }

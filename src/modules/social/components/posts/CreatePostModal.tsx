@@ -8,9 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/config/routes";
-import { PLATFORMS } from "../lib/platforms";
-import { useConnections } from "../hooks/useSocialPosts";
-import VoiceExplorerModal from "@/modules/meta-ads/components/VoiceExplorerModal";
+import { PLATFORMS } from "../../lib/platforms";
+import { useConnections } from "../../hooks/usePosts";
+import VoiceExplorerModal from "@/components/global/VoiceExplorerModal";
 import { useBusinessStore } from "@/store/business.store";
 
 const VOICE_OPTIONS = {
@@ -44,7 +44,7 @@ interface CreatePostModalProps {
 
 export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalProps) {
   const router = useRouter();
-  const { data: connections = [] } = useConnections();
+  const { data: connections = [] } = useConnections(isOpen);
   const [mode, setMode] = useState<"generate" | "upload">("generate");
   const [format, setFormat] = useState<"image" | "video" | "text">("image");
   const [textPlatforms, setTextPlatforms] = useState<Set<string>>(new Set());

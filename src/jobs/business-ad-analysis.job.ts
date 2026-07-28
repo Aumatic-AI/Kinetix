@@ -5,14 +5,19 @@ import { createClient } from "@supabase/supabase-js";
 import { generateBusinessAnalysisPrompt } from "@/prompts/business-analysis";
 import { aggregateByAd, diagnosePattern, bucketAds, ruleBasedSelfAdReport } from "@/services/ai/self-ad-processor";
 import { env } from "@/config";
+import { shouldRunScheduledJob } from "@/services/scheduling/business-schedule";
 
 const supabase = createClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
   env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Hourly checker, not the user-facing schedule itself — see the matching
+// comment in competitor-ad-scraper.job.ts for why this can't just be a
+// weekly cron reading businesses.self_ad_analysis_schedule_day/hour
+// (Settings > Automation Defaults > Analysis Schedule) directly.
 export const businessAdAnalysisJob = inngest.createFunction(
-  { id: "jobs-business-ad-analysis", triggers: [{ cron: "0 2 * * 0" }] }, // Weekly on Sunday 2 AM
+  { id: "jobs-business-ad-analysis", triggers: [{ cron: "0 * * * *" }] },
   async ({ step }: any) => {
 
     // 1. Fetch Businesses
@@ -22,6 +27,20 @@ export const businessAdAnalysisJob = inngest.createFunction(
     });
 
     for (const business of businesses) {
+      const timezone = business.outreach_settings?.timezone || "America/Detroit";
+      const isDue = shouldRunScheduledJob({
+        scheduleDay: business.self_ad_analysis_schedule_day,
+        scheduleHour: business.self_ad_analysis_schedule_hour,
+        lastRunAt: business.self_ad_analysis_last_run_at,
+        timezone,
+      });
+      if (!isDue) continue;
+
+      // Marked before the real work starts, not after, so a slow run can't
+      // leave the window open for the same hourly tick to fire twice.
+      await step.run(`mark-scheduled-${business.id}`, async () => {
+        await supabase.from("businesses").update({ self_ad_analysis_last_run_at: new Date().toISOString() }).eq("id", business.id);
+      });
 
       // 2. Fetch every daily performance row for this business (not
       // pre-filtered by date — aggregation happens per-ad next, since a

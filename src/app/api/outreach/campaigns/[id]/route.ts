@@ -3,17 +3,56 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { Database } from "@/types/supabase";
 import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
-import { OutreachCampaignsService } from "@/modules/outreach/services/outreach.service";
+import { OutreachCampaignsService, LeadListsService } from "@/modules/outreach/services/outreach.service";
+import { OutreachCampaignDetail } from "@/modules/outreach/types/outreach.types";
 import { getOutreachRevisionPrompt } from "@/prompts/outreach";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
 import { InstantlyService } from "@/services/instantly";
 
+/** One call, one merge: our own campaign row, its list's name, and its live
+ * Instantly analytics, all fetched and merged server-side (see
+ * getCampaignAnalyticsEntry) into exactly the fields the Campaign Detail
+ * page renders — instead of the page making three separate calls itself. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const campaign = await OutreachCampaignsService.getCampaignById(id);
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
-    return NextResponse.json({ campaign });
+
+    const [list, entry] = await Promise.all([
+      campaign.list_id ? LeadListsService.getListById(campaign.list_id) : Promise.resolve(null),
+      OutreachCampaignsService.getCampaignAnalyticsEntry(campaign),
+    ]);
+
+    const detail: OutreachCampaignDetail = {
+      id: campaign.id,
+      name: campaign.name,
+      serviceType: campaign.service_type,
+      targetRegion: campaign.target_region,
+      dailyLimit: campaign.daily_limit,
+      goal: campaign.goal,
+      tone: campaign.tone,
+      ctaText: campaign.cta_text,
+      ctaLink: campaign.cta_link,
+      createdAt: campaign.created_at,
+      listName: list?.name || "—",
+      generatedBody: campaign.generated_body,
+      status: entry.value,
+      statusLabel: entry.label,
+      statusTone: entry.tone,
+      statusReason: entry.reason,
+      sent: entry.sent,
+      opened: entry.opened,
+      openRate: entry.openRate,
+      replied: entry.replied,
+      replyRate: entry.replyRate,
+      clicked: entry.clicked,
+      clickRate: entry.clickRate,
+      bounced: entry.bounced,
+      bounceRate: entry.bounceRate,
+    };
+
+    return NextResponse.json({ campaign: detail });
   } catch (error: any) {
     console.error("[OUTREACH_CAMPAIGN_GET]", error);
     return NextResponse.json({ error: error.message || "Failed to load campaign" }, { status: 500 });

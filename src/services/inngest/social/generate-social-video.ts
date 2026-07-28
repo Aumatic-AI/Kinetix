@@ -5,7 +5,7 @@ import { getSocialVideoScriptPrompt, getSocialCaptionPrompt, formatPlatformCapti
 import { getVisualPromptsPrompt } from "../../../prompts/meta-ads";
 import { FFmpegService } from "../../ffmpeg";
 import { submitSceneStitchJob, downloadAndStoreVideo } from "../../ffmpeg/stitch-scenes";
-import { SOCIAL_CHARACTER_REFERENCE } from "../../ai/character-references";
+import { resolveVideoReferenceUrl } from "../../ai/video-reference";
 import { env } from "@/config";
 
 const supabase = createClient(
@@ -93,10 +93,11 @@ export const generateSocialVideo = inngest.createFunction(
       });
 
       // 5. Trigger per-scene images
+      const referenceUrl = resolveVideoReferenceUrl(business, character);
       const imageJobIds = await step.run("trigger-images", async () => {
         const ids = [];
         for (const vp of visualPromptsJson.visual_prompts) {
-          const jobId = await aiOrchestrator.createImageTask(vp.prompt, "9:16", SOCIAL_CHARACTER_REFERENCE);
+          const jobId = await aiOrchestrator.createImageTask(vp.prompt, "9:16", referenceUrl);
           ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
         }
         return ids;

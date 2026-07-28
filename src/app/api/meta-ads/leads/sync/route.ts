@@ -24,7 +24,7 @@ export async function POST() {
 
     let imported = 0;
     for (const form of forms) {
-      const leads = await graphGetAllPages<{ id: string; field_data?: { name: string; values: string[] }[]; ad_id?: string; ad_name?: string; adset_name?: string; campaign_name?: string }>(
+      const leads = await graphGetAllPages<{ id: string; created_time?: string; field_data?: { name: string; values: string[] }[]; ad_id?: string; ad_name?: string; adset_name?: string; campaign_name?: string }>(
         `${form.id}/leads`,
         pageToken,
         { fields: "id,created_time,field_data,ad_id,ad_name,adset_name,campaign_name", limit: "100" }
@@ -40,6 +40,9 @@ export async function POST() {
         const { error } = await supabase.from("leads").upsert(
           {
             business_id: businessId,
+            // Meta's own submission time — this route backfills leads that
+            // could be weeks old, so defaulting to "now" here would be wrong.
+            created_at: lead.created_time || new Date().toISOString(),
             ad_id: ourAdId,
             ad_name: lead.ad_name || null,
             adset_name: lead.adset_name || null,

@@ -1,8 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { CampaignListItem, CampaignPageDetail, AdSetPageDetail, AdPageDetail, LaunchCampaignInput, CreateAdSetInput, CreateAdInput } from "../types/meta-ads.types";
-
-const supabase = createClient();
 
 export const campaignsKeys = {
   all: ["campaigns"] as const,
@@ -10,7 +7,6 @@ export const campaignsKeys = {
   detail: (id: string) => [...campaignsKeys.all, "detail", id] as const,
   adSetDetail: (id: string) => [...campaignsKeys.all, "adset-detail", id] as const,
   adDetail: (id: string) => [...campaignsKeys.all, "ad-detail", id] as const,
-  launchedCreativeIds: () => [...campaignsKeys.all, "launched-creative-ids"] as const,
 };
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -57,27 +53,11 @@ export function useAdDetail(id: string | null) {
   });
 }
 
-/** Which of our own creatives have already been launched as an ad at least
- * once — drives the "Launched" badge in Ad Library. A creative can be
- * relaunched (new campaign, new audience), so this never hides anything. */
-export function useLaunchedCreativeIds() {
-  return useQuery({
-    queryKey: campaignsKeys.launchedCreativeIds(),
-    queryFn: async () => {
-      const { data, error } = await supabase.from("ads").select("creative_id").not("creative_id", "is", null);
-      if (error) throw error;
-      return new Set((data || []).map((r) => r.creative_id as string));
-    },
-    staleTime: 60 * 1000,
-  });
-}
-
 function invalidateCampaigns(
   queryClient: ReturnType<typeof useQueryClient>,
   opts?: { campaignId?: string; adSetId?: string; adId?: string }
 ) {
   queryClient.invalidateQueries({ queryKey: campaignsKeys.list() });
-  queryClient.invalidateQueries({ queryKey: campaignsKeys.launchedCreativeIds() });
   if (opts?.campaignId) queryClient.invalidateQueries({ queryKey: campaignsKeys.detail(opts.campaignId) });
   if (opts?.adSetId) queryClient.invalidateQueries({ queryKey: campaignsKeys.adSetDetail(opts.adSetId) });
   if (opts?.adId) queryClient.invalidateQueries({ queryKey: campaignsKeys.adDetail(opts.adId) });

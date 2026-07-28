@@ -7,12 +7,12 @@ import { Input } from "@/components/ui/Input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Stepper } from "@/components/ui/stepper";
-import { useLaunchCampaign } from "../hooks/useCampaigns";
-import { useMetaAdCreative } from "../hooks/useMetaAds";
+import { useLaunchCampaign } from "../../hooks/useCampaigns";
+import { useMetaAdCreative } from "../../hooks/useAdLibrary";
 import { ROUTES } from "@/config/routes";
-import { MetaAdCreative, MetaObjective, LaunchCampaignInput } from "../types/meta-ads.types";
-import { CampaignPickCreativeDialog } from "../components/campaigns/CampaignPickCreativeDialog";
-import { MediaPreview } from "../components/MediaPreview";
+import { MetaAdCreativePickerItem, MetaObjective, LaunchCampaignInput } from "../../types/meta-ads.types";
+import { CampaignPickCreativeDialog } from "./CampaignPickCreativeDialog";
+import { MediaPreview } from "@/components/global/MediaPreview";
 import {
   Field,
   Section,
@@ -28,8 +28,9 @@ import {
   BudgetState,
   toGeoLocations,
   minLifetimeBudgetCents,
+  MIN_DAILY_BUDGET_CENTS,
   useBusinessMetaAdsDefaults,
-} from "../components/campaigns/shared";
+} from "./shared";
 
 const OBJECTIVES: { value: MetaObjective; label: string }[] = [
   { value: "OUTCOME_TRAFFIC", label: "Traffic — send people to your website" },
@@ -75,7 +76,7 @@ export function CreateCampaignPage() {
   const [endAt, setEndAt] = useState<Date | undefined>(undefined);
   const [adSetName, setAdSetName] = useState("");
   const [targeting, setTargeting] = useState<TargetingState>(DEFAULT_TARGETING);
-  const [creative, setCreative] = useState<MetaAdCreative | null>(null);
+  const [creative, setCreative] = useState<MetaAdCreativePickerItem | null>(null);
   const [pickingCreative, setPickingCreative] = useState(false);
   const [previewingCreative, setPreviewingCreative] = useState(false);
   const [adCopy, setAdCopy] = useState<AdCopyState>(DEFAULT_AD_COPY);
@@ -116,6 +117,7 @@ export function CreateCampaignPage() {
     if (budget.budgetType === "daily") {
       const dollars = parseFloat(budget.dailyDollars);
       if (!dollars || dollars <= 0) return "Enter a daily budget greater than $0.";
+      if (Math.round(dollars * 100) < MIN_DAILY_BUDGET_CENTS) return `Daily budget too low — minimum is $${(MIN_DAILY_BUDGET_CENTS / 100).toFixed(2)}.`;
       return "";
     }
     if (!endAt) return "Lifetime budget requires an End Date.";

@@ -47,11 +47,11 @@ export function LevelChip({ level }: { level: "campaign" | "adset" | "ad" }) {
  * Objective, Buying Type, Schedule. Matches the same small-caps-label +
  * medium-value convention already used for info panels elsewhere in the
  * app (e.g. the outreach Campaign Detail page's Field component). */
-export function InfoItem({ label, value }: { label: string; value: ReactNode }) {
+export function InfoItem({ label, value, truncate = true }: { label: string; value: ReactNode; truncate?: boolean }) {
   return (
     <div className="min-w-0">
       <p className="text-[11px] font-semibold text-muted uppercase tracking-wide">{label}</p>
-      <p className="text-sm font-medium text-text mt-0.5 truncate">{value}</p>
+      <p className={`text-sm font-medium text-text mt-0.5 ${truncate ? "truncate" : "break-words"}`}>{value}</p>
     </div>
   );
 }
@@ -157,7 +157,7 @@ export function PillToggle({ options, selected, onToggle }: { options: { value: 
           key={opt.value}
           type="button"
           onClick={() => onToggle(opt.value)}
-          className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${
+          className={`px-4 py-2 rounded-lg text-xs font-bold border transition-colors ${
             selected.includes(opt.value) ? "bg-info border-info" : "border-default text-muted hover:bg-surface"
           }`}
         >
@@ -310,6 +310,11 @@ export function AdCopyFields({
   leadFormRequired?: boolean;
 }) {
   const { data: leadForms } = useLeadForms();
+  // Meta rejects an ad whose call_to_action points at a non-ACTIVE form
+  // (draft or archived) — useLeadForms() intentionally returns every form,
+  // archived included, for the Instant Forms management table, so this
+  // picker narrows it back down to only what's actually usable on an ad.
+  const activeLeadForms = leadForms?.filter((f) => f.status === "ACTIVE");
 
   return (
     <div className="space-y-4">
@@ -317,12 +322,14 @@ export function AdCopyFields({
         <Field label="Instant Form" hint={leadFormRequired ? "This ad set only accepts Instant Form leads." : "Leave unset to send clicks to your website instead."}>
           {leadForms === undefined ? (
             <p className="text-xs text-muted">Lead forms need Page setup first — see the Leads tab.</p>
+          ) : !activeLeadForms?.length ? (
+            <p className="text-xs text-muted">No active Instant Forms yet — create one in the Leads tab (draft/archived forms aren&apos;t usable on an ad).</p>
           ) : (
             <Select value={state.leadGenFormId || (leadFormRequired ? "" : "none")} onValueChange={(v) => setState({ leadGenFormId: v === "none" ? "" : v })}>
               <SelectTrigger><SelectValue placeholder="Select a form" /></SelectTrigger>
               <SelectContent>
                 {!leadFormRequired && <SelectItem value="none">Use website instead</SelectItem>}
-                {leadForms.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
+                {activeLeadForms.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
               </SelectContent>
             </Select>
           )}
@@ -552,6 +559,11 @@ export function minLifetimeBudgetCents(startAt: Date | undefined, endAt: Date | 
   return (days + 2) * 100;
 }
 
+/** Same $1/day floor the Lifetime formula above is built on — Meta's real
+ * minimum varies by currency/optimization event, but this matches the
+ * `min="1"` already enforced on the Daily input. */
+export const MIN_DAILY_BUDGET_CENTS = 100;
+
 /** Budget Type (Daily/Lifetime) + Amount — Lifetime shows Meta's real live
  * minimum for the currently-picked date range and requires an End Date,
  * exactly like the legacy project's wizard. Shared by the Launch wizard and
@@ -579,7 +591,7 @@ export function BudgetFields({ state, setState, startAt, endAt }: { state: Budge
         </div>
       </Field>
       {state.budgetType === "daily" ? (
-        <Field label="Daily Budget (USD)">
+        <Field label="Daily Budget (USD)" hint={`Minimum: $${(MIN_DAILY_BUDGET_CENTS / 100).toFixed(2)}`}>
           <Input type="number" min="1" step="1" value={state.dailyDollars} onChange={(e) => setState({ dailyDollars: e.target.value })} />
         </Field>
       ) : (

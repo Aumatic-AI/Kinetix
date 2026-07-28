@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/Button";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { ROUTES } from "@/config/routes";
 import { formatDate, formatDateTime } from "@/utils/datetime";
-import { useAdSetDetail } from "../hooks/useCampaigns";
-import { AdSetPageDetail } from "../types/meta-ads.types";
-import { StatusChip, LevelChip, InfoItem, MetricsRow, Section } from "../components/campaigns/shared";
-import { StatusActions } from "../components/campaigns/StatusActions";
-import { AddCreativeModal } from "../components/campaigns/AddCreativeModal";
+import { useAdSetDetail } from "../../hooks/useCampaigns";
+import { AdSetPageDetail } from "../../types/meta-ads.types";
+import { StatusChip, LevelChip, InfoItem, MetricsRow, Section } from "./shared";
+import { StatusActions } from "./StatusActions";
+import { AddCreativeModal } from "./AddCreativeModal";
 
 function genderLabel(genders: number[]): string {
   if (genders.length === 0) return "All";

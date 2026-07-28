@@ -1,13 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { TabSwitch } from "@/components/global/TabSwitch";
 import { Section } from "@/components/ui/Section";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
 import { UnsavedChangesBar } from "@/components/ui/UnsavedChangesBar";
+import { Switch } from "@/components/ui/Switch";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
 import { BusinessSettings } from "../types/settings.types";
-import { Field, TagInput, ServicesEditor, AdScriptTopicsEditor, WeekdayToggle, TimezoneSelect } from "../components/shared";
+import { Field, TagInput, ServicesEditor, AdScriptTopicsEditor, WeekdayToggle, TimezoneSelect, VideoReferenceUploader, ScheduleEditor } from "../components/shared";
 
 /**
  * The one Settings page, reached at /settings — no secondary sidebar and
@@ -30,6 +31,7 @@ export function SettingsPage() {
   const updateSettings = useUpdateSettings();
   const [form, setForm] = useState<BusinessSettings | null>(null);
   const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState("general");
 
   useEffect(() => {
     if (data && !form) setForm(data);
@@ -73,16 +75,19 @@ export function SettingsPage() {
 
       {error && <p className="text-sm text-danger font-medium">{error}</p>}
 
-      <Tabs defaultValue="general">
-        <TabsList>
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="voice">Brand &amp; Voice</TabsTrigger>
-          <TabsTrigger value="services">Services</TabsTrigger>
-          <TabsTrigger value="intelligence">Competitor Intelligence</TabsTrigger>
-          <TabsTrigger value="automation">Automation Defaults</TabsTrigger>
-        </TabsList>
+      <TabSwitch
+        value={activeTab}
+        onValueChange={setActiveTab}
+        items={[
+          { value: "general", label: "General" },
+          { value: "voice", label: "Brand & Voice" },
+          { value: "services", label: "Services" },
+          { value: "intelligence", label: "Competitor Intelligence" },
+          { value: "automation", label: "Automation Defaults" },
+        ]}
+      />
 
-        <TabsContent value="general">
+      {activeTab === "general" && (
           <Section title="Business Identity" description="Core facts about the business — not shown publicly, just context for the rest of the app.">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field label="Business Name"><Input value={form.name} onChange={(e) => patch({ name: e.target.value })} /></Field>
@@ -95,9 +100,9 @@ export function SettingsPage() {
               </div>
             </div>
           </Section>
-        </TabsContent>
+      )}
 
-        <TabsContent value="voice">
+      {activeTab === "voice" && (
           <Section title="Brand & Voice" description="Injected into every AI-generated ad script, so it sounds like this business, not a generic template.">
             <div className="space-y-4">
               <Field label="Tone of Voice" hint="A few words describing how this business should sound.">
@@ -111,15 +116,15 @@ export function SettingsPage() {
               <Field label="Target Audience"><Textarea value={form.targetAudience} onChange={(e) => patch({ targetAudience: e.target.value })} rows={2} /></Field>
             </div>
           </Section>
-        </TabsContent>
+      )}
 
-        <TabsContent value="services">
+      {activeTab === "services" && (
           <Section title="Services" description="What this business actually offers — used so AI-facing features (e.g. Outreach drafts) know what each service means.">
             <ServicesEditor services={form.services} onChange={(services) => patch({ services })} />
           </Section>
-        </TabsContent>
+      )}
 
-        <TabsContent value="intelligence">
+      {activeTab === "intelligence" && (
           <div className="space-y-4">
             <Section title="Target Markets" description="Countries the competitor-ad scraper searches, and the keywords it uses to find competitor ads.">
               <div className="space-y-4">
@@ -132,9 +137,9 @@ export function SettingsPage() {
               <AdScriptTopicsEditor topics={form.adScriptTopics} onChange={(adScriptTopics) => patch({ adScriptTopics })} />
             </Section>
           </div>
-        </TabsContent>
+      )}
 
-        <TabsContent value="automation">
+      {activeTab === "automation" && (
           <div className="space-y-4">
             <Section title="Outreach Defaults" description="Default sending pace and schedule for new outreach campaigns.">
               <div className="space-y-4">
@@ -186,9 +191,50 @@ export function SettingsPage() {
                 </span>
               </label>
             </Section>
+
+            <Section title="Video Character Reference" description="Optional — locks every AI-generated video (Meta Ads + Social Media) to one real person's photo per gender, so the character stays visually consistent scene to scene. Image generation is never affected.">
+              <div className="flex items-center gap-6 flex-wrap">
+                <div className="flex items-center gap-3 shrink-0">
+                  <Switch checked={form.videoReferenceEnabled} onCheckedChange={(checked) => patch({ videoReferenceEnabled: checked })} />
+                  <span className="text-xs font-semibold text-text">Use reference photo for video generation</span>
+                </div>
+                {form.videoReferenceEnabled && (
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <VideoReferenceUploader gender="male" label="Male Reference Photo" url={data?.videoReferenceMaleUrl ?? null} />
+                    <VideoReferenceUploader gender="female" label="Female Reference Photo" url={data?.videoReferenceFemaleUrl ?? null} />
+                  </div>
+                )}
+              </div>
+              {form.videoReferenceEnabled && (!data?.videoReferenceMaleUrl || !data?.videoReferenceFemaleUrl) && (
+                <p className="text-xs text-warning mt-2">Upload both photos above — Save is blocked until both are set.</p>
+              )}
+            </Section>
+
+            <Section title="Analysis Schedule" description="When the weekly Competitor Analysis and Self Ad Analysis reports run — pick any day and time, nothing is fixed in code.">
+              <div className="space-y-6">
+                <ScheduleEditor
+                  label="Competitor Analysis"
+                  description="Scrapes competitor ads and refreshes the Competitor Intelligence report."
+                  day={form.competitorAnalysisScheduleDay}
+                  hour={form.competitorAnalysisScheduleHour}
+                  lastRunAt={data?.competitorAnalysisLastRunAt ?? null}
+                  timezone={form.outreachSettings.timezone}
+                  onChange={(p) => patch({ competitorAnalysisScheduleDay: p.day ?? form.competitorAnalysisScheduleDay, competitorAnalysisScheduleHour: p.hour ?? form.competitorAnalysisScheduleHour })}
+                />
+                <div className="border-t border-border" />
+                <ScheduleEditor
+                  label="Self Ad Analysis"
+                  description="Analyzes this business's own live ad performance for next week's creative directives."
+                  day={form.selfAdAnalysisScheduleDay}
+                  hour={form.selfAdAnalysisScheduleHour}
+                  lastRunAt={data?.selfAdAnalysisLastRunAt ?? null}
+                  timezone={form.outreachSettings.timezone}
+                  onChange={(p) => patch({ selfAdAnalysisScheduleDay: p.day ?? form.selfAdAnalysisScheduleDay, selfAdAnalysisScheduleHour: p.hour ?? form.selfAdAnalysisScheduleHour })}
+                />
+              </div>
+            </Section>
           </div>
-        </TabsContent>
-      </Tabs>
+      )}
 
       <UnsavedChangesBar open={isDirty} onSave={handleSave} onDiscard={handleDiscard} saving={updateSettings.isPending} />
     </div>

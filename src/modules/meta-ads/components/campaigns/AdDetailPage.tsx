@@ -2,17 +2,17 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Play } from "lucide-react";
+import { Play, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { ROUTES } from "@/config/routes";
-import { useAdDetail, useEditAdCreative } from "../hooks/useCampaigns";
-import { CTA_TYPES } from "../components/campaigns/shared";
-import { StatusChip, LevelChip, InfoItem, MetricsRow, Section } from "../components/campaigns/shared";
-import { StatusActions } from "../components/campaigns/StatusActions";
-import { MediaPreview } from "../components/MediaPreview";
+import { useAdDetail, useEditAdCreative } from "../../hooks/useCampaigns";
+import { CTA_TYPES } from "./shared";
+import { StatusChip, LevelChip, InfoItem, MetricsRow, Section } from "./shared";
+import { StatusActions } from "./StatusActions";
+import { MediaPreview } from "@/components/global/MediaPreview";
 
 function ctaLabel(ctaType: string | null): string {
   return CTA_TYPES.find((c) => c.value === ctaType)?.label || ctaType || "—";
@@ -97,7 +97,17 @@ export function AdDetailPage() {
             <StatusChip status={ad.status} />
           </div>
         </div>
-        <StatusActions level="ad" id={ad.id} campaignId={campaignId} status={ad.status} showGoLive />
+        <div className="flex items-center gap-2 flex-wrap">
+          {ad.previewShareableLink && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={ad.previewShareableLink} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="w-3.5 h-3.5" />
+                Preview on Meta
+              </a>
+            </Button>
+          )}
+          <StatusActions level="ad" id={ad.id} campaignId={campaignId} status={ad.status} showGoLive />
+        </div>
       </div>
 
       <div className="flex gap-6 flex-wrap sm:flex-nowrap">
@@ -106,18 +116,20 @@ export function AdDetailPage() {
             type="button"
             onClick={() => setPreviewing(true)}
             title="Preview"
-            className="relative w-48 aspect-[9/16] rounded-lg overflow-hidden bg-surface border border-border shrink-0"
+            className="relative w-40 h-52 rounded-lg overflow-hidden bg-surface border border-border shrink-0 flex items-center justify-center"
           >
             {ad.mediaType === "video" ? (
-              <video src={ad.mediaUrl} className="w-full h-full object-cover" muted preload="metadata" />
+              <video src={ad.mediaUrl} className="w-full h-full object-contain" muted preload="metadata" />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={ad.mediaUrl} alt="" className="w-full h-full object-cover" />
+              <img src={ad.mediaUrl} alt="" className="w-full h-full object-contain" />
             )}
             <span className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors">
-              <span className="w-9 h-9 rounded-full bg-black/60 text-white flex items-center justify-center">
-                <Play className="w-4 h-4 fill-current" />
-              </span>
+              {ad.mediaType === "video" && (
+                <span className="w-9 h-9 rounded-full bg-black/60 text-white flex items-center justify-center">
+                  <Play className="w-4 h-4 fill-current" />
+                </span>
+              )}
             </span>
           </button>
         )}
@@ -128,7 +140,7 @@ export function AdDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InfoItem label="Headline" value={ad.headline || "—"} />
                 <InfoItem label="Call to Action" value={ctaLabel(ad.ctaType)} />
-                <div className="sm:col-span-2"><InfoItem label="Primary Text" value={ad.primaryText || "—"} /></div>
+                <div className="sm:col-span-2"><InfoItem label="Primary Text" value={ad.primaryText || "—"} truncate={false} /></div>
                 {ad.description && <div className="sm:col-span-2"><InfoItem label="Description" value={ad.description} /></div>}
                 <div className="sm:col-span-2">
                   <InfoItem
@@ -165,7 +177,8 @@ export function AdDetailPage() {
                 </div>
               </div>
             )}
-            {!editing && (
+            {/* Edit Copy hidden for now */}
+            {false && !editing && (
               <div className="flex justify-end">
                 <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Edit Copy</Button>
               </div>

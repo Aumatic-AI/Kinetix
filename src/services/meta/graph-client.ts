@@ -61,6 +61,10 @@ async function parseResponse(res: Response, path: string) {
 export async function graphGet<T = any>(path: string, accessToken: string, params: Record<string, string> = {}): Promise<T> {
   const url = new URL(`${GRAPH_URL}/${path}`);
   url.searchParams.set("access_token", accessToken);
+  // Forces error/response text to English regardless of the token owner's
+  // own Facebook account language (Meta localizes these per-account by
+  // default, which is where the Turkish error messages were coming from).
+  url.searchParams.set("locale", "en_US");
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString());
   return parseResponse(res, path);
@@ -82,7 +86,10 @@ export async function graphGetAllPages<T = Record<string, any>>(path: string, ac
 }
 
 export async function graphPost<T = any>(path: string, accessToken: string, body: Record<string, unknown> = {}): Promise<T> {
-  const res = await fetch(`${GRAPH_URL}/${path}`, {
+  // locale lives on the query string, not the JSON body, so it can't ever
+  // collide with a route's own "locale" field (e.g. a lead form's display
+  // language in the lead-forms create route) — see graphGet above.
+  const res = await fetch(`${GRAPH_URL}/${path}?locale=en_US`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...body, access_token: accessToken }),
@@ -93,12 +100,12 @@ export async function graphPost<T = any>(path: string, accessToken: string, body
 /** Media (image/video) uploads use multipart form fields, not JSON. */
 export async function graphPostForm<T = any>(path: string, accessToken: string, form: FormData): Promise<T> {
   form.set("access_token", accessToken);
-  const res = await fetch(`${GRAPH_URL}/${path}`, { method: "POST", body: form });
+  const res = await fetch(`${GRAPH_URL}/${path}?locale=en_US`, { method: "POST", body: form });
   return parseResponse(res, path);
 }
 
 export async function graphDelete<T = any>(path: string, accessToken: string): Promise<T> {
-  const res = await fetch(`${GRAPH_URL}/${path}?access_token=${accessToken}`, { method: "DELETE" });
+  const res = await fetch(`${GRAPH_URL}/${path}?access_token=${accessToken}&locale=en_US`, { method: "DELETE" });
   return parseResponse(res, path);
 }
 

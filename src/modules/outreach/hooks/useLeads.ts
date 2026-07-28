@@ -1,5 +1,6 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Lead, LeadFilters, LeadList, LeadCampaignHistoryEntry } from "../types/leads.types";
+import { Lead, LeadSummary, LeadFilters, LeadList, LeadListSummary, LeadCampaignHistoryEntry } from "../types/leads.types";
+import { ScrapeJob, StartScrapeInput } from "../types/outreach.types";
 
 export const leadsKeys = {
   all: ["leads"] as const,
@@ -7,6 +8,10 @@ export const leadsKeys = {
   infiniteList: (filters?: LeadFilters, limit?: number) => [...leadsKeys.all, "infinite-list", filters, limit] as const,
   lists: () => [...leadsKeys.all, "lists"] as const,
   history: (leadId: string) => [...leadsKeys.all, "history", leadId] as const,
+};
+
+export const scrapeJobsKeys = {
+  all: ["outreach-scrape-jobs"] as const,
 };
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -28,7 +33,7 @@ function buildLeadsParams(filters: LeadFilters | undefined, page: number, limit:
 export function useLeads(filters?: LeadFilters, page = 1, limit = 50) {
   return useQuery({
     queryKey: leadsKeys.list(filters, page),
-    queryFn: () => fetchJson<{ leads: Lead[]; count: number }>(`/api/outreach/leads?${buildLeadsParams(filters, page, limit).toString()}`),
+    queryFn: () => fetchJson<{ leads: LeadSummary[]; count: number }>(`/api/outreach/leads?${buildLeadsParams(filters, page, limit).toString()}`),
   });
 }
 
@@ -39,7 +44,7 @@ export function useLeads(filters?: LeadFilters, page = 1, limit = 50) {
 export function useInfiniteLeads(filters?: LeadFilters, limit = 30) {
   return useInfiniteQuery({
     queryKey: leadsKeys.infiniteList(filters, limit),
-    queryFn: ({ pageParam }) => fetchJson<{ leads: Lead[]; count: number }>(`/api/outreach/leads?${buildLeadsParams(filters, pageParam, limit).toString()}`),
+    queryFn: ({ pageParam }) => fetchJson<{ leads: LeadSummary[]; count: number }>(`/api/outreach/leads?${buildLeadsParams(filters, pageParam, limit).toString()}`),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
       const fetchedSoFar = allPages.reduce((sum, p) => sum + p.leads.length, 0);
@@ -53,15 +58,6 @@ export function useCreateLead() {
   return useMutation({
     mutationFn: (input: { email: string; firstName?: string; lastName?: string; phone?: string; company?: string; listId?: string }) =>
       fetchJson<{ success: true; lead: Lead }>("/api/outreach/leads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: leadsKeys.all }),
-  });
-}
-
-export function useUpdateLead() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, ...input }: { id: string; firstName?: string; lastName?: string; phone?: string; company?: string; listId?: string; status?: string }) =>
-      fetchJson(`/api/outreach/leads/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: leadsKeys.all }),
   });
 }
@@ -82,7 +78,7 @@ export function useLeadCampaignHistory(leadId: string | null) {
   });
 }
 
-export interface LeadListWithCount extends LeadList {
+export interface LeadListWithCount extends LeadListSummary {
   leadCount: number;
 }
 
@@ -115,5 +111,29 @@ export function useDeleteLeadList() {
   return useMutation({
     mutationFn: (id: string) => fetchJson(`/api/outreach/lists/${id}`, { method: "DELETE" }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: leadsKeys.all }),
+  });
+}
+
+/** "Find Leads" (Leads tab) — kicks off a background scrape job, recorded in
+ * outreach_scrape_jobs. useScrapeJobs itself has no UI consumer right now
+ * (the "Past Searches" list was removed) but is kept for querying job
+ * status later — the data and API route are still there either way. */
+export function useScrapeJobs() {
+  return useQuery({
+    queryKey: scrapeJobsKeys.all,
+    queryFn: () => fetchJson<{ jobs: ScrapeJob[] }>("/api/outreach/scrape/jobs").then((d) => d.jobs),
+    refetchInterval: (query) => {
+      const jobs = (query.state.data as ScrapeJob[] | undefined) || [];
+      return jobs.some((j) => j.status === "queued" || j.status === "running") ? 4000 : false;
+    },
+  });
+}
+
+export function useStartScrape() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: StartScrapeInput) =>
+      fetchJson<{ success: true; job: ScrapeJob }>("/api/outreach/scrape", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: scrapeJobsKeys.all }),
   });
 }

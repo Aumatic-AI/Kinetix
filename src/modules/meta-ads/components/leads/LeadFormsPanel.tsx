@@ -1,93 +1,28 @@
 "use client";
 import { useState } from "react";
-import { Plus, Archive, FileText, X } from "lucide-react";
+import { ClipboardList } from "lucide-react";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { EmptyState, Card } from "../competitors/shared";
-import { useLeadForms, useCreateLeadForm, useArchiveLeadForm } from "../../hooks/useLeads";
+import { Avatar } from "@/components/ui/Avatar";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { StatusChip } from "../campaigns/shared";
+import { EmptyState } from "../dashboard/shared";
+import { localeLabel } from "./shared";
+import { formatDate } from "@/utils/datetime";
+import { useLeadForms, useArchiveLeadForm, LeadForm } from "../../hooks/useLeads";
+import { LeadFormDetailsModal } from "./LeadFormDetailsModal";
 
-const PRESETS = [
-  { id: "FULL_NAME", label: "Full name" },
-  { id: "EMAIL", label: "Email" },
-  { id: "PHONE", label: "Phone" },
-];
-
-function CreateFormPanel({ onClose }: { onClose: () => void }) {
-  const createForm = useCreateLeadForm();
-  const [name, setName] = useState("");
-  const [presets, setPresets] = useState<string[]>(["FULL_NAME", "EMAIL", "PHONE"]);
-  const [customQuestions, setCustomQuestions] = useState<string[]>([""]);
-  const [thankYouUrl, setThankYouUrl] = useState("");
-  const [error, setError] = useState("");
-
-  const togglePreset = (id: string) => setPresets((prev) => (prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]));
-
-  const submit = async () => {
-    setError("");
-    if (!name.trim()) return setError("Form name is required.");
-    try {
-      await createForm.mutateAsync({
-        name: name.trim(),
-        presetQuestions: presets,
-        customQuestions: customQuestions.filter((q) => q.trim()),
-        thankYouUrl: thankYouUrl.trim() || undefined,
-      });
-      onClose();
-    } catch (e: any) {
-      setError(e.message || "Failed to create form");
-    }
-  };
-
-  return (
-    <Card className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-bold text-text">New Instant Form</p>
-        <button onClick={onClose} className="text-muted hover:text-text"><X className="w-4 h-4" /></button>
-      </div>
-      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Form name" />
-      <div>
-        <p className="text-xs font-bold text-muted uppercase tracking-wide mb-2">Questions</p>
-        <div className="flex flex-wrap gap-2">
-          {PRESETS.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => togglePreset(p.id)}
-              className={`px-2.5 py-1 rounded-full text-xs font-bold border transition-colors ${presets.includes(p.id) ? "bg-primary text-white border-primary" : "border-default text-muted hover:bg-surface"}`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <div className="space-y-2">
-        {customQuestions.map((q, i) => (
-          <div key={i} className="flex gap-2">
-            <Input
-              value={q}
-              onChange={(e) => setCustomQuestions((prev) => prev.map((v, idx) => (idx === i ? e.target.value : v)))}
-              placeholder="Custom question (optional)"
-            />
-            {customQuestions.length > 1 && (
-              <button onClick={() => setCustomQuestions((prev) => prev.filter((_, idx) => idx !== i))} className="text-muted hover:text-danger px-2"><X className="w-4 h-4" /></button>
-            )}
-          </div>
-        ))}
-        <button onClick={() => setCustomQuestions((prev) => [...prev, ""])} className="text-xs font-semibold text-primary hover:underline">+ Add another question</button>
-      </div>
-      <Input value={thankYouUrl} onChange={(e) => setThankYouUrl(e.target.value)} placeholder="Thank-you redirect URL (optional)" />
-      {error && <p className="text-xs text-danger">{error}</p>}
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={onClose}>Cancel</Button>
-        <Button loading={createForm.isPending} onClick={submit}>Create Form</Button>
-      </div>
-    </Card>
-  );
-}
-
+/**
+ * Instant Forms as a table, matching the Leads tab's own table — includes
+ * archived forms (not hidden) since Meta has no un-archive for them, so
+ * "View" is the only way to see one again afterward.
+ */
 export function LeadFormsPanel() {
   const { data: forms, isLoading, error } = useLeadForms();
   const archiveForm = useArchiveLeadForm();
-  const [creating, setCreating] = useState(false);
+  const [viewingForm, setViewingForm] = useState<LeadForm | null>(null);
+  const [archivingForm, setArchivingForm] = useState<LeadForm | null>(null);
+  const [archiveError, setArchiveError] = useState("");
 
   if (error) {
     return (
@@ -97,29 +32,79 @@ export function LeadFormsPanel() {
     );
   }
 
+  const confirmArchive = async () => {
+    if (!archivingForm) return;
+    setArchiveError("");
+    try {
+      await archiveForm.mutateAsync(archivingForm.id);
+      setArchivingForm(null);
+    } catch (e) {
+      setArchiveError(e instanceof Error ? e.message : "Failed to archive form");
+    }
+  };
+
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        {!creating && <Button size="sm" onClick={() => setCreating(true)} icon={<Plus className="w-3.5 h-3.5" />}>New Form</Button>}
-      </div>
-      {creating && <CreateFormPanel onClose={() => setCreating(false)} />}
+    <>
       {isLoading ? (
-        <div className="space-y-2">{[1, 2].map((i) => <div key={i} className="h-14 rounded-lg bg-surface animate-pulse" />)}</div>
+        <div className="space-y-2">{[1, 2].map((i) => <div key={i} className="h-12 rounded-lg bg-surface animate-pulse" />)}</div>
       ) : !forms?.length ? (
         <EmptyState message="No Instant Forms yet." />
       ) : (
-        <div className="space-y-2">
-          {forms.map((f) => (
-            <div key={f.id} className="flex items-center justify-between bg-background border border-default/60 rounded-lg px-4 py-3">
-              <div className="flex items-center gap-2.5">
-                <FileText className="w-4 h-4 text-muted" />
-                <p className="text-sm font-semibold text-text">{f.name}</p>
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => archiveForm.mutate(f.id)} icon={<Archive className="w-3.5 h-3.5" />}>Archive</Button>
-            </div>
-          ))}
+        <div className="border border-default rounded-lg overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Leads</TableHead>
+                <TableHead>Language</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {forms.map((f) => (
+                <TableRow key={f.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2.5">
+                      <Avatar icon={ClipboardList} />
+                      <span className="font-semibold text-text truncate max-w-60">{f.name}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell><StatusChip status={f.status} /></TableCell>
+                  <TableCell className="text-muted">{f.leads_count ?? "—"}</TableCell>
+                  <TableCell className="text-muted">{localeLabel(f.locale)}</TableCell>
+                  <TableCell className="text-muted whitespace-nowrap">{f.created_time ? formatDate(f.created_time) : "—"}</TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setViewingForm(f)}>View</Button>
+                      {f.status !== "ARCHIVED" && (
+                        <Button size="sm" variant="outline" className="text-danger border-danger/30 hover:bg-danger-bg" onClick={() => setArchivingForm(f)}>
+                          Archive
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
       )}
-    </div>
+
+      <LeadFormDetailsModal form={viewingForm} onClose={() => setViewingForm(null)} />
+
+      <ConfirmModal
+        open={!!archivingForm}
+        onOpenChange={(open) => { if (!open && !archiveForm.isPending) { setArchivingForm(null); setArchiveError(""); } }}
+        title="Archive this form?"
+        description={`"${archivingForm?.name}" will stop accepting new submissions. This is permanent — Meta doesn't allow un-archiving a form from here.`}
+        confirmLabel="Archive"
+        variant="destructive"
+        loading={archiveForm.isPending}
+        error={archiveError}
+        onConfirm={confirmArchive}
+      />
+    </>
   );
 }

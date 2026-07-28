@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ROUTES } from "@/config/routes";
-import { CreatePostModal } from "../components/CreatePostModal";
-import { PostTile } from "../components/PostTile";
-import { PostDetailsModal } from "../components/PostDetailsModal";
-import { useSocialPosts, useRetryPosts, useCancelSchedule, socialKeys } from "../hooks/useSocialPosts";
+import { CreatePostModal } from "../components/posts/CreatePostModal";
+import { PostTile } from "../components/posts/PostTile";
+import { PostDetailsModal } from "../components/posts/PostDetailsModal";
+import { useSocialPosts, useRetryPosts, useCancelSchedule, socialKeys } from "../hooks/usePosts";
 import { groupPosts, distributeIntoColumns, PostGroup, PostRow } from "../lib/postGroups";
 import { useQueryClient } from "@tanstack/react-query";
 

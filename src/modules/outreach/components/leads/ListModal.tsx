@@ -4,12 +4,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useCreateLeadList, useRenameLeadList } from "../../hooks/useLeads";
-import { LeadList } from "../../types/leads.types";
+import { LeadListSummary } from "../../types/leads.types";
 
 /** Shared create/edit modal for lead lists. The parent remounts this (via a
  * `key` that changes) every time it opens, so `name` initializes fresh from
  * `list` with no effect needed to resync it on reopen. */
-export function ListModal({ list, open, onClose }: { list?: LeadList | null; open: boolean; onClose: () => void }) {
+export function ListModal({ list, open, onClose }: { list?: LeadListSummary | null; open: boolean; onClose: () => void }) {
   const [name, setName] = useState(list?.name || "");
   const isEdit = !!list;
 

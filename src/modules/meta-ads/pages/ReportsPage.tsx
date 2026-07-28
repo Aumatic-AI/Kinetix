@@ -1,18 +1,17 @@
 "use client";
 import { useState } from "react";
-import { Sparkles, Image as ImageIcon } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Image as ImageIcon } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { EmptyState } from "../components/competitors/shared";
+import { EmptyState } from "../components/dashboard/shared";
 import { ReportKpiRow } from "../components/reports/ReportKpiRow";
-import { ReportAnalysisPanel } from "../components/reports/ReportAnalysisPanel";
-import { useReportsData, useAnalyzeReports, ReportRange } from "../hooks/useReports";
+import { useReportsData, ReportRange } from "../hooks/useReports";
 
 const RANGES: { value: ReportRange; label: string }[] = [
   { value: "today", label: "Today" },
   { value: "7d", label: "7 days" },
   { value: "14d", label: "14 days" },
   { value: "30d", label: "30 days" },
+  { value: "all", label: "All time" },
 ];
 
 const SCORE_STYLE = (score: number) =>
@@ -21,7 +20,6 @@ const SCORE_STYLE = (score: number) =>
 export function ReportsPage() {
   const [range, setRange] = useState<ReportRange>("7d");
   const { data, isLoading, error } = useReportsData(range);
-  const analyzeMutation = useAnalyzeReports();
 
   const ads = data?.ads || [];
 
@@ -58,21 +56,7 @@ export function ReportsPage() {
         <>
           {data && <ReportKpiRow summary={data.summary} />}
 
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted">{data?.summary.scoreMethodology}</p>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => data && analyzeMutation.mutate({ ads: data.ads, summary: data.summary })}
-              loading={analyzeMutation.isPending}
-              icon={<Sparkles className="w-3.5 h-3.5" />}
-            >
-              {analyzeMutation.isPending ? "Analyzing…" : "Analyze with AI"}
-            </Button>
-          </div>
-
-          {analyzeMutation.data && <ReportAnalysisPanel analysis={analyzeMutation.data} ads={ads} />}
-          {analyzeMutation.error && <p className="text-sm text-danger">{(analyzeMutation.error as Error).message}</p>}
+          <p className="text-xs text-muted">{data?.summary.scoreMethodology}</p>
 
           <div className="border border-default rounded-lg overflow-hidden">
             <Table>

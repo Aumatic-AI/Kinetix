@@ -43,6 +43,15 @@ export async function GET() {
         sendWindow: { from: outreach.send_window?.from || "09:00", to: outreach.send_window?.to || "17:00" },
       },
       metaAdsAdvantageAudienceDefault: !!settingsJson.meta_ads?.advantage_audience_default,
+      videoReferenceEnabled: business.video_reference_enabled,
+      videoReferenceMaleUrl: business.video_reference_male_url,
+      videoReferenceFemaleUrl: business.video_reference_female_url,
+      competitorAnalysisScheduleDay: business.competitor_analysis_schedule_day,
+      competitorAnalysisScheduleHour: business.competitor_analysis_schedule_hour,
+      competitorAnalysisLastRunAt: business.competitor_analysis_last_run_at,
+      selfAdAnalysisScheduleDay: business.self_ad_analysis_schedule_day,
+      selfAdAnalysisScheduleHour: business.self_ad_analysis_schedule_hour,
+      selfAdAnalysisLastRunAt: business.self_ad_analysis_last_run_at,
     };
 
     return NextResponse.json({ settings });
@@ -57,8 +66,16 @@ export async function POST(request: Request) {
     const body = (await request.json()) as BusinessSettings;
     const supabase = (await createClient()) as SupabaseClient<Database>;
 
-    const { data: business, error: findError } = await supabase.from("businesses").select("id, settings").limit(1).single();
+    const { data: business, error: findError } = await supabase
+      .from("businesses")
+      .select("id, settings, video_reference_male_url, video_reference_female_url")
+      .limit(1)
+      .single();
     if (findError || !business) return NextResponse.json({ error: "No business found" }, { status: 404 });
+
+    if (body.videoReferenceEnabled && (!business.video_reference_male_url || !business.video_reference_female_url)) {
+      return NextResponse.json({ error: "Upload both a male and a female reference photo before enabling this." }, { status: 400 });
+    }
 
     const existingSettingsJson = (business.settings as Record<string, any> | null) || {};
 
@@ -85,6 +102,11 @@ export async function POST(request: Request) {
           send_window: body.outreachSettings.sendWindow,
         },
         settings: { ...existingSettingsJson, meta_ads: { ...existingSettingsJson.meta_ads, advantage_audience_default: body.metaAdsAdvantageAudienceDefault } },
+        video_reference_enabled: body.videoReferenceEnabled,
+        competitor_analysis_schedule_day: body.competitorAnalysisScheduleDay,
+        competitor_analysis_schedule_hour: body.competitorAnalysisScheduleHour,
+        self_ad_analysis_schedule_day: body.selfAdAnalysisScheduleDay,
+        self_ad_analysis_schedule_hour: body.selfAdAnalysisScheduleHour,
       })
       .eq("id", business.id);
 

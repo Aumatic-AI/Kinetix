@@ -16,6 +16,14 @@ export interface LeadList {
   updated_at: string;
 }
 
+/** What the Leads page's lists table actually fetches — getLists() only
+ * selects these columns (see outreach.service.ts); business_id/created_at/
+ * updated_at aren't shown anywhere in the UI. */
+export interface LeadListSummary {
+  id: string;
+  name: string;
+}
+
 export interface Lead {
   id: string;
   business_id: string;
@@ -33,6 +41,18 @@ export interface Lead {
   status: LeadStatus;
   created_at: string;
   updated_at: string;
+}
+
+/** What the leads drawer (opened from "View" on a list) actually fetches —
+ * getLeads() only selects these columns. Only name/email/location are shown
+ * in LeadsTable, so the rest of the row isn't fetched for now. */
+export interface LeadSummary {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  city: string | null;
+  country: string | null;
 }
 
 export interface LeadFilters {

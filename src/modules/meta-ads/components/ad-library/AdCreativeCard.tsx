@@ -1,26 +1,38 @@
-import React from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Play, Check, Clock, Video, Image as ImageIcon, Sparkles, Eye, Rocket, Trash2, AlertTriangle, RefreshCw } from "lucide-react";
+import { Play, Check, Clock, Video, Image as ImageIcon, Sparkles, AlertTriangle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { formatDate } from "@/utils/datetime";
-import { MetaAdCreative } from "../types/meta-ads.types";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { MetaAdCreativeListItem } from "../../types/meta-ads.types";
 
 interface AdCreativeCardProps {
-  ad: MetaAdCreative;
+  ad: MetaAdCreativeListItem;
   index: number;
-  onSelect: (ad: MetaAdCreative) => void;
+  onSelect: (ad: MetaAdCreativeListItem) => void;
   onApprove: (id: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
   onRetry: (id: string) => void;
   isRetrying?: boolean;
-  /** Present once this creative has been launched as a real ad at least
-   * once — shown as a badge, never hides the Launch button (relaunching
-   * the same creative into a new campaign/audience is a real use case). */
-  launched?: boolean;
-  onLaunch?: (ad: MetaAdCreative) => void;
 }
 
-export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRetry, isRetrying, launched, onLaunch }: AdCreativeCardProps) {
+export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRetry, isRetrying }: AdCreativeCardProps) {
+  const [confirmingReject, setConfirmingReject] = useState(false);
+  const [rejecting, setRejecting] = useState(false);
+  const [rejectError, setRejectError] = useState("");
+
+  const confirmReject = async () => {
+    setRejectError("");
+    setRejecting(true);
+    try {
+      await onDelete(ad.id);
+      setConfirmingReject(false);
+    } catch (e) {
+      setRejectError(e instanceof Error ? e.message : "Failed to reject");
+    } finally {
+      setRejecting(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -107,107 +119,79 @@ export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRet
             </span>
           )}
         </div>
-
-        {launched && (
-          <div className="absolute top-2 left-2">
-            <span className="px-1.5 py-0.5 rounded bg-background/90 backdrop-blur-md border border-primary/30 text-primary text-[10px] font-bold uppercase tracking-wider flex items-center gap-1">
-              <Rocket size={10} /> Launched
-            </span>
-          </div>
-        )}
       </div>
 
       {/* Content Section (Bottom) */}
-      <div className="p-3 flex flex-col flex-1 justify-between bg-background">
-        <div className="mb-3">
-          <p className="text-xs font-semibold text-text line-clamp-2 mb-1 leading-snug">
-            {ad.idea_prompt || "No prompt provided"}
-          </p>
-          {ad.ad_script?.headline && (
-            <p className="text-[10px] font-medium text-primary line-clamp-1">{ad.ad_script.headline}</p>
+      <div className="p-3 flex flex-col flex-1 bg-background">
+        <div className="flex items-center justify-between text-[10px] text-muted font-medium mb-3">
+          {ad.duration ? <span>{ad.duration}</span> : <span />}
+          {ad.type === "video" ? <Video size={12} /> : <ImageIcon size={12} />}
+        </div>
+
+        <div className="flex items-center gap-2 w-full">
+          {ad.status === "review" ? (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setConfirmingReject(true)}
+                className="flex-1 text-danger hover:bg-danger-bg hover:text-danger border-danger/30 h-7 text-[11px]"
+              >
+                Reject
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => onApprove(ad.id)}
+                className="flex-1 bg-success text-white hover:opacity-90 h-7 text-[11px]"
+              >
+                Approve
+              </Button>
+            </>
+          ) : ad.status === "failed" ? (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="flex-1 h-7 text-[11px]"
+                onClick={() => onSelect(ad)}
+              >
+                Preview
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                className="flex-1 shadow-sm h-7 text-[11px] gap-1"
+                onClick={() => onRetry(ad.id)}
+                disabled={isRetrying}
+                icon={<RefreshCw className={`w-3 h-3 ${isRetrying ? "animate-spin" : ""}`} />}
+              >
+                {isRetrying ? "Retrying..." : "Retry"}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1 h-7 text-[11px]"
+              onClick={() => onSelect(ad)}
+            >
+              Preview
+            </Button>
           )}
         </div>
-
-        <div>
-          <div className="flex items-center justify-between text-[10px] text-muted font-medium mb-3">
-            <div className="flex items-center gap-2">
-              <span>{formatDate(ad.created_at)}</span>
-              {ad.duration && (
-                <>
-                  <span className="w-1 h-1 rounded-full bg-border" />
-                  <span>{ad.duration}</span>
-                </>
-              )}
-            </div>
-            {ad.type === "video" ? <Video size={12} /> : <ImageIcon size={12} />}
-          </div>
-
-          <div className="flex items-center gap-2 w-full">
-            {ad.status === "review" ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onDelete(ad.id)}
-                  className="flex-1 text-danger hover:bg-danger-bg hover:text-danger border-danger/30 h-7 text-[11px]"
-                >
-                  Reject
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={() => onApprove(ad.id)}
-                  className="flex-1 bg-success text-white hover:opacity-90 h-7 text-[11px]"
-                >
-                  Approve
-                </Button>
-              </>
-            ) : ad.status === "failed" ? (
-              <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="flex-1 h-7 text-[11px]"
-                  onClick={() => onSelect(ad)}
-                >
-                  Details
-                </Button>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  className="flex-1 shadow-sm h-7 text-[11px] gap-1"
-                  onClick={() => onRetry(ad.id)}
-                  disabled={isRetrying}
-                  icon={<RefreshCw className={`w-3 h-3 ${isRetrying ? "animate-spin" : ""}`} />}
-                >
-                  {isRetrying ? "Retrying..." : "Retry"}
-                </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="flex-1 h-7 text-[11px]"
-                  onClick={() => onSelect(ad)}
-                >
-                  Details
-                </Button>
-                {ad.status === "approved" && (
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    className="flex-1 shadow-sm h-7 text-[11px]"
-                    onClick={() => onLaunch?.(ad)}
-                    icon={<Rocket className="w-3 h-3" />}
-                  >
-                    {launched ? "Relaunch" : "Launch"}
-                  </Button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
       </div>
+
+      <ConfirmModal
+        open={confirmingReject}
+        onOpenChange={(open) => { if (!open && !rejecting) { setConfirmingReject(false); setRejectError(""); } }}
+        title="Reject this creative?"
+        description="This permanently deletes the creative. This can't be undone."
+        confirmLabel="Reject"
+        variant="destructive"
+        loading={rejecting}
+        error={rejectError}
+        onConfirm={confirmReject}
+      />
     </motion.div>
   );
 }

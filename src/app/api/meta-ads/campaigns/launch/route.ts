@@ -82,7 +82,7 @@ export async function POST(request: Request) {
         status: "PAUSED",
         special_ad_categories: ["NONE"],
         buying_type: body.buyingType || "AUCTION",
-        ...(isCbo ? budgetField(body) : { is_adset_budget_sharing_enabled: false }),
+        ...(isCbo ? { ...budgetField(body), bid_strategy: "LOWEST_COST_WITHOUT_CAP" } : { is_adset_budget_sharing_enabled: false }),
       })
     ).id;
 

@@ -1,41 +1,16 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Sparkles } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { formatDate } from "@/utils/datetime";
-import { KpiRow } from "../components/competitors/KpiRow";
-import { FormatBreakdown } from "../components/competitors/FormatBreakdown";
-import { MarketPulse } from "../components/competitors/MarketPulse";
-import { GapOpportunities } from "../components/competitors/GapOpportunities";
-import { ReadyAdsGrid } from "../components/competitors/ReadyAdsGrid";
+import { useDashboardInsights } from "../hooks/useDashboard";
+import { KpiRow } from "../components/dashboard/KpiRow";
+import { FormatBreakdown } from "../components/dashboard/FormatBreakdown";
+import { MarketPulse } from "../components/dashboard/MarketPulse";
+import { GapOpportunities } from "../components/dashboard/GapOpportunities";
+import { ReadyAdsGrid } from "../components/dashboard/ReadyAdsGrid";
 
 export function Dashboard() {
-  const [insights, setInsights] = useState<any>({});
-  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient();
-
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const { data: intelData } = await (supabase
-        .from("ad_analysis_reports") as any)
-        .select("insights, created_at")
-        .eq("report_type", "competitor")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (intelData?.insights) {
-        setInsights(intelData.insights);
-        setGeneratedAt(intelData.created_at);
-      }
-      setLoading(false);
-    };
-
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const { insights, generatedAt, loading } = useDashboardInsights();
 
   if (loading) {
     return (

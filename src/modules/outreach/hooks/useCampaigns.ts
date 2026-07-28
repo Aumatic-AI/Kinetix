@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { OutreachCampaign, CreateOutreachCampaignInput, OutreachAnalyticsResponse, OutreachCampaignSendPreview } from "../types/outreach.types";
+import { OutreachCampaign, OutreachCampaignListItem, OutreachCampaignDetail, CreateOutreachCampaignInput, OutreachAnalyticsResponse, OutreachCampaignSendPreview } from "../types/outreach.types";
 
 export const outreachKeys = {
   all: ["outreach"] as const,
@@ -29,7 +29,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 export function useOutreachCampaigns() {
   return useQuery({
     queryKey: outreachKeys.campaigns(),
-    queryFn: () => fetchJson<{ campaigns: OutreachCampaign[] }>("/api/outreach/campaigns").then((d) => d.campaigns),
+    queryFn: () => fetchJson<{ campaigns: OutreachCampaignListItem[] }>("/api/outreach/campaigns").then((d) => d.campaigns),
     // Fresh on every mount/reload/mutation-invalidation (staleTime 0), but
     // NOT on every window/tab focus — with the default refetchOnWindowFocus,
     // staleTime 0 means switching tabs and back re-fetches every single time,
@@ -42,7 +42,7 @@ export function useOutreachCampaigns() {
 export function useOutreachCampaign(id: string | null) {
   return useQuery({
     queryKey: outreachKeys.campaign(id || ""),
-    queryFn: () => fetchJson<{ campaign: OutreachCampaign }>(`/api/outreach/campaigns/${id}`).then((d) => d.campaign),
+    queryFn: () => fetchJson<{ campaign: OutreachCampaignDetail }>(`/api/outreach/campaigns/${id}`).then((d) => d.campaign),
     enabled: !!id,
   });
 }

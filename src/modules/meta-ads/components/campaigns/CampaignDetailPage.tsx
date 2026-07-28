@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/Button";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { ROUTES } from "@/config/routes";
 import { formatDate, formatDateTime } from "@/utils/datetime";
-import { useCampaignDetail } from "../hooks/useCampaigns";
-import { StatusChip, LevelChip, InfoItem, MetricsRow, Section } from "../components/campaigns/shared";
-import { StatusActions } from "../components/campaigns/StatusActions";
-import { AddAdSetModal } from "../components/campaigns/AddAdSetModal";
+import { useCampaignDetail } from "../../hooks/useCampaigns";
+import { StatusChip, LevelChip, InfoItem, MetricsRow, Section } from "./shared";
+import { StatusActions } from "./StatusActions";
+import { AddAdSetModal } from "./AddAdSetModal";
 
 function formatMoney(cents: number | null): string {
   return cents != null ? `$${(cents / 100).toFixed(2)}` : "—";

@@ -13,9 +13,8 @@ import {
   useResumeOutreachCampaign,
   useSendOutreachCampaign,
   useCampaignSendPreview,
-  useOutreachAnalytics,
-} from "../hooks/useOutreachCampaigns";
-import { OutreachCampaign } from "../types/outreach.types";
+} from "../hooks/useCampaigns";
+import { OutreachCampaignListItem } from "../types/outreach.types";
 import { ROUTES } from "@/config/routes";
 
 const TONE_STYLE: Record<string, string> = {
@@ -55,7 +54,7 @@ interface ModalCopy {
   variant: "primary" | "destructive";
 }
 
-function getModalCopy(target: { type: ConfirmType; campaign: OutreachCampaign } | null): ModalCopy | null {
+function getModalCopy(target: { type: ConfirmType; campaign: OutreachCampaignListItem } | null): ModalCopy | null {
   if (!target) return null;
   if (target.type === "send") {
     return { title: "Send this campaign?", description: `"${target.campaign.name}" will be sent via Instantly.`, confirmLabel: "Send", variant: "primary" };
@@ -66,16 +65,14 @@ function getModalCopy(target: { type: ConfirmType; campaign: OutreachCampaign } 
 
 export function CampaignsPage() {
   const router = useRouter();
-  const { data: campaigns = [], isLoading: campaignsLoading } = useOutreachCampaigns();
-  const { data: analytics, isLoading: analyticsLoading } = useOutreachAnalytics();
-  const isLoading = campaignsLoading || analyticsLoading;
+  const { data: campaigns = [], isLoading } = useOutreachCampaigns();
 
   const deleteCampaign = useDeleteOutreachCampaign();
   const pauseCampaign = usePauseOutreachCampaign();
   const resumeCampaign = useResumeOutreachCampaign();
   const sendCampaign = useSendOutreachCampaign();
 
-  const [confirmTarget, setConfirmTarget] = useState<{ type: ConfirmType; campaign: OutreachCampaign } | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<{ type: ConfirmType; campaign: OutreachCampaignListItem } | null>(null);
   const [confirmError, setConfirmError] = useState("");
 
   const sendPreviewId = confirmTarget?.type === "send" ? confirmTarget.campaign.id : null;
@@ -83,7 +80,7 @@ export function CampaignsPage() {
 
   const openCampaign = (id: string) => router.push(ROUTES.OUTREACH.CAMPAIGN_DETAIL(id));
 
-  const openConfirm = (type: ConfirmType, campaign: OutreachCampaign) => {
+  const openConfirm = (type: ConfirmType, campaign: OutreachCampaignListItem) => {
     setConfirmError("");
     setConfirmTarget({ type, campaign });
   };
@@ -141,8 +138,7 @@ export function CampaignsPage() {
             </TableHeader>
             <TableBody>
               {campaigns.map((c) => {
-                const entry = analytics?.byCampaignId[c.id];
-                const showNumbers = entry && entry.value !== "draft" && entry.value !== "ready";
+                const showNumbers = c.status !== "draft" && c.status !== "ready";
                 return (
                   <TableRow key={c.id} className="cursor-pointer" onClick={() => openCampaign(c.id)}>
                     <TableCell className="font-semibold text-text">
@@ -152,28 +148,26 @@ export function CampaignsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {entry && (
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${TONE_STYLE[entry.tone]}`}
-                          title={entry.reason}
-                        >
-                          {entry.label}
-                        </span>
-                      )}
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${TONE_STYLE[c.statusTone]}`}
+                        title={c.statusReason}
+                      >
+                        {c.statusLabel}
+                      </span>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-text">{showNumbers ? entry.sent : "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums text-text">{showNumbers ? entry.opened : "—"}</TableCell>
-                    <TableCell className="text-right tabular-nums text-text">{showNumbers ? entry.replied : "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums text-text">{showNumbers ? c.sent : "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums text-text">{showNumbers ? c.opened : "—"}</TableCell>
+                    <TableCell className="text-right tabular-nums text-text">{showNumbers ? c.replied : "—"}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2 justify-end">
-                        {entry?.value === "ready" && (
+                        {c.status === "ready" && (
                           <Button size="sm" onClick={(e) => { e.stopPropagation(); openConfirm("send", c); }} icon={<Send className="w-3.5 h-3.5" />}>Send</Button>
                         )}
-                        {!c.external_campaign_id ? (
+                        {!c.externalCampaignId ? (
                           <button onClick={(e) => { e.stopPropagation(); openConfirm("delete", c); }} className="text-muted hover:text-danger" title="Delete">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
-                        ) : entry?.value === "paused" ? (
+                        ) : c.status === "paused" ? (
                           <button onClick={(e) => { e.stopPropagation(); openConfirm("resume", c); }} className="text-muted hover:text-success" title="Resume">
                             <Play className="w-3.5 h-3.5" />
                           </button>

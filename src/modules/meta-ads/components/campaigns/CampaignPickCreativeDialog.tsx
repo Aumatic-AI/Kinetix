@@ -2,16 +2,16 @@
 import { useState } from "react";
 import { Video, Image as ImageIcon, Play } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { useMetaAdCreatives } from "../../hooks/useMetaAds";
-import { MetaAdCreative } from "../../types/meta-ads.types";
-import { MediaPreview } from "../MediaPreview";
+import { useMetaAdCreativesForPicker } from "../../hooks/useAdLibrary";
+import { MetaAdCreativePickerItem } from "../../types/meta-ads.types";
+import { MediaPreview } from "@/components/global/MediaPreview";
 
 /** A picker over every approved creative, reused wherever a flow needs one:
  * CreateCampaignPage's step 3, AddAdSetModal, and AddCreativeModal all
  * open this same dialog rather than each rolling their own grid. */
-export function CampaignPickCreativeDialog({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (creative: MetaAdCreative) => void }) {
-  const { data: ads = [] } = useMetaAdCreatives({ status: "approved" });
-  const [previewing, setPreviewing] = useState<MetaAdCreative | null>(null);
+export function CampaignPickCreativeDialog({ open, onClose, onPick }: { open: boolean; onClose: () => void; onPick: (creative: MetaAdCreativePickerItem) => void }) {
+  const { data: ads = [] } = useMetaAdCreativesForPicker({ status: "approved" });
+  const [previewing, setPreviewing] = useState<MetaAdCreativePickerItem | null>(null);
 
   return (
     <>

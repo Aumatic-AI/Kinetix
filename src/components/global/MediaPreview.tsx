@@ -12,16 +12,24 @@ export function MediaPreview({
   onClose,
   mediaUrl,
   type,
+  duration,
 }: {
   open: boolean;
   onClose: () => void;
   mediaUrl: string | null;
   type: "video" | "image";
+  /** Optional — shown as a small chip in the top-left corner (e.g. "28s"). */
+  duration?: string | null;
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-3xl sm:max-w-3xl bg-black border-border p-0 sm:rounded-xl gap-0 overflow-hidden outline-none shadow-lg">
         <div className="relative w-full aspect-[9/16] max-h-[85vh] mx-auto bg-black flex items-center justify-center">
+          {duration && (
+            <span className="absolute top-3 left-3 z-10 px-2 py-1 rounded-md bg-black/60 backdrop-blur-md border border-white/10 text-white text-[11px] font-bold uppercase tracking-wide">
+              {duration}
+            </span>
+          )}
           {mediaUrl ? (
             type === "video" ? (
               <video src={mediaUrl} className="w-full h-full object-contain" controls autoPlay />

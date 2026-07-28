@@ -1,6 +1,9 @@
+import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { Lead, LeadFilters, PaginationOptions, LeadStatus, LeadList, LeadCampaignHistoryEntry } from "../types/leads.types";
-import { OutreachCampaign } from "../types/outreach.types";
+import { Lead, LeadSummary, LeadFilters, PaginationOptions, LeadList, LeadListSummary, LeadCampaignHistoryEntry } from "../types/leads.types";
+import { OutreachCampaign, OutreachCampaignStatusEntry } from "../types/outreach.types";
+import { InstantlyService, InstantlyCampaignAnalytics } from "@/services/instantly";
+import { resolveCampaignStatus } from "../utils/campaign-status";
 
 interface CampaignLeadHistoryRow {
   status: "queued" | "sent" | "failed";
@@ -8,13 +11,68 @@ interface CampaignLeadHistoryRow {
   outreach_campaigns: { id: string; name: string } | null;
 }
 
+function rate(count: number, sent: number): number {
+  return sent > 0 ? Math.round((count / sent) * 100) : 0;
+}
+
+/** Single merge of one campaign row with Instantly's live analytics —
+ * shared by getCampaignsWithAnalytics (all campaigns) and
+ * getCampaignAnalyticsEntry (one campaign), so this computation only
+ * lives in one place. */
+async function resolveCampaignEntry(
+  supabase: SupabaseClient,
+  campaign: { id: string; status: string; external_campaign_id: string | null },
+  instantlyByExternalId: Map<string, InstantlyCampaignAnalytics>
+): Promise<OutreachCampaignStatusEntry> {
+  const instantlyEntry = campaign.external_campaign_id ? instantlyByExternalId.get(campaign.external_campaign_id) : undefined;
+
+  const sent = instantlyEntry?.emails_sent_count || 0;
+  const opened = instantlyEntry?.open_count_unique || 0;
+  const replied = instantlyEntry?.reply_count_unique || 0;
+  const clicked = instantlyEntry?.link_click_count_unique || 0;
+  const bounced = instantlyEntry?.bounced_count || 0;
+  const unsubscribed = instantlyEntry?.unsubscribed_count || 0;
+
+  // Only needed to tell "sending" from "sent" apart — skip the query otherwise.
+  let recipientsTargeted: number | undefined;
+  if (instantlyEntry?.campaign_status === 1) {
+    const { count } = await supabase
+      .from("outreach_campaign_leads")
+      .select("lead_id", { count: "exact", head: true })
+      .eq("outreach_campaign_id", campaign.id);
+    recipientsTargeted = count || 0;
+  }
+
+  const status = resolveCampaignStatus({
+    localStatus: campaign.status,
+    externalCampaignId: campaign.external_campaign_id,
+    instantlyStatus: instantlyEntry?.campaign_status,
+    sent,
+    recipientsTargeted,
+  });
+
+  return {
+    ...status,
+    sent,
+    opened,
+    openRate: rate(opened, sent),
+    replied,
+    replyRate: rate(replied, sent),
+    clicked,
+    clickRate: rate(clicked, sent),
+    bounced,
+    bounceRate: rate(bounced, sent),
+    unsubscribed,
+  };
+}
+
 /** Server-context only (API routes) — each method opens its own
  * request-scoped client via @/lib/supabase/server rather than taking one
  * as a parameter. */
 export class LeadsService {
-  static async getLeads(businessId: string, filters?: LeadFilters, pagination?: PaginationOptions): Promise<{ leads: Lead[]; count: number }> {
+  static async getLeads(businessId: string, filters?: LeadFilters, pagination?: PaginationOptions): Promise<{ leads: LeadSummary[]; count: number }> {
     const supabase = await createClient();
-    let query = supabase.from("outreach_leads").select("*", { count: "exact" }).eq("business_id", businessId);
+    let query = supabase.from("outreach_leads").select("id, first_name, last_name, email, city, country", { count: "exact" }).eq("business_id", businessId);
 
     if (filters?.listId) query = query.eq("list_id", filters.listId);
     if (filters?.status) query = query.eq("status", filters.status);
@@ -37,14 +95,7 @@ export class LeadsService {
 
     const { data, error, count } = await query;
     if (error) throw new Error(`Error fetching leads: ${error.message}`);
-    return { leads: (data as Lead[]) || [], count: count || 0 };
-  }
-
-  static async getLeadById(id: string): Promise<Lead | null> {
-    const supabase = await createClient();
-    const { data, error } = await supabase.from("outreach_leads").select("*").eq("id", id).single();
-    if (error && error.code !== "PGRST116") throw new Error(`Error fetching lead: ${error.message}`);
-    return (data as Lead) || null;
+    return { leads: (data as LeadSummary[]) || [], count: count || 0 };
   }
 
   static async createLead(row: Partial<Lead> & { business_id: string; email: string }): Promise<Lead> {
@@ -55,31 +106,6 @@ export class LeadsService {
       throw new Error(`Error creating lead: ${error.message}`);
     }
     return data as Lead;
-  }
-
-  /** Scraping/verification save path — a re-scrape naturally rediscovers
-   * people already saved, so this updates them in place instead of erroring. */
-  static async upsertLead(row: Partial<Lead> & { business_id: string; email: string }): Promise<Lead> {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("outreach_leads")
-      .upsert(row, { onConflict: "business_id,email", ignoreDuplicates: false })
-      .select("*")
-      .single();
-    if (error) throw new Error(`Error saving lead: ${error.message}`);
-    return data as Lead;
-  }
-
-  static async updateLead(id: string, row: Partial<Lead>): Promise<void> {
-    const supabase = await createClient();
-    const { error } = await supabase.from("outreach_leads").update(row).eq("id", id);
-    if (error) throw new Error(`Error updating lead: ${error.message}`);
-  }
-
-  static async updateStatusByEmail(businessId: string, email: string, status: LeadStatus): Promise<void> {
-    const supabase = await createClient();
-    const { error } = await supabase.from("outreach_leads").update({ status }).eq("business_id", businessId).eq("email", email);
-    if (error) throw new Error(`Error updating lead status: ${error.message}`);
   }
 
   static async deleteLead(id: string): Promise<void> {
@@ -124,15 +150,22 @@ export class LeadsService {
 }
 
 export class LeadListsService {
-  static async getLists(businessId: string): Promise<LeadList[]> {
+  static async getLists(businessId: string): Promise<LeadListSummary[]> {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("outreach_lead_lists")
-      .select("*")
+      .select("id, name")
       .eq("business_id", businessId)
       .order("name", { ascending: true });
     if (error) throw new Error(`Error fetching lists: ${error.message}`);
-    return (data as LeadList[]) || [];
+    return (data as LeadListSummary[]) || [];
+  }
+
+  static async getListById(id: string): Promise<LeadListSummary | null> {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from("outreach_lead_lists").select("id, name").eq("id", id).single();
+    if (error && error.code !== "PGRST116") throw new Error(`Error fetching list: ${error.message}`);
+    return (data as LeadListSummary) || null;
   }
 
   static async createList(businessId: string, name: string): Promise<LeadList> {
@@ -178,6 +211,35 @@ export class OutreachCampaignsService {
     return (data as unknown as OutreachCampaign) || null;
   }
 
+  /** Every campaign this business owns, each merged with its live Instantly
+   * analytics — the one place both the Campaigns list and /analytics get
+   * this from, so the Instantly call + resolveCampaignStatus logic isn't
+   * duplicated between them. */
+  static async getCampaignsWithAnalytics(businessId: string): Promise<{ campaign: OutreachCampaign; entry: OutreachCampaignStatusEntry }[]> {
+    const supabase = await createClient();
+    const campaigns = await this.getCampaigns(businessId);
+    if (campaigns.length === 0) return [];
+
+    const instantlyAnalytics = await InstantlyService.getCampaignsAnalytics();
+    const instantlyByExternalId = new Map(instantlyAnalytics.map((c) => [c.campaign_id, c]));
+
+    const resolved: { campaign: OutreachCampaign; entry: OutreachCampaignStatusEntry }[] = [];
+    for (const campaign of campaigns) {
+      resolved.push({ campaign, entry: await resolveCampaignEntry(supabase, campaign, instantlyByExternalId) });
+    }
+    return resolved;
+  }
+
+  /** Same merge as getCampaignsWithAnalytics, for a single already-fetched
+   * campaign — the Campaign Detail page's one API call needs just this
+   * one entry, not every campaign this business owns. */
+  static async getCampaignAnalyticsEntry(campaign: OutreachCampaign): Promise<OutreachCampaignStatusEntry> {
+    const supabase = await createClient();
+    const instantlyAnalytics = await InstantlyService.getCampaignsAnalytics();
+    const instantlyByExternalId = new Map(instantlyAnalytics.map((c) => [c.campaign_id, c]));
+    return resolveCampaignEntry(supabase, campaign, instantlyByExternalId);
+  }
+
   static async createCampaign(row: Partial<OutreachCampaign> & { business_id: string; list_id: string; name: string }): Promise<OutreachCampaign> {
     const supabase = await createClient();
     const { data, error } = await supabase.from("outreach_campaigns").insert(row as any).select("*").single();
@@ -195,13 +257,5 @@ export class OutreachCampaignsService {
     const supabase = await createClient();
     const { error } = await supabase.from("outreach_campaigns").delete().eq("id", id);
     if (error) throw new Error(`Error deleting outreach campaign: ${error.message}`);
-  }
-
-  static async recordRecipients(campaignId: string, leadIds: string[], status: "queued" | "sent" | "failed"): Promise<void> {
-    if (leadIds.length === 0) return;
-    const supabase = await createClient();
-    const rows = leadIds.map((leadId) => ({ outreach_campaign_id: campaignId, lead_id: leadId, status, sent_at: status === "sent" ? new Date().toISOString() : null }));
-    const { error } = await supabase.from("outreach_campaign_leads").upsert(rows, { onConflict: "outreach_campaign_id,lead_id" });
-    if (error) throw new Error(`Error recording campaign recipients: ${error.message}`);
   }
 }

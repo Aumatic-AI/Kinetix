@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { Campaign, AdSet, Ad } from "../types/meta-ads.types";
+import { Campaign, CampaignListRow, AdSet, Ad } from "../types/meta-ads.types";
 
 /**
  * Our own campaigns/ad_sets/ads rows — a POINTER to the real Meta objects
@@ -13,15 +13,15 @@ import { Campaign, AdSet, Ad } from "../types/meta-ads.types";
  * client via @/lib/supabase/server rather than taking one as a parameter.
  */
 export class CampaignsService {
-  static async getCampaignsByBusiness(businessId: string): Promise<Campaign[]> {
+  static async getCampaignsByBusiness(businessId: string): Promise<CampaignListRow[]> {
     const supabase = await createClient();
     const { data, error } = await supabase
       .from("campaigns")
-      .select("*")
+      .select("id, created_at, name, objective, status, external_campaign_id")
       .eq("business_id", businessId)
       .order("created_at", { ascending: false });
     if (error) throw new Error(`Error fetching campaigns: ${error.message}`);
-    return (data as Campaign[]) || [];
+    return (data as CampaignListRow[]) || [];
   }
 
   static async getCampaignById(id: string): Promise<Campaign | null> {

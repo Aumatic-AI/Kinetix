@@ -28,7 +28,11 @@ export async function POST(request: Request) {
 
     const { accessToken, adAccountId } = requireMetaAdAccountEnv();
 
-    const filter = encodeURIComponent(JSON.stringify([{ field: "campaign.id", operator: "EQUAL", value: campaign.external_campaign_id }]));
+    // graphGet URL-encodes every param value itself (via URLSearchParams) —
+    // pre-encoding this with encodeURIComponent double-encodes it, so Meta
+    // receives a percent-encoded string instead of a JSON array and rejects
+    // it with "param filtering must be an array".
+    const filter = JSON.stringify([{ field: "campaign.id", operator: "EQUAL", value: campaign.external_campaign_id }]);
     const siblings = await graphGet<{ data?: { id: string; status: string }[] }>(`act_${adAccountId}/ads`, accessToken, {
       fields: "id,status",
       filtering: filter,

@@ -1,4 +1,4 @@
-import { CampaignStatusInfo } from "../utils/campaign-status";
+import { CampaignStatusInfo, CampaignStatusValue, CampaignStatusTone } from "../utils/campaign-status";
 
 export type OutreachCampaignStatus = "draft" | "active" | "paused" | "completed" | "archived";
 export type ScrapeJobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
@@ -102,4 +102,56 @@ export interface OutreachCampaignSendPreview {
   listName: string;
   eligibleLeads: number;
   dailyLimit: number;
+}
+
+/** One row of the Campaigns list — our own campaign fields merged with its
+ * live Instantly status/counts, already resolved server-side via
+ * resolveCampaignStatus so the client never branches on a raw status code.
+ * Only the fields the Campaigns table actually renders — full analytics
+ * (clicked/bounced/rates) live in OutreachAnalyticsResponse instead, used by
+ * Dashboard/Campaign Detail, not this list. */
+export interface OutreachCampaignListItem {
+  id: string;
+  name: string;
+  goal: string | null;
+  externalCampaignId: string | null;
+  status: CampaignStatusValue;
+  statusLabel: string;
+  statusTone: CampaignStatusTone;
+  statusReason?: string;
+  sent: number;
+  opened: number;
+  replied: number;
+}
+
+/** /outreach/campaigns/[id] — everything the Campaign Detail page renders,
+ * already merged server-side from three sources (our own campaign row, its
+ * list's name, and its live Instantly analytics) into one flat response, so
+ * the page needs exactly one API call instead of three. */
+export interface OutreachCampaignDetail {
+  id: string;
+  name: string;
+  serviceType: string | null;
+  targetRegion: string | null;
+  dailyLimit: number;
+  goal: string | null;
+  tone: string | null;
+  ctaText: string | null;
+  ctaLink: string | null;
+  createdAt: string;
+  listName: string;
+  generatedBody: OutreachGeneratedBody | null;
+  status: CampaignStatusValue;
+  statusLabel: string;
+  statusTone: CampaignStatusTone;
+  statusReason?: string;
+  sent: number;
+  opened: number;
+  openRate: number;
+  replied: number;
+  replyRate: number;
+  clicked: number;
+  clickRate: number;
+  bounced: number;
+  bounceRate: number;
 }

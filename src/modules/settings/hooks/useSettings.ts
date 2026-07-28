@@ -30,3 +30,19 @@ export function useUpdateSettings() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: settingsKeys.all }),
   });
 }
+
+/** Uploads the male or female video-reference photo — a plain multipart
+ * POST (not JSON), separate from the rest of Settings' single Save bar
+ * since it's a real file upload, not a form-field edit. */
+export function useUploadVideoReference() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ gender, file }: { gender: "male" | "female"; file: File }) => {
+      const formData = new FormData();
+      formData.append("gender", gender);
+      formData.append("file", file);
+      return fetchJson<{ success: true; url: string }>("/api/settings/video-reference", { method: "POST", body: formData });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: settingsKeys.all }),
+  });
+}

@@ -1,20 +1,23 @@
 "use client";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime } from "@/utils/datetime";
-import { EmptyState } from "../competitors/shared";
-import { Lead } from "../../hooks/useLeads";
+import { EmptyState } from "../dashboard/shared";
+import { Lead, useLeadForms } from "../../hooks/useLeads";
 
 const NAME_KEYS = ["full_name", "first_name"];
 const EMAIL_KEYS = ["email"];
-const PHONE_KEYS = ["phone_number", "phone"];
 
 function pick(fieldData: Record<string, string>, keys: string[]): string {
   for (const key of keys) if (fieldData[key]) return fieldData[key];
   return "—";
 }
 
-export function LeadsTable({ leads }: { leads: Lead[] }) {
+export function LeadsTable({ leads, onView }: { leads: Lead[]; onView: (lead: Lead) => void }) {
+  const { data: forms } = useLeadForms();
+  const formNameById = new Map((forms || []).map((f) => [f.id, f.name]));
+
   if (leads.length === 0) return <EmptyState message="No leads yet — they'll appear here the moment someone submits a form." />;
 
   return (
@@ -24,15 +27,15 @@ export function LeadsTable({ leads }: { leads: Lead[] }) {
           <TableRow>
             <TableHead>Name</TableHead>
             <TableHead>Email</TableHead>
-            <TableHead>Phone</TableHead>
-            <TableHead>Campaign</TableHead>
-            <TableHead>Ad</TableHead>
+            <TableHead>Form</TableHead>
             <TableHead>Received</TableHead>
+            <TableHead />
           </TableRow>
         </TableHeader>
         <TableBody>
           {leads.map((lead) => {
             const name = pick(lead.field_data, NAME_KEYS);
+            const formName = (lead.meta_form_id && formNameById.get(lead.meta_form_id)) || "—";
             return (
               <TableRow key={lead.id}>
                 <TableCell>
@@ -42,10 +45,13 @@ export function LeadsTable({ leads }: { leads: Lead[] }) {
                   </div>
                 </TableCell>
                 <TableCell className="text-muted">{pick(lead.field_data, EMAIL_KEYS)}</TableCell>
-                <TableCell className="text-muted">{pick(lead.field_data, PHONE_KEYS)}</TableCell>
-                <TableCell className="text-muted truncate max-w-40">{lead.campaign_name || "—"}</TableCell>
-                <TableCell className="text-muted truncate max-w-40">{lead.ad_name || "—"}</TableCell>
+                <TableCell className="text-muted truncate max-w-40">{formName}</TableCell>
                 <TableCell className="text-muted whitespace-nowrap">{formatDateTime(lead.created_at)}</TableCell>
+                <TableCell>
+                  <div className="flex justify-end">
+                    <Button size="sm" variant="primary" onClick={() => onView(lead)}>View</Button>
+                  </div>
+                </TableCell>
               </TableRow>
             );
           })}

@@ -2,8 +2,8 @@
 import React from "react";
 import { XCircle, ExternalLink } from "lucide-react";
 import { PLATFORMS as PLATFORM_META, Platform, PlatformMeta as SharedPlatformMeta } from "../lib/platforms";
-import { PlatformCard } from "../components/PlatformCard";
-import { useConnectedAccountsSync } from "../hooks/useSocialPosts";
+import { PlatformCard } from "../components/connected-accounts/PlatformCard";
+import { useConnectedAccountsSync } from "../hooks/useConnectedAccounts";
 
 const UPLOAD_POST_DASHBOARD_URL = "https://app.upload-post.com/manage-users";
 

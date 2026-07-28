@@ -4,7 +4,7 @@ import { Plus, Video, Image as ImageIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
 import { useCreateAd } from "../../hooks/useCampaigns";
-import { MetaAdCreative, CreateAdInput } from "../../types/meta-ads.types";
+import { MetaAdCreativePickerItem, CreateAdInput } from "../../types/meta-ads.types";
 import { CampaignPickCreativeDialog } from "./CampaignPickCreativeDialog";
 import { AdCopyFields, DEFAULT_AD_COPY, AdCopyState } from "./shared";
 
@@ -28,7 +28,7 @@ export function AddCreativeModal({
   onClose: () => void;
 }) {
   const createAd = useCreateAd(adSetId, campaignId);
-  const [creative, setCreative] = useState<MetaAdCreative | null>(null);
+  const [creative, setCreative] = useState<MetaAdCreativePickerItem | null>(null);
   const [pickingCreative, setPickingCreative] = useState(false);
   const [adCopy, setAdCopy] = useState<AdCopyState>(DEFAULT_AD_COPY);
   const [error, setError] = useState("");

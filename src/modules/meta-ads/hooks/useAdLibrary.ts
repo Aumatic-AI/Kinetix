@@ -19,6 +19,15 @@ export function useMetaAdCreatives(filters?: CreativeFilters, pagination?: Pagin
   });
 }
 
+/** For CampaignPickCreativeDialog — needs idea_prompt/ad_script/service to
+ * pre-fill ad copy on pick, so it can't use the narrower useMetaAdCreatives. */
+export function useMetaAdCreativesForPicker(filters?: CreativeFilters) {
+  return useQuery({
+    queryKey: [...metaAdsKeys.creatives(filters), "picker"] as const,
+    queryFn: () => MetaAdsService.getCreativesForPicker(supabase, filters),
+  });
+}
+
 export function useMetaAdCreative(id: string) {
   return useQuery({
     queryKey: metaAdsKeys.creative(id),

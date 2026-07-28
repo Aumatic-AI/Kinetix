@@ -342,6 +342,9 @@ export type Database = {
           ad_script_topics: Json
           business_colors: Json
           business_voice: string | null
+          competitor_analysis_last_run_at: string | null
+          competitor_analysis_schedule_day: number
+          competitor_analysis_schedule_hour: number
           competitor_keywords: Json | null
           core_offerings: string | null
           created_at: string
@@ -354,18 +357,27 @@ export type Database = {
           name: string
           outreach_settings: Json
           pain_points: string | null
+          self_ad_analysis_last_run_at: string | null
+          self_ad_analysis_schedule_day: number
+          self_ad_analysis_schedule_hour: number
           services: Json
           settings: Json
           target_audience: string | null
           target_countries: Json | null
           tone_of_voice: string | null
           updated_at: string
+          video_reference_enabled: boolean
+          video_reference_female_url: string | null
+          video_reference_male_url: string | null
           website_url: string | null
         }
         Insert: {
           ad_script_topics?: Json
           business_colors?: Json
           business_voice?: string | null
+          competitor_analysis_last_run_at?: string | null
+          competitor_analysis_schedule_day?: number
+          competitor_analysis_schedule_hour?: number
           competitor_keywords?: Json | null
           core_offerings?: string | null
           created_at?: string
@@ -378,18 +390,27 @@ export type Database = {
           name: string
           outreach_settings?: Json
           pain_points?: string | null
+          self_ad_analysis_last_run_at?: string | null
+          self_ad_analysis_schedule_day?: number
+          self_ad_analysis_schedule_hour?: number
           services?: Json
           settings?: Json
           target_audience?: string | null
           target_countries?: Json | null
           tone_of_voice?: string | null
           updated_at?: string
+          video_reference_enabled?: boolean
+          video_reference_female_url?: string | null
+          video_reference_male_url?: string | null
           website_url?: string | null
         }
         Update: {
           ad_script_topics?: Json
           business_colors?: Json
           business_voice?: string | null
+          competitor_analysis_last_run_at?: string | null
+          competitor_analysis_schedule_day?: number
+          competitor_analysis_schedule_hour?: number
           competitor_keywords?: Json | null
           core_offerings?: string | null
           created_at?: string
@@ -402,12 +423,18 @@ export type Database = {
           name?: string
           outreach_settings?: Json
           pain_points?: string | null
+          self_ad_analysis_last_run_at?: string | null
+          self_ad_analysis_schedule_day?: number
+          self_ad_analysis_schedule_hour?: number
           services?: Json
           settings?: Json
           target_audience?: string | null
           target_countries?: Json | null
           tone_of_voice?: string | null
           updated_at?: string
+          video_reference_enabled?: boolean
+          video_reference_female_url?: string | null
+          video_reference_male_url?: string | null
           website_url?: string | null
         }
         Relationships: [
@@ -1103,6 +1130,41 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      prompt_overrides: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          prompt_key: string
+          template_text: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          prompt_key: string
+          template_text: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          prompt_key?: string
+          template_text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_overrides_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       social_posts: {
         Row: {

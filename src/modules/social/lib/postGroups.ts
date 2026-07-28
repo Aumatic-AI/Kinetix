@@ -8,7 +8,6 @@ export interface PostRow {
   caption: string | null;
   title: string | null;
   media_asset_id: string | null;
-  error_message: string | null;
   created_at: string;
   published_at: string | null;
   scheduled_at: string | null;

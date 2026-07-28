@@ -2,7 +2,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { Loader2, Video, Image as ImageIcon, MessageSquareText, AlertCircle, Send, Info, RotateCcw, Clock, X } from "lucide-react";
-import { PostGroup, groupState } from "../lib/postGroups";
+import { PostGroup, groupState } from "../../lib/postGroups";
 import { Lightbox } from "./Lightbox";
 import { formatDateTime } from "@/utils/datetime";
 

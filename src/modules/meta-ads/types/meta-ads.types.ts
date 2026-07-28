@@ -21,6 +21,32 @@ export interface MetaAdCreative {
   voice_id?: string;
 }
 
+/** What the Ad Library grid actually fetches — getCreatives() only selects
+ * these columns (see meta-ads.service.ts), unlike getCreativeById()'s full
+ * MetaAdCreative row used for edit/retry. */
+export interface MetaAdCreativeListItem {
+  id: string;
+  type: CreativeType;
+  status: CreativeStatus;
+  media_urls?: string[];
+  duration?: string;
+}
+
+/** What the campaign "pick a creative" dialog fetches — getCreativesForPicker()
+ * selects these columns, wider than MetaAdCreativeListItem because
+ * CreateCampaignPage pre-fills ad copy (name/headline/primary text) from
+ * idea_prompt/ad_script/service once a creative is picked. */
+export interface MetaAdCreativePickerItem {
+  id: string;
+  type: CreativeType;
+  status: CreativeStatus;
+  service?: string | null;
+  idea_prompt?: string;
+  ad_script?: any;
+  media_urls?: string[];
+  duration?: string;
+}
+
 export interface MetaAdIntelligence {
   id: string;
   created_at: string;
@@ -63,6 +89,19 @@ export interface Campaign {
   start_at: string | null;
   end_at: string | null;
   ad_account_id: string | null;
+  external_campaign_id: string | null;
+}
+
+/** What the Campaigns list actually fetches from our own `campaigns` table —
+ * getCampaignsByBusiness() only selects these columns (see
+ * campaigns.service.ts). Budget lives on CampaignPageDetail instead, fetched
+ * live only when a single campaign's detail page is opened. */
+export interface CampaignListRow {
+  id: string;
+  created_at: string;
+  name: string;
+  objective: string | null;
+  status: CampaignStatus;
   external_campaign_id: string | null;
 }
 
@@ -246,12 +285,9 @@ export interface CampaignListItem {
   name: string;
   objective: string | null;
   status: string;
-  dailyBudgetCents: number | null;
-  lifetimeBudgetCents: number | null;
   createdAt: string;
   adSetCount: number;
   adCount: number;
-  creativeThumbnailUrl?: string;
 }
 
 /** Spend/delivery numbers shown on every detail page — lifetime-to-date
@@ -365,6 +401,7 @@ export interface AdPageDetail {
   ctaType: string | null;
   destinationUrl: string | null;
   leadGenFormId: string | null;
+  previewShareableLink: string | null;
   createdAt: string;
   metrics: MetaMetrics;
 }

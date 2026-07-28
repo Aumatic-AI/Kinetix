@@ -47,6 +47,7 @@ interface LeadgenChange {
 
 interface FullLead {
   id: string;
+  created_time?: string;
   field_data?: { name: string; values: string[] }[];
   ad_id?: string;
   ad_name?: string;
@@ -94,6 +95,11 @@ export async function POST(request: NextRequest) {
       await supabase.from("leads").upsert(
         {
           business_id: business.id,
+          // Meta's own submission time, not "whenever our webhook happened to
+          // process this" — those are normally the same instant for a live
+          // webhook, but this matters a lot for the backfill sync route below,
+          // which can process leads submitted days or weeks earlier.
+          created_at: lead.created_time || new Date().toISOString(),
           ad_id: ourAdId,
           ad_name: lead.ad_name || null,
           adset_name: lead.adset_name || null,

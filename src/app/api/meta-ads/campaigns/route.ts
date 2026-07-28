@@ -36,26 +36,6 @@ export async function GET() {
     });
     const liveById = new Map((live.data || []).map((c) => [c.id, c]));
 
-    // One query for every ad_set -> ad -> creative thumbnail in this business,
-    // so the list doesn't fan out into one lookup per campaign.
-    const { data: adSetRows } = await supabase
-      .from("ad_sets")
-      .select("campaign_id, ads(creative_id, meta_ad_creatives(media_urls))")
-      .eq("business_id", businessId);
-
-    const thumbnailByCampaignId = new Map<string, string>();
-    for (const row of adSetRows || []) {
-      if (thumbnailByCampaignId.has(row.campaign_id)) continue;
-      for (const ad of (row as any).ads || []) {
-        const mediaUrls = ad?.meta_ad_creatives?.media_urls;
-        const first = Array.isArray(mediaUrls) ? mediaUrls[0] : undefined;
-        if (first) {
-          thumbnailByCampaignId.set(row.campaign_id, first as string);
-          break;
-        }
-      }
-    }
-
     const campaigns: CampaignListItem[] = ourCampaigns.map((c) => {
       const liveData = c.external_campaign_id ? liveById.get(c.external_campaign_id) : undefined;
       const adSets = liveData?.adsets?.data || [];
@@ -66,8 +46,6 @@ export async function GET() {
         name: c.name,
         objective: c.objective,
         status: liveData?.status || (c.status === "draft" ? "NOT_ON_META" : c.status.toUpperCase()),
-        dailyBudgetCents: c.daily_budget_cents,
-        lifetimeBudgetCents: c.lifetime_budget_cents,
         // Meta's own creation date, not ours — our pointer row's created_at
         // is just when we synced/launched it, which for backfilled
         // campaigns is today regardless of how long the campaign has
@@ -75,7 +53,6 @@ export async function GET() {
         createdAt: liveData?.created_time || c.created_at,
         adSetCount: adSets.length,
         adCount,
-        creativeThumbnailUrl: thumbnailByCampaignId.get(c.id),
       };
     });
 

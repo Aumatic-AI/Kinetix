@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useStartScrape } from "../../hooks/useScrapeJobs";
-import { useLeadLists, useCreateLeadList } from "@/modules/outreach/hooks/useLeads";
+import { useLeadLists, useCreateLeadList, useStartScrape } from "@/modules/outreach/hooks/useLeads";
 import { useJobsStore } from "@/store";
 import { ROUTES } from "@/config/routes";
 

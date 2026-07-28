@@ -4,6 +4,7 @@ import { Search, Plus, Pencil, Trash2, Eye, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useLeadLists, useDeleteLeadList, LeadListWithCount } from "@/modules/outreach/hooks/useLeads";
 import { ListModal } from "../components/leads/ListModal";
 import { ScrapeProgressBanner } from "../components/leads/ScrapeProgressBanner";
@@ -16,9 +17,22 @@ export function LeadsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [modalKey, setModalKey] = useState(0);
   const [findLeadsOpen, setFindLeadsOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<LeadListWithCount | null>(null);
+  const [deleteError, setDeleteError] = useState("");
 
   const { data: lists = [], isLoading } = useLeadLists();
   const deleteList = useDeleteLeadList();
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteError("");
+    try {
+      await deleteList.mutateAsync(deleteTarget.id);
+      setDeleteTarget(null);
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Failed to delete list");
+    }
+  };
 
   const openCreateModal = () => {
     setEditingList(null);
@@ -80,7 +94,7 @@ export function LeadsPage() {
                       <button onClick={() => openEditModal(l)} className="text-muted hover:text-text" title="Edit">
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
-                      <button onClick={() => deleteList.mutate(l.id)} className="text-muted hover:text-danger" title="Delete">
+                      <button onClick={() => { setDeleteError(""); setDeleteTarget(l); }} className="text-muted hover:text-danger" title="Delete">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -95,6 +109,18 @@ export function LeadsPage() {
       <LeadsDrawer list={selected} onClose={() => setSelected(null)} />
       <ListModal key={modalKey} list={editingList} open={modalOpen} onClose={() => setModalOpen(false)} />
       <FindLeadsModal open={findLeadsOpen} onClose={() => setFindLeadsOpen(false)} />
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open && !deleteList.isPending) { setDeleteTarget(null); setDeleteError(""); } }}
+        title="Delete this list?"
+        description={deleteTarget ? `"${deleteTarget.name}" will be permanently deleted. Its ${deleteTarget.leadCount} lead${deleteTarget.leadCount === 1 ? "" : "s"} won't be deleted — they'll just become unassigned. This can't be undone.` : ""}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteList.isPending}
+        error={deleteError}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

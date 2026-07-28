@@ -11,6 +11,7 @@ interface LiveAd {
   id: string;
   name: string;
   status: string;
+  preview_shareable_link?: string;
   creative?: {
     id?: string;
     object_story_spec?: Record<string, any>;
@@ -38,7 +39,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ adI
     const { accessToken } = requireMetaAdAccountEnv();
     const [live, metrics] = await Promise.all([
       graphGet<LiveAd>(ourAd.external_ad_id, accessToken, {
-        fields: "id,name,status,creative{id,object_story_spec,thumbnail_url,image_url}",
+        fields: "id,name,status,preview_shareable_link,creative{id,object_story_spec,thumbnail_url,image_url}",
       }),
       fetchObjectMetrics(ourAd.external_ad_id, accessToken),
     ]);
@@ -81,6 +82,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ adI
       ctaType: cta.type || null,
       destinationUrl: cta.value?.link || branch.link || null,
       leadGenFormId: cta.value?.lead_gen_form_id || null,
+      previewShareableLink: live.preview_shareable_link || null,
       createdAt: ourAd.created_at,
       metrics,
     };

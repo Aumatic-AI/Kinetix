@@ -19,6 +19,7 @@ import {
   BudgetState,
   toGeoLocations,
   minLifetimeBudgetCents,
+  MIN_DAILY_BUDGET_CENTS,
   useBusinessMetaAdsDefaults,
 } from "./shared";
 
@@ -79,6 +80,7 @@ export function AddAdSetModal({
       if (budget.budgetType === "daily") {
         const dollars = parseFloat(budget.dailyDollars);
         if (!dollars || dollars <= 0) return setError("Enter a daily budget greater than $0.");
+        if (Math.round(dollars * 100) < MIN_DAILY_BUDGET_CENTS) return setError(`Daily budget too low — minimum is $${(MIN_DAILY_BUDGET_CENTS / 100).toFixed(2)}.`);
       } else {
         if (!endAt) return setError("Lifetime budget requires an End Date.");
         const dollars = parseFloat(budget.lifetimeDollars);

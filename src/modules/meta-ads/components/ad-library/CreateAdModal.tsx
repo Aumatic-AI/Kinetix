@@ -3,14 +3,19 @@ import React, { useEffect, useState, useRef } from "react";
 import { X, Video, Image as ImageIcon, Music, Mic, Sparkles, Send, Tag, Monitor, User, Mic2, UploadCloud, File, Trash2, CheckCircle2, Wand2, MessageSquare, Clock, Globe } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dropdown } from "@/components/ui/Dropdown";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import VoiceExplorerModal from "./VoiceExplorerModal";
+import VoiceExplorerModal from "@/components/global/VoiceExplorerModal";
 import { createClient } from "@/lib/supabase/client";
-import { useCreateMetaAdCreative } from "../hooks/useMetaAds";
+import { useCreateMetaAdCreative } from "../../hooks/useAdLibrary";
 import { useBusinessStore } from "@/store/business.store";
+
+const DURATION_OPTIONS = ["20 seconds", "28 seconds", "32 seconds", "36 seconds", "40 seconds"].map((v) => ({ value: v, label: v }));
+const AUDIO_STYLE_OPTIONS = ["Background Music", "Voiceover"].map((v) => ({ value: v, label: v }));
+const CHARACTER_OPTIONS = [{ value: "male", label: "Male" }, { value: "female", label: "Female" }];
+const VIDEO_STYLE_OPTIONS = ["Bold & Colorful", "Cinematic", "Minimal & Clean", "Dark & Moody", "Neon / Glow", "Hand-drawn / Sketch"].map((v) => ({ value: v, label: v }));
+const LANGUAGE_OPTIONS = ["English", "Spanish", "French", "Hebrew", "Turkish"].map((v) => ({ value: v, label: v }));
 
 const VOICE_OPTIONS = {
   male: [
@@ -198,11 +203,9 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
 
   return (
     <>
-      <Dialog 
-        open={isOpen} 
-        onOpenChange={(open, eventDetails) => {
-          // Ignore outside-clicks (e.g. a Select dropdown closing) so they don't also close this modal.
-          if (eventDetails.reason === "outside-press") return;
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
           if (!open) { setIdea(""); setService(""); setGeneratedIdeas(null); setIdeaError(""); onClose(); }
         }}
       >
@@ -272,47 +275,24 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
               {/* Service Selection */}
               <section>
                 <Label className="mb-2 block text-sm font-semibold">SERVICE<span className="text-red-500">*</span></Label>
-                <Select value={service} onValueChange={setService}>
-                  <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                    <SelectValue placeholder="Select a service" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {serviceOptions.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Dropdown
+                  value={service}
+                  onValueChange={setService}
+                  placeholder="Select a service"
+                  options={serviceOptions.map((s) => ({ value: s, label: s }))}
+                />
               </section>
 
               {type === "video" && (
                 <div className="bg-surface p-6 rounded-xl border border-default grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <Label className="mb-2 block text-sm font-semibold">Duration</Label>
-                    <Select value={duration} onValueChange={setDuration}>
-                      <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                        <SelectValue placeholder="Select duration" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="20 seconds">20 seconds</SelectItem>
-                        <SelectItem value="28 seconds">28 seconds</SelectItem>
-                        <SelectItem value="32 seconds">32 seconds</SelectItem>
-                        <SelectItem value="36 seconds">36 seconds</SelectItem>
-                        <SelectItem value="40 seconds">40 seconds</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Dropdown value={duration} onValueChange={setDuration} options={DURATION_OPTIONS} />
                   </div>
 
                   <div>
                     <Label className="mb-2 block text-sm font-semibold">Audio Style</Label>
-                    <Select value={audioStyle} onValueChange={setAudioStyle}>
-                      <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                        <SelectValue placeholder="Select audio style" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Background Music">Background Music</SelectItem>
-                        <SelectItem value="Voiceover">Voiceover</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Dropdown value={audioStyle} onValueChange={setAudioStyle} options={AUDIO_STYLE_OPTIONS} />
                   </div>
 
                   {audioStyle === "Voiceover" && (
@@ -331,53 +311,26 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
 
                   <div>
                     <Label className="mb-2 block text-sm font-semibold">Character</Label>
-                    <Select value={character} onValueChange={(val) => {
-                      const newChar = val as "male" | "female";
-                      setCharacter(newChar);
-                      setVoiceId(VOICE_OPTIONS[newChar][0].id);
-                      setVoiceLabel(VOICE_OPTIONS[newChar][0].label);
-                    }}>
-                      <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                        <SelectValue placeholder="Select character" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="male">Male</SelectItem>
-                        <SelectItem value="female">Female</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Dropdown
+                      value={character}
+                      onValueChange={(val) => {
+                        const newChar = val as "male" | "female";
+                        setCharacter(newChar);
+                        setVoiceId(VOICE_OPTIONS[newChar][0].id);
+                        setVoiceLabel(VOICE_OPTIONS[newChar][0].label);
+                      }}
+                      options={CHARACTER_OPTIONS}
+                    />
                   </div>
 
                   <div>
                     <Label className="mb-2 block text-sm font-semibold">Visual Style</Label>
-                    <Select value={videoStyle} onValueChange={setVideoStyle}>
-                      <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                        <SelectValue placeholder="Select visual style" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Bold & Colorful">Bold & Colorful</SelectItem>
-                        <SelectItem value="Cinematic">Cinematic</SelectItem>
-                        <SelectItem value="Minimal & Clean">Minimal & Clean</SelectItem>
-                        <SelectItem value="Dark & Moody">Dark & Moody</SelectItem>
-                        <SelectItem value="Neon / Glow">Neon / Glow</SelectItem>
-                        <SelectItem value="Hand-drawn / Sketch">Hand-drawn / Sketch</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Dropdown value={videoStyle} onValueChange={setVideoStyle} options={VIDEO_STYLE_OPTIONS} />
                   </div>
 
                   <div>
                     <Label className="mb-2 block text-sm font-semibold">Language</Label>
-                    <Select value={language} onValueChange={setLanguage}>
-                      <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                        <SelectValue placeholder="Select language" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="English">English</SelectItem>
-                        <SelectItem value="Spanish">Spanish</SelectItem>
-                        <SelectItem value="French">French</SelectItem>
-                        <SelectItem value="Hebrew">Hebrew</SelectItem>
-                        <SelectItem value="Turkish">Turkish</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Dropdown value={language} onValueChange={setLanguage} options={LANGUAGE_OPTIONS} />
                   </div>
                 </div>
               )}

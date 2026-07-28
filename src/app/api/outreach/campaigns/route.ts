@@ -4,15 +4,35 @@ import { createClient } from "@/lib/supabase/server";
 import { Database } from "@/types/supabase";
 import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
 import { OutreachCampaignsService } from "@/modules/outreach/services/outreach.service";
+import { OutreachCampaignListItem } from "@/modules/outreach/types/outreach.types";
 import { getOutreachDraftPrompt } from "@/prompts/outreach";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
 
+/** One call, one merge: fetches our own campaign rows and their live
+ * Instantly analytics server-side (see getCampaignsWithAnalytics), and
+ * returns only the fields the Campaigns table actually renders — not a
+ * second endpoint the client has to also call and merge itself. */
 export async function GET() {
   try {
     const supabase = (await createClient()) as SupabaseClient<Database>;
     const businessId = await MetaAdsService.getFirstBusinessId(supabase);
     if (!businessId) return NextResponse.json({ campaigns: [] });
-    const campaigns = await OutreachCampaignsService.getCampaigns(businessId);
+
+    const rows = await OutreachCampaignsService.getCampaignsWithAnalytics(businessId);
+    const campaigns: OutreachCampaignListItem[] = rows.map(({ campaign, entry }) => ({
+      id: campaign.id,
+      name: campaign.name,
+      goal: campaign.goal,
+      externalCampaignId: campaign.external_campaign_id,
+      status: entry.value,
+      statusLabel: entry.label,
+      statusTone: entry.tone,
+      statusReason: entry.reason,
+      sent: entry.sent,
+      opened: entry.opened,
+      replied: entry.replied,
+    }));
+
     return NextResponse.json({ campaigns });
   } catch (error: any) {
     console.error("[OUTREACH_CAMPAIGNS_LIST]", error);

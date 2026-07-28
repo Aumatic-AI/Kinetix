@@ -3,7 +3,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { CheckCircle2, ExternalLink, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PlatformMeta, formatFollowerCount } from "../lib/platforms";
+import { PlatformMeta, formatFollowerCount } from "../../lib/platforms";
 
 export interface PlatformCardConnection {
   display_name: string | null;

@@ -1,8 +1,14 @@
 "use client";
 import { ReactNode, useEffect, useRef, useState } from "react";
-import { Search, Check, X } from "lucide-react";
+import { Search, Check, X, Upload } from "lucide-react";
 import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { Loader } from "@/components/ui/Loader";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { BusinessServiceInput, AdScriptTopicInput } from "../types/settings.types";
+import { useUploadVideoReference } from "../hooks/useSettings";
+import { WEEKDAY_LABELS, hourLabel, computeNextRunDate } from "@/services/scheduling/business-schedule";
+import { formatDateTime, formatDate } from "@/utils/datetime";
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
@@ -219,6 +225,113 @@ export function WeekdayToggle({ selected, onToggle }: { selected: number[]; onTo
           {d.label}
         </button>
       ))}
+    </div>
+  );
+}
+
+/** One male/female reference-photo upload slot for the Video Character
+ * Reference section — uploads immediately on file pick (a real file
+ * upload, not a form field, so it doesn't wait for the page's Save bar).
+ * The mutation invalidates the settings query on success, so `url` (read
+ * from the query's data, not the page's editable form copy) updates on
+ * its own once the refetch lands — no local state to reconcile here. */
+export function VideoReferenceUploader({ gender, label, url }: { gender: "male" | "female"; label: string; url: string | null }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const uploadMutation = useUploadVideoReference();
+  const [error, setError] = useState("");
+
+  const handlePick = async (file: File | undefined) => {
+    if (!file) return;
+    setError("");
+    try {
+      await uploadMutation.mutateAsync({ gender, file });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-bold text-muted uppercase tracking-wide">{label}</label>
+      <div className="flex items-center gap-3">
+        <div className="w-16 h-16 rounded-lg border border-border bg-surface overflow-hidden shrink-0 flex items-center justify-center">
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={url} alt="" className="w-full h-full object-cover" />
+          ) : (
+            <Upload className="w-4 h-4 text-muted" />
+          )}
+        </div>
+        <div className="space-y-1">
+          <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={uploadMutation.isPending}>
+            {uploadMutation.isPending ? <Loader size="sm" /> : url ? "Replace" : "Upload"}
+          </Button>
+          {error && <p className="text-xs text-danger">{error}</p>}
+        </div>
+        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handlePick(e.target.files?.[0])} />
+      </div>
+    </div>
+  );
+}
+
+/** Day + time picker for one of the two weekly background jobs
+ * (Competitor Analysis, Self Ad Analysis), plus a live "last ran" / "next
+ * run" preview — "next run" recomputes immediately as the day/time
+ * changes, using the same math the actual hourly checker job uses
+ * (business-schedule.ts), so what's shown here always matches what will
+ * really happen once saved. */
+export function ScheduleEditor({
+  label,
+  description,
+  day,
+  hour,
+  lastRunAt,
+  timezone,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  day: number;
+  hour: number;
+  lastRunAt: string | null;
+  timezone: string;
+  onChange: (patch: { day?: number; hour?: number }) => void;
+}) {
+  const nextRun = computeNextRunDate({ scheduleDay: day, scheduleHour: hour, timezone });
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-text">{label}</p>
+        <p className="text-[11px] text-muted mt-0.5">{description}</p>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Day">
+          <Select value={String(day)} onValueChange={(v) => onChange({ day: Number(v) })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {WEEKDAY_LABELS.map((w, i) => (
+                <SelectItem key={i} value={String(i)}>{w}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label="Time">
+          <Select value={String(hour)} onValueChange={(v) => onChange({ hour: Number(v) })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent className="max-h-72 overflow-y-auto">
+              {Array.from({ length: 24 }, (_, h) => (
+                <SelectItem key={h} value={String(h)}>{hourLabel(h)}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+      <p className="text-[11px] text-muted">
+        Last ran: <span className="font-semibold text-text">{lastRunAt ? formatDateTime(lastRunAt) : "Never yet"}</span>
+        {" · "}
+        Next run: <span className="font-semibold text-text">{formatDate(nextRun)} at {hourLabel(hour)}</span>
+      </p>
     </div>
   );
 }

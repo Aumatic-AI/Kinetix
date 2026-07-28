@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useCreateOutreachCampaign } from "../hooks/useOutreachCampaigns";
+import { useCreateOutreachCampaign } from "../../hooks/useCampaigns";
 import { useLeadLists, useLeads } from "@/modules/outreach/hooks/useLeads";
-import { FormSection } from "../components/campaigns/FormSection";
+import { FormSection } from "./FormSection";
 import { useBusinessStore } from "@/store/business.store";
 import { ROUTES } from "@/config/routes";
 
