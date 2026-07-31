@@ -1,19 +1,30 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Image as ImageIcon, Plus } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { CreateAdModal } from "../components/ad-library/CreateAdModal";
 import { MediaPreview } from "@/components/global/MediaPreview";
 import { AdCreativeCard } from "../components/ad-library/AdCreativeCard";
 import { Button } from "@/components/ui/Button";
+import { Pagination } from "@/components/ui/Pagination";
+import { PAGE_SIZE_DENSE } from "@/lib/pagination";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useMetaAdCreatives, useUpdateMetaAdCreative, useDeleteMetaAdCreative, useRetryMetaAdCreative, metaAdsKeys } from "../hooks/useAdLibrary";
 import { MetaAdCreativeListItem } from "../types/meta-ads.types";
 
+// Up to 5 columns of thumbnail cards — a viewport shows well more than 10
+// tiles without scrolling, so the dense page size applies here.
+const PAGE_SIZE = PAGE_SIZE_DENSE;
+
+// Live updates come from useMetaAdCreatives' own conditional polling (see
+// src/lib/generation-polling.ts) rather than a Supabase Realtime
+// subscription — simpler (no channel lifecycle) and cheaper (no open
+// websocket for the tab's whole lifetime) for a single-tenant admin tool.
 export function AdLibrary() {
-  const { data: ads = [], isLoading: loading } = useMetaAdCreatives();
+  const [page, setPage] = useState(1);
+  const { data, isLoading: loading } = useMetaAdCreatives({ page, limit: PAGE_SIZE });
+  const ads = data?.items || [];
   const updateMutation = useUpdateMetaAdCreative();
   const deleteMutation = useDeleteMetaAdCreative();
   const retryMutation = useRetryMetaAdCreative();
@@ -21,24 +32,6 @@ export function AdLibrary() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAd, setSelectedAd] = useState<MetaAdCreativeListItem | null>(null);
-  const supabase = createClient();
-
-  useEffect(() => {
-    const channel = supabase
-      .channel("meta_ad_creatives_changes")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "meta_ad_creatives" },
-        () => {
-          queryClient.invalidateQueries({ queryKey: metaAdsKeys.creatives() });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [queryClient, supabase]);
 
   const handleApprove = async (id: string) => {
     await updateMutation.mutateAsync({ id, data: { status: "approved" } });
@@ -52,11 +45,7 @@ export function AdLibrary() {
     await retryMutation.mutateAsync(id);
   };
 
-  const statusCounts = {
-    all: ads.length,
-    review: ads.filter((a) => a.status === "review").length,
-    failed: ads.filter((a) => a.status === "failed").length,
-  };
+  const statusCounts = data?.statusCounts || { all: 0, review: 0, failed: 0 };
 
   if (loading) {
     return (
@@ -69,7 +58,7 @@ export function AdLibrary() {
           <div className="h-10 w-32 bg-surface animate-pulse rounded-lg" />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-          {Array.from({ length: 15 }, (_, i) => (
+          {Array.from({ length: PAGE_SIZE }, (_, i) => (
             <div key={i} className="bg-background rounded-lg border border-border flex flex-col overflow-hidden shadow-sm">
               <div className="w-full aspect-video bg-surface border-b border-border shrink-0 animate-pulse" />
               <div className="p-3 flex flex-col flex-1 justify-between gap-3">
@@ -123,6 +112,10 @@ export function AdLibrary() {
           />
         ))}
       </div>
+
+      {ads.length > 0 && (
+        <Pagination page={page} totalPages={data?.totalPages || 1} onPageChange={setPage} />
+      )}
 
       {/* Empty State */}
       {ads.length === 0 && !loading && (

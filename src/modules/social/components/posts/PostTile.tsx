@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Image from "next/image";
-import { Loader2, Video, Image as ImageIcon, MessageSquareText, AlertCircle, Send, Info, RotateCcw, Clock, X } from "lucide-react";
+import { Loader2, Video, Image as ImageIcon, MessageSquareText, AlertCircle, Send, Info, RotateCcw, Clock, X, Sparkles } from "lucide-react";
 import { PostGroup, groupState } from "../../lib/postGroups";
 import { Lightbox } from "./Lightbox";
 import { formatDateTime } from "@/utils/datetime";
@@ -55,16 +55,19 @@ export function PostTile({ group, onPublish, onViewDetails, onRetry, onCancelSch
             )}
           </div>
         ) : (
-          <div className={`w-full ${ASPECT_CLASS[group.aspectRatio]} flex items-center justify-center text-muted`}>
-            {state === "generating" ? <Loader2 className="w-6 h-6 animate-spin" /> : group.format === "video" ? <Video className="w-6 h-6" /> : <ImageIcon className="w-6 h-6" />}
+          <div className={`w-full ${ASPECT_CLASS[group.aspectRatio]} flex flex-col items-center justify-center gap-2 text-muted`}>
+            {state === "generating" ? (
+              <>
+                <div className="relative w-8 h-8">
+                  <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
+                  <Sparkles className="absolute inset-0 m-auto w-3 h-3 text-primary animate-pulse" />
+                </div>
+                <p className="text-xs font-semibold text-text">Generating...</p>
+              </>
+            ) : group.format === "video" ? <Video className="w-6 h-6" /> : <ImageIcon className="w-6 h-6" />}
           </div>
         )}
 
-        {state === "generating" && (
-          <span className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-black/60 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full pointer-events-none">
-            <Loader2 className="w-3 h-3 animate-spin" /> Generating
-          </span>
-        )}
         {state === "publishing" && (
           <span className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-black/60 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full pointer-events-none">
             <Loader2 className="w-3 h-3 animate-spin" /> Publishing

@@ -4,7 +4,7 @@ import { Search, Check, X, Upload } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Loader } from "@/components/ui/Loader";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dropdown } from "@/components/ui/Dropdown";
 import { BusinessServiceInput, AdScriptTopicInput } from "../types/settings.types";
 import { useUploadVideoReference } from "../hooks/useSettings";
 import { WEEKDAY_LABELS, hourLabel, computeNextRunDate } from "@/services/scheduling/business-schedule";
@@ -307,24 +307,18 @@ export function ScheduleEditor({
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Day">
-          <Select value={String(day)} onValueChange={(v) => onChange({ day: Number(v) })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {WEEKDAY_LABELS.map((w, i) => (
-                <SelectItem key={i} value={String(i)}>{w}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Dropdown
+            value={String(day)}
+            onValueChange={(v) => onChange({ day: Number(v) })}
+            options={WEEKDAY_LABELS.map((w, i) => ({ value: String(i), label: w }))}
+          />
         </Field>
         <Field label="Time">
-          <Select value={String(hour)} onValueChange={(v) => onChange({ hour: Number(v) })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent className="max-h-72 overflow-y-auto">
-              {Array.from({ length: 24 }, (_, h) => (
-                <SelectItem key={h} value={String(h)}>{hourLabel(h)}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Dropdown
+            value={String(hour)}
+            onValueChange={(v) => onChange({ hour: Number(v) })}
+            options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: hourLabel(h) }))}
+          />
         </Field>
       </div>
       <p className="text-[11px] text-muted">

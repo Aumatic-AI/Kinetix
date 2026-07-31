@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dropdown } from "@/components/ui/Dropdown";
 import { Section, PillToggle } from "../campaigns/shared";
 import { LOCALES } from "./shared";
 import { useCreateLeadForm, CreateLeadFormInput } from "../../hooks/useLeads";
@@ -165,10 +165,7 @@ export function CreateLeadFormModal({ open, onClose }: { open: boolean; onClose:
                 <Input value={form.privacyPolicyLinkText} onChange={(e) => patch({ privacyPolicyLinkText: e.target.value })} />
               </Field>
               <Field label="Language">
-                <Select value={form.locale} onValueChange={(locale) => patch({ locale })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{LOCALES.map((l) => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}</SelectContent>
-                </Select>
+                <Dropdown value={form.locale} onValueChange={(locale) => patch({ locale })} options={LOCALES} />
               </Field>
             </div>
           </Section>
@@ -204,13 +201,11 @@ export function CreateLeadFormModal({ open, onClose }: { open: boolean; onClose:
           <Section title="Thank-You Screen" description="Shown immediately after the person submits the form.">
             <div className="space-y-4">
               <Field label="Button">
-                <Select value={form.thankYouButtonType} onValueChange={(v) => patch({ thankYouButtonType: v as "VIEW_WEBSITE" | "NONE" })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="VIEW_WEBSITE">Visit Website</SelectItem>
-                    <SelectItem value="NONE">No Button</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Dropdown
+                  value={form.thankYouButtonType}
+                  onValueChange={(v) => patch({ thankYouButtonType: v as "VIEW_WEBSITE" | "NONE" })}
+                  options={[{ value: "VIEW_WEBSITE", label: "Visit Website" }, { value: "NONE", label: "No Button" }]}
+                />
               </Field>
               <div className="grid grid-cols-2 gap-4">
                 <Field label="Title">

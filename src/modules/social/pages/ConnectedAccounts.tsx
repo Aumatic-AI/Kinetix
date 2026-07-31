@@ -1,9 +1,35 @@
 "use client";
 import React from "react";
 import { XCircle, ExternalLink } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { PLATFORMS as PLATFORM_META, Platform, PlatformMeta as SharedPlatformMeta } from "../lib/platforms";
 import { PlatformCard } from "../components/connected-accounts/PlatformCard";
 import { useConnectedAccountsSync } from "../hooks/useConnectedAccounts";
+
+/** Mirrors PlatformCard's exact shape (icon badge + label/status, then the
+ * nested avatar/name/follower row) so the grid doesn't reflow on load. */
+function PlatformCardSkeleton() {
+  return (
+    <div className="relative bg-background border border-default/60 rounded-2xl p-5 shadow-sm overflow-hidden">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-center gap-3">
+          <Skeleton className="w-11 h-11 rounded-xl shrink-0" />
+          <div className="space-y-1.5">
+            <Skeleton className="h-3.5 w-20 rounded" />
+            <Skeleton className="h-2.5 w-16 rounded" />
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-2.5 bg-surface rounded-xl p-2.5">
+        <Skeleton className="w-8 h-8 rounded-full shrink-0" />
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <Skeleton className="h-3 w-24 rounded" />
+          <Skeleton className="h-2.5 w-14 rounded" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const UPLOAD_POST_DASHBOARD_URL = "https://app.upload-post.com/manage-users";
 
@@ -63,7 +89,7 @@ export function ConnectedAccounts() {
       {isLoading ? (
         <div className="grid gap-4" style={cardGridStyle}>
           {PLATFORMS.map((p) => (
-            <div key={p.platform} className="h-40 rounded-2xl bg-surface animate-pulse" />
+            <PlatformCardSkeleton key={p.platform} />
           ))}
         </div>
       ) : (

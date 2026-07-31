@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { Database } from "@/types/supabase";
@@ -7,18 +7,25 @@ import { OutreachCampaignsService } from "@/modules/outreach/services/outreach.s
 import { OutreachCampaignListItem } from "@/modules/outreach/types/outreach.types";
 import { getOutreachDraftPrompt } from "@/prompts/outreach";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
+import { paginationMeta, PAGE_SIZE_COMPACT } from "@/lib/pagination";
 
 /** One call, one merge: fetches our own campaign rows and their live
  * Instantly analytics server-side (see getCampaignsWithAnalytics), and
  * returns only the fields the Campaigns table actually renders — not a
- * second endpoint the client has to also call and merge itself. */
-export async function GET() {
+ * second endpoint the client has to also call and merge itself. Paginating
+ * the DB query also directly cuts the per-campaign outreach_campaign_leads
+ * count query getCampaignsWithAnalytics runs for active campaigns, since
+ * it now only loops over this page's rows. */
+export async function GET(request: NextRequest) {
   try {
+    const page = Number(request.nextUrl.searchParams.get("page")) || 1;
+    const limit = Number(request.nextUrl.searchParams.get("limit")) || PAGE_SIZE_COMPACT;
+
     const supabase = (await createClient()) as SupabaseClient<Database>;
     const businessId = await MetaAdsService.getFirstBusinessId(supabase);
-    if (!businessId) return NextResponse.json({ campaigns: [] });
+    if (!businessId) return NextResponse.json({ campaigns: [], ...paginationMeta(0, page, limit) });
 
-    const rows = await OutreachCampaignsService.getCampaignsWithAnalytics(businessId);
+    const { rows, total } = await OutreachCampaignsService.getCampaignsWithAnalytics(businessId, { page, limit });
     const campaigns: OutreachCampaignListItem[] = rows.map(({ campaign, entry }) => ({
       id: campaign.id,
       name: campaign.name,
@@ -33,7 +40,7 @@ export async function GET() {
       replied: entry.replied,
     }));
 
-    return NextResponse.json({ campaigns });
+    return NextResponse.json({ campaigns, ...paginationMeta(total, page, limit) });
   } catch (error: any) {
     console.error("[OUTREACH_CAMPAIGNS_LIST]", error);
     return NextResponse.json({ error: error.message || "Failed to load campaigns" }, { status: 500 });

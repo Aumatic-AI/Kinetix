@@ -1,9 +1,11 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { CampaignListItem, CampaignPageDetail, AdSetPageDetail, AdPageDetail, LaunchCampaignInput, CreateAdSetInput, CreateAdInput } from "../types/meta-ads.types";
+import { PaginationMeta } from "@/lib/pagination";
 
 export const campaignsKeys = {
   all: ["campaigns"] as const,
-  list: () => [...campaignsKeys.all, "list"] as const,
+  listAll: () => [...campaignsKeys.all, "list"] as const,
+  list: (page: number, limit: number) => [...campaignsKeys.listAll(), page, limit] as const,
   detail: (id: string) => [...campaignsKeys.all, "detail", id] as const,
   adSetDetail: (id: string) => [...campaignsKeys.all, "adset-detail", id] as const,
   adDetail: (id: string) => [...campaignsKeys.all, "ad-detail", id] as const,
@@ -18,11 +20,12 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 /** Always live from Meta — see the build guide's "store vs fetch" note.
  * Cached briefly so re-opening the tab doesn't re-hit the Graph API every time. */
-export function useCampaignsList() {
+export function useCampaignsList(page: number, limit: number) {
   return useQuery({
-    queryKey: campaignsKeys.list(),
-    queryFn: () => fetchJson<{ campaigns: CampaignListItem[] }>("/api/meta-ads/campaigns").then((d) => d.campaigns),
+    queryKey: campaignsKeys.list(page, limit),
+    queryFn: () => fetchJson<{ campaigns: CampaignListItem[] } & PaginationMeta>(`/api/meta-ads/campaigns?page=${page}&limit=${limit}`),
     staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -57,7 +60,7 @@ function invalidateCampaigns(
   queryClient: ReturnType<typeof useQueryClient>,
   opts?: { campaignId?: string; adSetId?: string; adId?: string }
 ) {
-  queryClient.invalidateQueries({ queryKey: campaignsKeys.list() });
+  queryClient.invalidateQueries({ queryKey: campaignsKeys.listAll() });
   if (opts?.campaignId) queryClient.invalidateQueries({ queryKey: campaignsKeys.detail(opts.campaignId) });
   if (opts?.adSetId) queryClient.invalidateQueries({ queryKey: campaignsKeys.adSetDetail(opts.adSetId) });
   if (opts?.adId) queryClient.invalidateQueries({ queryKey: campaignsKeys.adDetail(opts.adId) });

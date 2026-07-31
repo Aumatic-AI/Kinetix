@@ -22,7 +22,7 @@ export function FormatBreakdown({ formats }: FormatBreakdownProps) {
 
   return (
     <Card className="h-full">
-      <SectionTitle icon={PieChartIcon} accent={ACCENT.amber} title="Ad Format Mix" />
+      <SectionTitle icon={PieChartIcon} accent={ACCENT.amber} title="Competitor Ad Formats" />
       <div className="flex items-center gap-6">
         <div className="w-32 h-32 shrink-0">
           <ResponsiveContainer width="100%" height="100%">

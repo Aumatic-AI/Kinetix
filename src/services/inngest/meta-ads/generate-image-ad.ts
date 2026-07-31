@@ -68,14 +68,16 @@ export const generateImageAd = inngest.createFunction(
         return await aiOrchestrator.createImageTask(scriptJson.visual_prompt, "4:5");
       });
 
-      // 5. Poll for image completion with step.sleep
+      // 5. Poll for image completion with step.sleep — a single nano-banana
+      // image typically finishes well under 20s, so check soon and often
+      // rather than blocking a flat 30s before the first look.
       let imageUrl = null;
       let attempts = 0;
-      const MAX_ATTEMPTS = 8;
-      
+      const MAX_ATTEMPTS = 24;
+
       while (!imageUrl && attempts < MAX_ATTEMPTS) {
         // Sleep dynamically based on attempt
-        await step.sleep(`wait-image-${attempts}`, attempts === 0 ? "30s" : "20s");
+        await step.sleep(`wait-image-${attempts}`, attempts === 0 ? "8s" : "6s");
         
         const status = await step.run(`check-image-status-${attempts}`, async () => {
           return await aiOrchestrator.checkTaskStatus(jobId);

@@ -2,9 +2,71 @@
 import { useState } from "react";
 import { Image as ImageIcon } from "lucide-react";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { EmptyState } from "../components/dashboard/shared";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination } from "@/components/ui/Pagination";
+import { PAGE_SIZE_COMPACT } from "@/lib/pagination";
+import { EmptyState, Card } from "../components/dashboard/shared";
 import { ReportKpiRow } from "../components/reports/ReportKpiRow";
 import { useReportsData, ReportRange } from "../hooks/useReports";
+
+// Table rows — compact page size.
+const PAGE_SIZE = PAGE_SIZE_COMPACT;
+
+/** Mirrors ReportKpiRow's exact Card shape (icon badge + label/value stack). */
+function ReportKpiRowSkeleton() {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      {[1, 2, 3, 4].map((i) => (
+        <Card key={i} className="p-4 flex items-center gap-3">
+          <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+          <div className="min-w-0 space-y-1.5">
+            <Skeleton className="h-2.5 w-14 rounded" />
+            <Skeleton className="h-4 w-12 rounded" />
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+/** Mirrors the ad table's real columns — only the body shimmers. */
+function ReportsTableSkeleton() {
+  return (
+    <div className="border border-default rounded-lg overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Ad</TableHead>
+            <TableHead>Campaign</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Spend</TableHead>
+            <TableHead className="text-right">CTR</TableHead>
+            <TableHead className="text-right">CPM</TableHead>
+            <TableHead className="text-right">Score</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <TableRow key={i}>
+              <TableCell>
+                <div className="flex items-center gap-2.5">
+                  <Skeleton className="w-8 h-8 rounded-md shrink-0" />
+                  <Skeleton className="h-3.5 w-32 rounded" />
+                </div>
+              </TableCell>
+              <TableCell><Skeleton className="h-3.5 w-24 rounded" /></TableCell>
+              <TableCell><Skeleton className="h-3 w-16 rounded" /></TableCell>
+              <TableCell className="text-right"><Skeleton className="h-3.5 w-12 rounded ml-auto" /></TableCell>
+              <TableCell className="text-right"><Skeleton className="h-3.5 w-10 rounded ml-auto" /></TableCell>
+              <TableCell className="text-right"><Skeleton className="h-3.5 w-10 rounded ml-auto" /></TableCell>
+              <TableCell className="text-right"><Skeleton className="h-5 w-9 rounded-full ml-auto" /></TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
 
 const RANGES: { value: ReportRange; label: string }[] = [
   { value: "today", label: "Today" },
@@ -19,9 +81,15 @@ const SCORE_STYLE = (score: number) =>
 
 export function ReportsPage() {
   const [range, setRange] = useState<ReportRange>("7d");
-  const { data, isLoading, error } = useReportsData(range);
+  const [page, setPage] = useState(1);
+  const { data, isLoading, error } = useReportsData(range, page, PAGE_SIZE);
 
   const ads = data?.ads || [];
+
+  const changeRange = (next: ReportRange) => {
+    setRange(next);
+    setPage(1);
+  };
 
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-10">
@@ -34,7 +102,7 @@ export function ReportsPage() {
           {RANGES.map((r) => (
             <button
               key={r.value}
-              onClick={() => setRange(r.value)}
+              onClick={() => changeRange(r.value)}
               className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${range === r.value ? "bg-background text-text shadow-sm" : "text-muted hover:text-text"}`}
             >
               {r.label}
@@ -46,9 +114,9 @@ export function ReportsPage() {
       {error && <div className="text-sm text-danger bg-danger-bg border border-danger-border rounded-xl px-4 py-3">{(error as Error).message}</div>}
 
       {isLoading ? (
-        <div className="space-y-3">
-          <div className="grid grid-cols-4 gap-3">{[1, 2, 3, 4].map((i) => <div key={i} className="h-20 rounded-2xl bg-surface animate-pulse" />)}</div>
-          <div className="h-64 rounded-lg bg-surface animate-pulse" />
+        <div className="space-y-6">
+          <ReportKpiRowSkeleton />
+          <ReportsTableSkeleton />
         </div>
       ) : ads.length === 0 ? (
         <EmptyState message="No ads with delivery in this range yet." />
@@ -100,6 +168,8 @@ export function ReportsPage() {
               </TableBody>
             </Table>
           </div>
+
+          <Pagination page={page} totalPages={data?.totalPages || 1} onPageChange={setPage} />
         </>
       )}
     </div>

@@ -4,11 +4,20 @@ import { TabSwitch } from "@/components/global/TabSwitch";
 import { Section } from "@/components/ui/Section";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { UnsavedChangesBar } from "@/components/ui/UnsavedChangesBar";
 import { Switch } from "@/components/ui/Switch";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
 import { BusinessSettings } from "../types/settings.types";
 import { Field, TagInput, ServicesEditor, AdScriptTopicsEditor, WeekdayToggle, TimezoneSelect, VideoReferenceUploader, ScheduleEditor } from "../components/shared";
+
+const SETTINGS_TABS = [
+  { value: "general", label: "General" },
+  { value: "voice", label: "Brand & Voice" },
+  { value: "services", label: "Services" },
+  { value: "intelligence", label: "Competitor Intelligence" },
+  { value: "automation", label: "Automation Defaults" },
+];
 
 /**
  * The one Settings page, reached at /settings — no secondary sidebar and
@@ -41,9 +50,25 @@ export function SettingsPage() {
   if (isLoading || !form) {
     return (
       <div className="max-w-4xl mx-auto space-y-6 pb-10">
-        <div className="h-8 w-56 rounded-lg bg-surface animate-pulse" />
-        <div className="h-10 w-full rounded-lg bg-surface animate-pulse" />
-        <div className="h-64 rounded-lg bg-surface animate-pulse" />
+        <div>
+          <h1 className="text-2xl font-bold text-text">Settings</h1>
+          <p className="text-sm text-muted mt-1">Business context used across AI generation, competitor intelligence, and outreach.</p>
+        </div>
+
+        <TabSwitch value="general" onValueChange={() => {}} items={SETTINGS_TABS} />
+
+        <Section title="Business Identity" description="Core facts about the business — not shown publicly, just context for the rest of the app.">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Business Name"><Skeleton className="w-full rounded-lg" style={{ height: 46 }} /></Field>
+            <Field label="Industry"><Skeleton className="w-full rounded-lg" style={{ height: 46 }} /></Field>
+            <div className="sm:col-span-2">
+              <Field label="Website URL"><Skeleton className="w-full rounded-lg" style={{ height: 46 }} /></Field>
+            </div>
+            <div className="sm:col-span-2">
+              <Field label="Description"><Skeleton className="w-full rounded-lg" style={{ height: 120 }} /></Field>
+            </div>
+          </div>
+        </Section>
       </div>
     );
   }
@@ -75,17 +100,7 @@ export function SettingsPage() {
 
       {error && <p className="text-sm text-danger font-medium">{error}</p>}
 
-      <TabSwitch
-        value={activeTab}
-        onValueChange={setActiveTab}
-        items={[
-          { value: "general", label: "General" },
-          { value: "voice", label: "Brand & Voice" },
-          { value: "services", label: "Services" },
-          { value: "intelligence", label: "Competitor Intelligence" },
-          { value: "automation", label: "Automation Defaults" },
-        ]}
-      />
+      <TabSwitch value={activeTab} onValueChange={setActiveTab} items={SETTINGS_TABS} />
 
       {activeTab === "general" && (
           <Section title="Business Identity" description="Core facts about the business — not shown publicly, just context for the rest of the app.">

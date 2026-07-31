@@ -92,3 +92,56 @@ export interface UploadPostLinkedInPage {
   picture?: string;
   vanityName?: string;
 }
+
+/** One platform's block from GET /api/analytics/{profile} — which of these
+ * are actually populated varies per platform (e.g. Pinterest has no
+ * likes/comments, YouTube has no reach) — always read through
+ * `available_metrics`/`metric_labels` rather than assuming a field exists. */
+export interface UploadPostProfileAnalytics {
+  followers?: number;
+  reach?: number;
+  views?: number;
+  impressions?: number;
+  profileViews?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+  pin_clicks?: number;
+  outbound_clicks?: number;
+  reach_timeseries?: { date: string; value: number }[];
+  follower_demographics?: {
+    age?: Record<string, number>;
+    gender?: Record<string, number>;
+    country?: Record<string, number>;
+    city?: Record<string, number>;
+  };
+  available_metrics?: string[];
+  metric_labels?: Record<string, string>;
+  primary_impressions_field?: string;
+}
+
+export interface UploadPostTotalImpressions {
+  success: boolean;
+  total_impressions: number;
+  per_platform?: Record<string, number>;
+  per_day?: Record<string, number>;
+}
+
+export interface UploadPostCachedPost {
+  post_id: string;
+  platform: string;
+  date: string;
+  captured_at: string;
+  metrics: { views?: number; likes?: number; comments?: number; favorites?: number; shares?: number; saves?: number };
+  post_url?: string;
+  media_type?: string;
+  upload_timestamp?: string;
+}
+
+export interface UploadPostCachedPostsResponse {
+  success: boolean;
+  posts: UploadPostCachedPost[];
+  next_cursor?: string;
+  has_more?: boolean;
+}

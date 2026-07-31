@@ -31,7 +31,7 @@ export const PRIMARY_NAV_ITEMS: NavItem[] = [
   {
     id: "social",
     label: "Social Media",
-    href: ROUTES.SOCIAL.POSTS,
+    href: ROUTES.SOCIAL.DASHBOARD,
     icon: Share2,
     module: "social",
   },
@@ -109,6 +109,12 @@ export const SECONDARY_NAV_ITEMS: Record<
     },
   ],
   social: [
+    {
+      id: "sm-dashboard",
+      label: "Dashboard",
+      href: ROUTES.SOCIAL.DASHBOARD,
+      icon: LayoutDashboard,
+    },
     {
       id: "sm-posts",
       label: "Posts",

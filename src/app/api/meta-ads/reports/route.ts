@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireMetaAdAccountEnv, graphGetAllPages } from "@/services/meta/graph-client";
 import { computeAdScore, scoreLabel, SCORE_METHODOLOGY } from "@/modules/meta-ads/services/scoring";
+import { paginationMeta, rangeFor, PAGE_SIZE_COMPACT } from "@/lib/pagination";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,8 @@ export async function GET(request: NextRequest) {
     const range = searchParams.get("range") || "7d";
     const start = searchParams.get("start");
     const end = searchParams.get("end");
+    const page = Number(searchParams.get("page")) || 1;
+    const limit = Number(searchParams.get("limit")) || PAGE_SIZE_COMPACT;
 
     const insightParams: Record<string, string> = {
       level: "ad",
@@ -97,12 +100,20 @@ export async function GET(request: NextRequest) {
       })
       .sort((a, b) => b.score - a.score);
 
+    // Summary is always over the full set, computed before slicing to a
+    // page — otherwise the KPI row would silently change per page.
     const totalSpend = ads.reduce((s, a) => s + a.spend, 0);
     const totalImpressions = ads.reduce((s, a) => s + a.impressions, 0);
     const totalClicks = ads.reduce((s, a) => s + a.clicks, 0);
 
+    // No DB table backs this list (see the comment above) — the whole
+    // account's ads are already fetched and sorted by score above, so
+    // "pagination" here is a post-fetch slice of that in-memory array.
+    const [from, to] = rangeFor(page, limit);
+    const pageAds = ads.slice(from, to + 1);
+
     return NextResponse.json({
-      ads,
+      ads: pageAds,
       summary: {
         totalAds: ads.length,
         totalSpend: parseFloat(totalSpend.toFixed(2)),
@@ -112,6 +123,7 @@ export async function GET(request: NextRequest) {
         avgCpm: totalImpressions > 0 ? parseFloat(((totalSpend / totalImpressions) * 1000).toFixed(2)) : 0,
         scoreMethodology: SCORE_METHODOLOGY,
       },
+      ...paginationMeta(ads.length, page, limit),
     });
   } catch (error: any) {
     console.error("[META_ADS_REPORTS]", error);

@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { generationRefetchInterval } from "@/lib/generation-polling";
 
 const supabase = createClient();
 
@@ -9,6 +10,25 @@ export const socialKeys = {
 };
 
 const IN_PROGRESS_STATUSES = ["generating", "publishing"];
+
+interface PostPollRow {
+  status: string;
+  format: string;
+  created_at: string;
+}
+
+// "generating" uses the same warmup/steady numbers as Meta Ads
+// (useAdLibrary.ts) — generate-social-image.ts/generate-social-video.ts
+// mirror those jobs step for step, so the same realistic floor applies.
+// "publishing" is a different, much faster process (posting to
+// Upload-Post), so it gets its own short poll instead.
+const POST_WARMUP_MS: Record<string, number> = { image: 20_000, video: 120_000, publishing: 3_000 };
+const POST_STEADY_POLL_MS: Record<string, number> = { image: 8_000, video: 20_000, publishing: 3_000 };
+
+function pollBucket(row: PostPollRow): string {
+  if (row.status === "publishing") return "publishing";
+  return row.format === "video" ? "video" : "image";
+}
 
 export function useSocialPosts() {
   return useQuery({
@@ -22,11 +42,15 @@ export function useSocialPosts() {
     },
     // Generation runs as a background Inngest job that can take a minute or
     // more — poll while anything is still generating/publishing so the
-    // card flips to its finished state without a manual refresh.
-    refetchInterval: (query) => {
-      const rows = (query.state.data as { status: string }[] | undefined) || [];
-      return rows.some((r) => IN_PROGRESS_STATUSES.includes(r.status)) ? 5000 : false;
-    },
+    // card flips to its finished state without a manual refresh, but don't
+    // start checking until it's realistically possible to be done (see
+    // src/lib/generation-polling.ts).
+    refetchInterval: (query) => generationRefetchInterval<PostPollRow>(
+      query.state.data as PostPollRow[] | undefined,
+      IN_PROGRESS_STATUSES,
+      (row) => POST_WARMUP_MS[pollBucket(row)],
+      (row) => POST_STEADY_POLL_MS[pollBucket(row)]
+    ),
   });
 }
 

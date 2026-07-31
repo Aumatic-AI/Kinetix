@@ -1,11 +1,13 @@
 "use client";
-import { ReactNode, useEffect, useRef, useState } from "react";
+import { Fragment, ReactNode, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X, Globe, MapPin, Building2, DollarSign, Eye, MousePointerClick, Percent, BarChart3, Users, UserPlus } from "lucide-react";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dropdown } from "@/components/ui/Dropdown";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbList, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { createClient } from "@/lib/supabase/client";
 import { useLeadForms } from "../../hooks/useLeads";
 import { MetaObjective, OBJECTIVE_GOALS, GeoLocationEntry, BudgetType, MetaMetrics } from "../../types/meta-ads.types";
@@ -82,6 +84,114 @@ export function MetricsRow({ metrics, showLeads }: { metrics: MetaMetrics; showL
             <p className="text-[11px] font-semibold text-muted uppercase tracking-wide">{item.label}</p>
             <p className="text-lg font-bold text-text tabular-nums truncate">{item.value}</p>
           </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Mirrors the Breadcrumb chrome exactly (real nav/list/separator icons —
+ * only the per-level labels shimmer, since the real labels aren't known
+ * until the campaign/ad set/ad loads). `levels` is 2/3/4 depending on which
+ * detail page this is (Campaign / Ad Set / Ad). */
+export function DetailBreadcrumbSkeleton({ levels }: { levels: 2 | 3 | 4 }) {
+  return (
+    <Breadcrumb>
+      <BreadcrumbList>
+        {Array.from({ length: levels }).map((_, i) => (
+          <Fragment key={i}>
+            <BreadcrumbItem>
+              <Skeleton className={`h-3.5 rounded ${i === levels - 1 ? "w-28" : "w-16"}`} />
+            </BreadcrumbItem>
+            {i < levels - 1 && <BreadcrumbSeparator />}
+          </Fragment>
+        ))}
+      </BreadcrumbList>
+    </Breadcrumb>
+  );
+}
+
+/** Mirrors the LevelChip + title + StatusChip header row shared by all
+ * three detail pages. `actionButtons` covers the trailing StatusActions
+ * block — Ad's header additionally has a "Preview on Meta" button, so it
+ * passes 2, Campaign/Ad Set pass the default of 1. */
+export function DetailHeaderSkeleton({ actionButtons = 1 }: { actionButtons?: number }) {
+  return (
+    <div className="flex items-start justify-between gap-4 flex-wrap">
+      <div className="min-w-0 flex items-center gap-2.5 flex-wrap">
+        <Skeleton className="h-5 w-16 rounded-full" />
+        <Skeleton className="h-7 w-56 rounded" />
+        <Skeleton className="h-5 w-20 rounded-full" />
+      </div>
+      <div className="flex items-center gap-2 flex-wrap">
+        {Array.from({ length: actionButtons }).map((_, i) => (
+          <Skeleton key={i} className="h-10 w-32 rounded-lg" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Mirrors one InfoItem's label/value shape — for composing a custom grid
+ * (e.g. Ad Copy's mixed 1-col/2-col layout). `wide` is for a truncate=false
+ * value that spans multiple columns (e.g. Primary Text, Destination URL). */
+export function InfoItemSkeleton({ wide = false }: { wide?: boolean }) {
+  return (
+    <div className="min-w-0 space-y-1.5">
+      <Skeleton className="h-2.5 w-16 rounded" />
+      <Skeleton className={`h-3.5 rounded ${wide ? "w-full max-w-md" : "w-24"}`} />
+    </div>
+  );
+}
+
+/** A uniform grid of InfoItemSkeletons, for the Campaign Info / Ad Set Info
+ * sections where every field is the same shape. `count` should match the
+ * real number of InfoItems that section renders once loaded. */
+export function InfoGridSkeleton({ count, cols = "grid-cols-2 sm:grid-cols-3" }: { count: number; cols?: string }) {
+  return (
+    <div className={`grid ${cols} gap-4`}>
+      {Array.from({ length: count }).map((_, i) => (
+        <InfoItemSkeleton key={i} />
+      ))}
+    </div>
+  );
+}
+
+/** Mirrors MetricsRow's tile shape exactly (icon circle + label/value
+ * stack) — `count` defaults to 6 (the non-leads case); the real row may add
+ * a 7th "Leads" tile once data confirms this is a lead-gen object, which is
+ * an acceptable, data-dependent one-tile shift on load. */
+export function MetricsRowSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="bg-surface rounded-lg p-4 flex items-center gap-3">
+          <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+          <div className="min-w-0 space-y-1.5">
+            <Skeleton className="h-2.5 w-14 rounded" />
+            <Skeleton className="h-4.5 w-12 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Mirrors the Ad Sets/Ads child-list rows below each detail page's own
+ * Info/Performance sections. `variant="twoLine"` is the Campaign page's Ad
+ * Set rows (name + meta line, no thumbnail); `variant="thumbnail"` is the
+ * Ad Set page's Ad rows (optional thumbnail + single name line). */
+export function DetailChildRowsSkeleton({ count = 2, variant = "twoLine" }: { count?: number; variant?: "twoLine" | "thumbnail" }) {
+  return (
+    <div className="space-y-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="w-full flex items-center gap-3 bg-background border border-border rounded-lg px-4 py-3">
+          {variant === "thumbnail" && <Skeleton className="w-10 h-10 rounded-lg shrink-0" />}
+          <div className={`min-w-0 space-y-1.5 ${variant === "thumbnail" ? "flex-1" : ""}`}>
+            <Skeleton className="h-3.5 w-40 rounded" />
+            {variant === "twoLine" && <Skeleton className="h-2.5 w-56 rounded" />}
+          </div>
+          <Skeleton className="h-5 w-16 rounded-full shrink-0" />
         </div>
       ))}
     </div>
@@ -325,13 +435,15 @@ export function AdCopyFields({
           ) : !activeLeadForms?.length ? (
             <p className="text-xs text-muted">No active Instant Forms yet — create one in the Leads tab (draft/archived forms aren&apos;t usable on an ad).</p>
           ) : (
-            <Select value={state.leadGenFormId || (leadFormRequired ? "" : "none")} onValueChange={(v) => setState({ leadGenFormId: v === "none" ? "" : v })}>
-              <SelectTrigger><SelectValue placeholder="Select a form" /></SelectTrigger>
-              <SelectContent>
-                {!leadFormRequired && <SelectItem value="none">Use website instead</SelectItem>}
-                {activeLeadForms.map((f) => <SelectItem key={f.id} value={f.id}>{f.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Dropdown
+              value={state.leadGenFormId || (leadFormRequired ? "" : "none")}
+              onValueChange={(v) => setState({ leadGenFormId: v === "none" ? "" : v })}
+              placeholder="Select a form"
+              options={[
+                ...(!leadFormRequired ? [{ value: "none", label: "Use website instead" }] : []),
+                ...activeLeadForms.map((f) => ({ value: f.id, label: f.name })),
+              ]}
+            />
           )}
         </Field>
       )}
@@ -351,10 +463,7 @@ export function AdCopyFields({
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Call to Action (CTA)">
-          <Select value={state.ctaType} onValueChange={(v) => setState({ ctaType: v })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>{CTA_TYPES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-          </Select>
+          <Dropdown value={state.ctaType} onValueChange={(v) => setState({ ctaType: v })} options={CTA_TYPES} />
         </Field>
         {!(leadFormRequired || (showLeadForm && state.leadGenFormId)) && (
           <Field label="Destination URL">
@@ -429,14 +538,11 @@ export function AudienceFields({ state, setState }: { state: TargetingState; set
         <Field label="Min age"><Input type="number" min="18" max="65" value={state.ageMin} onChange={(e) => setState({ ageMin: Number(e.target.value) })} /></Field>
         <Field label="Max age"><Input type="number" min="18" max="65" value={state.ageMax} onChange={(e) => setState({ ageMax: Number(e.target.value) })} /></Field>
         <Field label="Gender">
-          <Select value={String(state.gender)} onValueChange={(v) => setState({ gender: Number(v) as 0 | 1 | 2 })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="0">All</SelectItem>
-              <SelectItem value="1">Male</SelectItem>
-              <SelectItem value="2">Female</SelectItem>
-            </SelectContent>
-          </Select>
+          <Dropdown
+            value={String(state.gender)}
+            onValueChange={(v) => setState({ gender: Number(v) as 0 | 1 | 2 })}
+            options={[{ value: "0", label: "All" }, { value: "1", label: "Male" }, { value: "2", label: "Female" }]}
+          />
         </Field>
       </div>
 
@@ -475,10 +581,7 @@ export function DeliveryFields({ state, setState, objective }: { state: Targetin
   return (
     <div className="space-y-4">
       <Field label="Optimization Goal" hint={objective === "OUTCOME_LEADS" ? "Attaching an Instant Form in the next step will automatically switch this to Lead Generation." : "What Meta's delivery algorithm chases within this objective."}>
-        <Select value={state.optimizationGoal || goals[0].value} onValueChange={(v) => setState({ optimizationGoal: v })}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>{goals.map((g) => <SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}</SelectContent>
-        </Select>
+        <Dropdown value={state.optimizationGoal || goals[0].value} onValueChange={(v) => setState({ optimizationGoal: v })} options={goals} />
       </Field>
 
       <Field label="Placements">

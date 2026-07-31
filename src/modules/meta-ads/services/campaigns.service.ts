@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { Campaign, CampaignListRow, AdSet, Ad } from "../types/meta-ads.types";
+import { rangeFor } from "@/lib/pagination";
 
 /**
  * Our own campaigns/ad_sets/ads rows — a POINTER to the real Meta objects
@@ -13,15 +14,17 @@ import { Campaign, CampaignListRow, AdSet, Ad } from "../types/meta-ads.types";
  * client via @/lib/supabase/server rather than taking one as a parameter.
  */
 export class CampaignsService {
-  static async getCampaignsByBusiness(businessId: string): Promise<CampaignListRow[]> {
+  static async getCampaignsByBusiness(businessId: string, page: number, limit: number): Promise<{ campaigns: CampaignListRow[]; total: number }> {
     const supabase = await createClient();
-    const { data, error } = await supabase
+    const [from, to] = rangeFor(page, limit);
+    const { data, error, count } = await supabase
       .from("campaigns")
-      .select("id, created_at, name, objective, status, external_campaign_id")
+      .select("id, created_at, name, objective, status, external_campaign_id", { count: "exact" })
       .eq("business_id", businessId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(from, to);
     if (error) throw new Error(`Error fetching campaigns: ${error.message}`);
-    return (data as CampaignListRow[]) || [];
+    return { campaigns: (data as CampaignListRow[]) || [], total: count || 0 };
   }
 
   static async getCampaignById(id: string): Promise<Campaign | null> {

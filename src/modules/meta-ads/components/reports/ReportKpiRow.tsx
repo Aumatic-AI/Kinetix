@@ -20,8 +20,8 @@ export function ReportKpiRow({ summary }: { summary: ReportSummary }) {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       <KpiCard icon={DollarSign} label="Spend" value={`$${summary.totalSpend.toLocaleString()}`} accent={ACCENT.purple} />
-      <KpiCard icon={Eye} label="Impressions" value={summary.totalImpressions.toLocaleString()} accent={ACCENT.slate} />
-      <KpiCard icon={MousePointerClick} label="Clicks" value={summary.totalClicks.toLocaleString()} accent={ACCENT.emerald} />
+      <KpiCard icon={Eye} label="Impressions" value={summary.totalImpressions.toLocaleString()} accent={ACCENT.blue} />
+      <KpiCard icon={MousePointerClick} label="Clicks" value={summary.totalClicks.toLocaleString()} accent={ACCENT.green} />
       <KpiCard icon={Percent} label="Avg CTR" value={`${summary.avgCtr}%`} accent={ACCENT.amber} />
     </div>
   );

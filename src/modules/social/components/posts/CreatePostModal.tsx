@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { ImageIcon, Video, MessageSquareText, Sparkles, UploadCloud, Send, Mic2, File, Trash2, X, RectangleHorizontal, RectangleVertical } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dropdown } from "@/components/ui/Dropdown";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/config/routes";
@@ -26,15 +26,17 @@ const VOICE_OPTIONS = {
   ],
 };
 
-const VIDEO_STYLE_OPTIONS = ["Highly Realistic 4k, real life", "Cinematic Drone - Smooth", "Studio Professional - Clean"];
-const LANGUAGE_OPTIONS = ["English", "Spanish", "French", "Hebrew", "Turkish"];
+const VIDEO_STYLE_OPTIONS = ["Highly Realistic 4k, real life", "Cinematic Drone - Smooth", "Studio Professional - Clean"].map((v) => ({ value: v, label: v }));
+const LANGUAGE_OPTIONS = ["English", "Spanish", "French", "Hebrew", "Turkish"].map((v) => ({ value: v, label: v }));
 const BACKGROUND_SONG_OPTIONS = [
   "Inspirational - Sunrise Bloom",
   "Warm - Gentle Piano",
   "Uplifting - Soft Strings",
   "Calm - Ambient Pads",
   "Hopeful - Acoustic Guitar",
-];
+].map((v) => ({ value: v, label: v }));
+const CHARACTER_OPTIONS = [{ value: "male", label: "Male" }, { value: "female", label: "Female" }];
+const DURATION_OPTIONS = [20, 32, 40, 60, 88].map((d) => ({ value: String(d), label: `${d} seconds` }));
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -54,10 +56,10 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
   const serviceOptions = (business?.services ?? []).map((s) => s.name);
   const [serviceOverride, setServiceOverride] = useState("");
   const service = serviceOverride || serviceOptions[0] || "";
-  const [videoStyle, setVideoStyle] = useState(VIDEO_STYLE_OPTIONS[0]);
-  const [language, setLanguage] = useState(LANGUAGE_OPTIONS[0]);
-  const [backgroundSong, setBackgroundSong] = useState(BACKGROUND_SONG_OPTIONS[0]);
-  const [duration, setDuration] = useState(30);
+  const [videoStyle, setVideoStyle] = useState(VIDEO_STYLE_OPTIONS[0].value);
+  const [language, setLanguage] = useState(LANGUAGE_OPTIONS[0].value);
+  const [backgroundSong, setBackgroundSong] = useState(BACKGROUND_SONG_OPTIONS[0].value);
+  const [duration, setDuration] = useState(32);
   const [character, setCharacter] = useState<"male" | "female">("male");
   const [voiceId, setVoiceId] = useState(VOICE_OPTIONS.male[0].id);
   const [voiceLabel, setVoiceLabel] = useState(VOICE_OPTIONS.male[0].label);
@@ -385,29 +387,15 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                   <div className="bg-surface p-5 rounded-xl border border-default grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <p className="text-xs font-semibold text-muted mb-2">Category</p>
-                      <Select value={service} onValueChange={setServiceOverride}>
-                        <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {serviceOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <Dropdown value={service} onValueChange={setServiceOverride} options={serviceOptions.map((s) => ({ value: s, label: s }))} />
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-muted mb-2">Video Style</p>
-                      <Select value={videoStyle} onValueChange={setVideoStyle}>
-                        <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {VIDEO_STYLE_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <Dropdown value={videoStyle} onValueChange={setVideoStyle} options={VIDEO_STYLE_OPTIONS} />
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-muted mb-2">Character</p>
-                      <Select
+                      <Dropdown
                         value={character}
                         onValueChange={(val) => {
                           const c = val as "male" | "female";
@@ -415,15 +403,8 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                           setVoiceId(VOICE_OPTIONS[c][0].id);
                           setVoiceLabel(VOICE_OPTIONS[c][0].label);
                         }}
-                      >
-                        <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                        </SelectContent>
-                      </Select>
+                        options={CHARACTER_OPTIONS}
+                      />
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-muted mb-2">Voice</p>
@@ -438,38 +419,15 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-muted mb-2">Language</p>
-                      <Select value={language} onValueChange={setLanguage}>
-                        <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {LANGUAGE_OPTIONS.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <Dropdown value={language} onValueChange={setLanguage} options={LANGUAGE_OPTIONS} />
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-muted mb-2">Duration</p>
-                      <Select value={String(duration)} onValueChange={(v) => setDuration(parseInt(v, 10))}>
-                        <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {[20, 30, 40, 60, 90].map((d) => (
-                            <SelectItem key={d} value={String(d)}>{d} seconds</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Dropdown value={String(duration)} onValueChange={(v) => setDuration(parseInt(v, 10))} options={DURATION_OPTIONS} />
                     </div>
                     <div className="md:col-span-3">
                       <p className="text-xs font-semibold text-muted mb-2">Background Song</p>
-                      <Select value={backgroundSong} onValueChange={setBackgroundSong}>
-                        <SelectTrigger className="w-full bg-background border-default rounded-lg">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {BACKGROUND_SONG_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      <Dropdown value={backgroundSong} onValueChange={setBackgroundSong} options={BACKGROUND_SONG_OPTIONS} />
                       <p className="text-[11px] text-muted mt-1.5">Saved with the post, but not mixed into the audio yet — we don't have a licensed music library wired up. Ask if you'd like this turned on.</p>
                     </div>
                   </div>

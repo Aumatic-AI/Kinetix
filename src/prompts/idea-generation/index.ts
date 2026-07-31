@@ -78,7 +78,7 @@ STYLE RULES
 - videoStyle "Bold & Colorful" → energetic, upbeat language, optimistic verbs
 - videoStyle "Cinematic" → slower, more reflective sentences
 - videoStyle "Documentary" → grounded, real, testimonial tone
-- audioStyle "Background Music" → assume voiceover narration; write spoken-aloud lines
+- audioStyle "No Voice" → assume voiceover narration; write spoken-aloud lines
 - Never use medical jargon. Never promise specific outcomes not implied by the business's own offerings. Never name competitors.
 - Never use emojis, hashtags, or ALL CAPS.
 - No markdown, no quotes around the story, no labels inside the idea text.
@@ -107,7 +107,7 @@ QUALITY CHECK BEFORE RESPONDING
 {
   "type": "${type}",
   "duration": "${duration || "28 seconds"}",
-  "audioStyle": "${audioStyle || "Background Music"}",
+  "audioStyle": "${audioStyle || "Voiceover"}",
   "videoStyle": "${videoStyle || "Bold & Colorful"}",
   "idea": "${idea}",
   "character": "${character || "male"}"

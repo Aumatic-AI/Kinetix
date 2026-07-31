@@ -8,9 +8,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Missing ElevenLabs API Key" }, { status: 500 });
   }
 
+  // search/gender/accent/language are forwarded straight to ElevenLabs'
+  // own shared-voices search — VoiceExplorerModal relies on this endpoint
+  // doing the actual filtering, not on filtering a locally-fetched batch.
   const { searchParams } = new URL(request.url);
   const page = searchParams.get('page') || '1';
-  const pageSize = searchParams.get('page_size') || '20';
+  const pageSize = searchParams.get('page_size') || '10';
   const search = searchParams.get('search') || '';
   const gender = searchParams.get('gender') || '';
   const accent = searchParams.get('accent') || '';
@@ -21,7 +24,6 @@ export async function GET(request: Request) {
     url.searchParams.set("page_size", pageSize);
     url.searchParams.set("page", page);
     url.searchParams.set("sort", "trending");
-
     if (search) url.searchParams.set("search", search);
     if (gender && gender !== 'all') url.searchParams.set("gender", gender);
     if (accent && accent !== 'all') url.searchParams.set("accent", accent);

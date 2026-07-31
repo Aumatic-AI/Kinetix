@@ -6,11 +6,12 @@ import { Play, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { ROUTES } from "@/config/routes";
 import { useAdDetail, useEditAdCreative } from "../../hooks/useCampaigns";
 import { CTA_TYPES } from "./shared";
-import { StatusChip, LevelChip, InfoItem, MetricsRow, Section } from "./shared";
+import { StatusChip, LevelChip, InfoItem, MetricsRow, Section, DetailBreadcrumbSkeleton, DetailHeaderSkeleton, InfoItemSkeleton, MetricsRowSkeleton } from "./shared";
 import { StatusActions } from "./StatusActions";
 import { MediaPreview } from "@/components/global/MediaPreview";
 
@@ -45,9 +46,27 @@ export function AdDetailPage() {
   if (isLoading || !ad) {
     return (
       <div className="max-w-5xl mx-auto space-y-6 pb-10">
-        <div className="h-5 w-40 rounded-lg bg-surface animate-pulse" />
-        <div className="h-10 w-72 rounded-lg bg-surface animate-pulse" />
-        <div className="h-40 rounded-lg bg-surface animate-pulse" />
+        <DetailBreadcrumbSkeleton levels={4} />
+        <DetailHeaderSkeleton actionButtons={2} />
+
+        <div className="flex gap-6 flex-wrap sm:flex-nowrap">
+          <Skeleton className="w-40 h-52 rounded-lg shrink-0" />
+
+          <div className="flex-1 min-w-0 space-y-6">
+            <Section title="Ad Copy" description="What people see, and where they go after clicking.">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InfoItemSkeleton />
+                <InfoItemSkeleton />
+                <div className="sm:col-span-2"><InfoItemSkeleton wide /></div>
+                <div className="sm:col-span-2"><InfoItemSkeleton wide /></div>
+              </div>
+            </Section>
+
+            <Section title="Performance" description="Lifetime totals, live from Meta — never a cached snapshot.">
+              <MetricsRowSkeleton />
+            </Section>
+          </div>
+        </div>
       </div>
     );
   }

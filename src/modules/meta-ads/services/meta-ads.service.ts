@@ -7,6 +7,7 @@ import {
   PaginationOptions,
   MetaAdIntelligence
 } from "../types/meta-ads.types";
+import { rangeFor } from "@/lib/pagination";
 
 export class MetaAdsService {
   // ==========================================
@@ -14,22 +15,20 @@ export class MetaAdsService {
   // ==========================================
   
   // Ad Library's grid is the only consumer of this list — it doesn't read
-  // business_id/created_at/idea_prompt/ad_script/service/media_asset_id/
+  // business_id/idea_prompt/ad_script/service/media_asset_id/
   // revision_history/video_style/audio_style/language/character_type/
-  // voice_id, so only what's actually rendered is fetched. The campaign
-  // creative picker (CampaignPickCreativeDialog) needs idea_prompt/
+  // voice_id, so only what's actually rendered (plus created_at, needed by
+  // the polling schedule in src/lib/generation-polling.ts) is fetched. The
+  // campaign creative picker (CampaignPickCreativeDialog) needs idea_prompt/
   // ad_script/service to pre-fill ad copy on pick, so it uses
   // getCreativesForPicker below instead of this one. getCreativeById
-  // further below still selects "*" since editing/retry needs the full
-  // row. created_at is still filterable/sortable below even though it's
-  // not selected — order()/ilike() operate on the underlying table, not
-  // the projection.
+  // further below still selects "*" since editing/retry needs the full row.
   static async getCreatives(
     supabase: SupabaseClient,
     filters?: CreativeFilters,
     pagination?: PaginationOptions
-  ): Promise<MetaAdCreativeListItem[]> {
-    let query = supabase.from("meta_ad_creatives").select("id, type, status, media_urls, duration");
+  ): Promise<{ data: MetaAdCreativeListItem[]; total: number }> {
+    let query = supabase.from("meta_ad_creatives").select("id, type, status, media_urls, duration, created_at", { count: "exact" });
 
     if (filters?.status) {
       query = query.eq("status", filters.status);
@@ -47,14 +46,26 @@ export class MetaAdsService {
     if (pagination) {
       const page = pagination.page || 1;
       const limit = pagination.limit || 50;
-      const from = (page - 1) * limit;
-      const to = from + limit - 1;
+      const [from, to] = rangeFor(page, limit);
       query = query.range(from, to);
     }
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
     if (error) throw new Error(`Error fetching creatives: ${error.message}`);
-    return data || [];
+    return { data: data || [], total: count || 0 };
+  }
+
+  /** Cheap `head: true` count-only queries (no rows returned) for the Ad
+   * Library header's "N total · N failed" summary — independent of
+   * whichever page is currently displayed. */
+  static async getCreativeCounts(supabase: SupabaseClient): Promise<{ all: number; review: number; failed: number }> {
+    const [all, review, failed] = await Promise.all([
+      supabase.from("meta_ad_creatives").select("id", { count: "exact", head: true }),
+      supabase.from("meta_ad_creatives").select("id", { count: "exact", head: true }).eq("status", "review"),
+      supabase.from("meta_ad_creatives").select("id", { count: "exact", head: true }).eq("status", "failed"),
+    ]);
+    if (all.error) throw new Error(`Error counting creatives: ${all.error.message}`);
+    return { all: all.count || 0, review: review.count || 0, failed: failed.count || 0 };
   }
 
   /** Same list, but for the "pick a creative to launch" dialog — it needs

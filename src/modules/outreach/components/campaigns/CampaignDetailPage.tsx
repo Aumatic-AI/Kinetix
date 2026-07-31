@@ -6,6 +6,7 @@ import { ArrowLeft, Play } from "lucide-react";
 import { useOutreachCampaign, useResumeOutreachCampaign } from "../../hooks/useCampaigns";
 import { CampaignDraftPanel } from "./CampaignDraftPanel";
 import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { ROUTES } from "@/config/routes";
 import { formatDate } from "@/utils/datetime";
@@ -77,6 +78,70 @@ function CampaignStats({ campaign }: { campaign: OutreachCampaignDetail }) {
   );
 }
 
+/** Mirrors the loaded layout exactly — left column's InfoCard shape
+ * (CampaignMeta + CampaignStats) and the right column's EmailPreview shape
+ * (header bar + iframe body) — so nothing reflows once the campaign loads. */
+function CampaignDetailSkeleton() {
+  const metaFields = [false, false, false, false, true, true, false];
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-6 items-start">
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <Skeleton className="h-7 w-40 rounded" />
+            <Skeleton className="h-5 w-16 rounded-full" />
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-default overflow-hidden">
+          <div className="px-4 py-2 bg-surface/60">
+            <p className="text-[11px] font-bold text-muted uppercase tracking-wide">Campaign Details</p>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-4">
+            {metaFields.map((wide, i) => (
+              <div key={i} className={wide ? "col-span-2 min-w-0 space-y-1.5" : "min-w-0 space-y-1.5"}>
+                <Skeleton className="h-2.5 w-16 rounded" />
+                <Skeleton className="h-3.5 w-24 rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-default overflow-hidden">
+          <div className="px-4 py-2 bg-surface/60">
+            <p className="text-[11px] font-bold text-muted uppercase tracking-wide">Performance</p>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-3 p-4">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="min-w-0 space-y-1.5">
+                <Skeleton className="h-2.5 w-12 rounded" />
+                <Skeleton className="h-4 w-10 rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="rounded-lg overflow-hidden border border-default">
+          <div className="px-4 py-2.5 border-b border-default bg-surface/60">
+            <Skeleton className="h-2.5 w-14 rounded mb-1.5" />
+            <Skeleton className="h-3.5 w-40 rounded" />
+          </div>
+          <Skeleton className="w-full rounded-none" style={{ height: 520 }} />
+        </div>
+        <div className="space-y-3">
+          <Skeleton className="w-full rounded-lg" style={{ height: 60 }} />
+          <div className="flex gap-2">
+            <Skeleton className="h-8 w-28 rounded-lg" />
+            <Skeleton className="h-10 w-24 rounded-lg" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: campaign, isLoading } = useOutreachCampaign(id);
@@ -103,7 +168,7 @@ export function CampaignDetailPage() {
       </Link>
 
       {isLoading || !campaign ? (
-        <div className="h-40 rounded-xl bg-surface animate-pulse" />
+        <CampaignDetailSkeleton />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-[300px_minmax(0,1fr)] gap-6 items-start">
           <div className="space-y-4">

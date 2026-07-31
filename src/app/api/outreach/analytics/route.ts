@@ -29,7 +29,7 @@ export async function GET() {
       .select("id", { count: "exact", head: true })
       .eq("business_id", businessId);
 
-    const rows = await OutreachCampaignsService.getCampaignsWithAnalytics(businessId);
+    const { rows } = await OutreachCampaignsService.getCampaignsWithAnalytics(businessId);
 
     const response: OutreachAnalyticsResponse = {
       totalLeads: totalLeads || 0,

@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronLeft, ChevronRight, Rocket, Video, Image as ImageIcon, Play } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dropdown } from "@/components/ui/Dropdown";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Stepper } from "@/components/ui/stepper";
 import { useLaunchCampaign } from "../../hooks/useCampaigns";
@@ -224,19 +224,13 @@ export function CreateCampaignPage() {
                 <Input value={campaignName} onChange={(e) => setCampaignName(e.target.value)} placeholder="e.g. Toga US — Traffic" />
               </Field>
               <Field label="Objective" hint="What Meta optimizes delivery for.">
-                <Select value={objective} onValueChange={(v) => setObjective(v as MetaObjective)}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{OBJECTIVES.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
-                </Select>
+                <Dropdown value={objective} onValueChange={(v) => setObjective(v as MetaObjective)} options={OBJECTIVES} />
               </Field>
             </Section>
 
             <Section title="Buying & Budget" description="How Meta buys impressions, and whether one budget covers every ad set you add later.">
               <Field label="Buying Type" hint="Auction is what almost every account uses. Reach & Frequency is a fixed-price, reserved buy that needs a Meta ad rep — most self-serve accounts can't use it.">
-                <Select value={buyingType} onValueChange={(v) => setBuyingType(v as "AUCTION" | "RESERVED")}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{BUYING_TYPES.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}</SelectContent>
-                </Select>
+                <Dropdown value={buyingType} onValueChange={(v) => setBuyingType(v as "AUCTION" | "RESERVED")} options={BUYING_TYPES} />
               </Field>
               <label className="flex items-start gap-2.5 cursor-pointer rounded-lg border border-border p-3">
                 <input type="checkbox" checked={cbo} onChange={(e) => setCbo(e.target.checked)} className="mt-0.5 w-4 h-4 rounded border-border accent-primary" />

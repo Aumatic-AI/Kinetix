@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Send, CheckCircle2, CalendarClock, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Stepper } from "@/components/ui/stepper";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DateTimePicker } from "@/components/ui/date-time-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -117,10 +118,28 @@ export function PublishPostPage() {
 
   if (isLoading || !initialized) {
     return (
-      <div className="max-w-3xl mx-auto space-y-4 pb-4">
-        <div className="h-5 w-28 bg-surface rounded animate-pulse" />
-        <div className="h-10 w-64 bg-surface rounded animate-pulse" />
-        <div className="h-96 rounded-2xl bg-surface animate-pulse" />
+      <div className="space-y-6 pb-10">
+        <button
+          onClick={goToPosts}
+          className="flex items-center gap-1.5 text-xs font-semibold text-muted hover:text-text transition-colors mb-4"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" /> Back to Posts
+        </button>
+
+        <Stepper
+          steps={3}
+          current={STEP_NUMBER[step]}
+          labels={[STEP_COPY.select.title, STEP_COPY.preview.title, STEP_COPY.schedule.title]}
+          className="max-w-4xl mx-auto"
+        />
+
+        <div className="min-h-[50vh] flex items-center justify-center">
+          <div className="grid grid-cols-3 gap-3 max-w-3xl">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Skeleton key={i} className="w-56 h-32 rounded-xl" />
+            ))}
+          </div>
+        </div>
       </div>
     );
   }

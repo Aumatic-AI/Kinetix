@@ -59,11 +59,13 @@ export const generateSocialImage = inngest.createFunction(
         return { kieJobId: await aiOrchestrator.createImageTask(promptText, aspectRatio || "4:5"), promptText };
       });
 
+      // A single nano-banana image typically finishes well under 20s, so
+      // check soon and often rather than blocking a flat 30s up front.
       let imageUrl: string | null = null;
       let attempts = 0;
-      const MAX_ATTEMPTS = 12;
+      const MAX_ATTEMPTS = 24;
       while (!imageUrl && attempts < MAX_ATTEMPTS) {
-        await step.sleep(`wait-image-${attempts}`, attempts === 0 ? "30s" : "20s");
+        await step.sleep(`wait-image-${attempts}`, attempts === 0 ? "8s" : "6s");
         const status = await step.run(`check-image-status-${attempts}`, async () => {
           return await aiOrchestrator.checkTaskStatus(jobId.kieJobId);
         });

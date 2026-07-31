@@ -4,12 +4,58 @@ import { Search, Plus, Pencil, Trash2, Eye, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination } from "@/components/ui/Pagination";
+import { PAGE_SIZE_COMPACT } from "@/lib/pagination";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
-import { useLeadLists, useDeleteLeadList, LeadListWithCount } from "@/modules/outreach/hooks/useLeads";
+import { usePaginatedLeadLists, useDeleteLeadList, LeadListWithCount } from "@/modules/outreach/hooks/useLeads";
 import { ListModal } from "../components/leads/ListModal";
 import { ScrapeProgressBanner } from "../components/leads/ScrapeProgressBanner";
 import { LeadsDrawer } from "../components/leads/LeadsDrawer";
 import { FindLeadsModal } from "../components/leads/FindLeadsModal";
+
+// Table rows — compact page size.
+const PAGE_SIZE = PAGE_SIZE_COMPACT;
+
+/** Mirrors the lead-lists table's real columns exactly — only the body
+ * shimmers, the header renders immediately since its labels are already
+ * known. The Avatar slot uses a plain Skeleton (not the real Avatar with an
+ * empty label, which would render a literal "?" glyph). */
+function LeadListsTableSkeleton() {
+  return (
+    <div className="border border-default rounded-lg overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>List</TableHead>
+            <TableHead className="text-right">Leads</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {[1, 2, 3].map((i) => (
+            <TableRow key={i}>
+              <TableCell>
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+                  <Skeleton className="h-3.5 w-32 rounded" />
+                </div>
+              </TableCell>
+              <TableCell className="text-right"><Skeleton className="h-3.5 w-8 rounded ml-auto" /></TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2 justify-end">
+                  <Skeleton className="h-8 w-16 rounded-lg" />
+                  <Skeleton className="h-3.5 w-3.5 rounded" />
+                  <Skeleton className="h-3.5 w-3.5 rounded" />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
 
 export function LeadsPage() {
   const [selected, setSelected] = useState<LeadListWithCount | null>(null);
@@ -19,8 +65,10 @@ export function LeadsPage() {
   const [findLeadsOpen, setFindLeadsOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<LeadListWithCount | null>(null);
   const [deleteError, setDeleteError] = useState("");
+  const [page, setPage] = useState(1);
 
-  const { data: lists = [], isLoading } = useLeadLists();
+  const { data, isLoading } = usePaginatedLeadLists(page, PAGE_SIZE);
+  const lists = data?.lists || [];
   const deleteList = useDeleteLeadList();
 
   const handleDelete = async () => {
@@ -62,48 +110,52 @@ export function LeadsPage() {
       <ScrapeProgressBanner />
 
       {isLoading ? (
-        <div className="space-y-2">{[1, 2, 3].map((i) => <div key={i} className="h-14 rounded-lg bg-surface animate-pulse" />)}</div>
+        <LeadListsTableSkeleton />
       ) : lists.length === 0 ? (
         <div className="py-16 text-center border border-default rounded-2xl border-dashed space-y-3">
           <p className="text-sm text-muted">Create your first list to start finding leads.</p>
           <Button size="sm" onClick={openCreateModal} icon={<Plus className="w-3.5 h-3.5" />}>Create a list</Button>
         </div>
       ) : (
-        <div className="border border-default rounded-lg overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>List</TableHead>
-                <TableHead className="text-right">Leads</TableHead>
-                <TableHead />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {lists.map((l) => (
-                <TableRow key={l.id}>
-                  <TableCell className="font-semibold text-text">
-                    <div className="flex items-center gap-3">
-                      <Avatar icon={Users} />
-                      <span>{l.name}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums text-muted">{l.leadCount}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2 justify-end">
-                      <Button size="sm" variant="outline" onClick={() => setSelected(l)} icon={<Eye className="w-3.5 h-3.5" />}>View</Button>
-                      <button onClick={() => openEditModal(l)} className="text-muted hover:text-text" title="Edit">
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button onClick={() => { setDeleteError(""); setDeleteTarget(l); }} className="text-muted hover:text-danger" title="Delete">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </TableCell>
+        <>
+          <div className="border border-default rounded-lg overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>List</TableHead>
+                  <TableHead className="text-right">Leads</TableHead>
+                  <TableHead />
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              </TableHeader>
+              <TableBody>
+                {lists.map((l) => (
+                  <TableRow key={l.id}>
+                    <TableCell className="font-semibold text-text">
+                      <div className="flex items-center gap-3">
+                        <Avatar icon={Users} />
+                        <span>{l.name}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-muted">{l.leadCount}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2 justify-end">
+                        <Button size="sm" variant="outline" onClick={() => setSelected(l)} icon={<Eye className="w-3.5 h-3.5" />}>View</Button>
+                        <button onClick={() => openEditModal(l)} className="text-muted hover:text-text" title="Edit">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => { setDeleteError(""); setDeleteTarget(l); }} className="text-muted hover:text-danger" title="Delete">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          <Pagination page={page} totalPages={data?.totalPages || 1} onPageChange={setPage} />
+        </>
       )}
 
       <LeadsDrawer list={selected} onClose={() => setSelected(null)} />

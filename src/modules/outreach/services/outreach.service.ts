@@ -4,6 +4,7 @@ import { Lead, LeadSummary, LeadFilters, PaginationOptions, LeadList, LeadListSu
 import { OutreachCampaign, OutreachCampaignStatusEntry } from "../types/outreach.types";
 import { InstantlyService, InstantlyCampaignAnalytics } from "@/services/instantly";
 import { resolveCampaignStatus } from "../utils/campaign-status";
+import { rangeFor } from "@/lib/pagination";
 
 interface CampaignLeadHistoryRow {
   status: "queued" | "sent" | "failed";
@@ -136,9 +137,15 @@ export class LeadsService {
       }));
   }
 
-  static async getListLeadCounts(businessId: string): Promise<Record<string, number>> {
+  /** `listIds` scopes the scan to just those lists (e.g. one paginated
+   * page's worth) instead of pulling every lead row this business owns —
+   * pass it whenever the caller already knows which lists it needs counts
+   * for. Omit only when every list's count is genuinely needed at once. */
+  static async getListLeadCounts(businessId: string, listIds?: string[]): Promise<Record<string, number>> {
     const supabase = await createClient();
-    const { data, error } = await supabase.from("outreach_leads").select("list_id").eq("business_id", businessId);
+    let query = supabase.from("outreach_leads").select("list_id").eq("business_id", businessId);
+    if (listIds) query = query.in("list_id", listIds);
+    const { data, error } = await query;
     if (error) throw new Error(`Error computing list lead counts: ${error.message}`);
     const counts: Record<string, number> = {};
     for (const row of data || []) {
@@ -150,15 +157,25 @@ export class LeadsService {
 }
 
 export class LeadListsService {
-  static async getLists(businessId: string): Promise<LeadListSummary[]> {
+  /** Omit `pagination` for the full list (pickers/dropdowns that need
+   * every list — FindLeadsModal, NewCampaignPage); pass it for the Leads
+   * page's paginated table. */
+  static async getLists(businessId: string, pagination?: PaginationOptions): Promise<{ lists: LeadListSummary[]; total: number }> {
     const supabase = await createClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from("outreach_lead_lists")
-      .select("id, name")
+      .select("id, name", { count: "exact" })
       .eq("business_id", businessId)
       .order("name", { ascending: true });
+    if (pagination) {
+      const page = pagination.page || 1;
+      const limit = pagination.limit || 50;
+      const [from, to] = rangeFor(page, limit);
+      query = query.range(from, to);
+    }
+    const { data, error, count } = await query;
     if (error) throw new Error(`Error fetching lists: ${error.message}`);
-    return (data as LeadListSummary[]) || [];
+    return { lists: (data as LeadListSummary[]) || [], total: count || 0 };
   }
 
   static async getListById(id: string): Promise<LeadListSummary | null> {
@@ -193,15 +210,25 @@ export class LeadListsService {
 }
 
 export class OutreachCampaignsService {
-  static async getCampaigns(businessId: string): Promise<OutreachCampaign[]> {
+  /** Omit `pagination` for the full set (Dashboard/Analytics, which need
+   * every campaign to aggregate totals); pass it for the Campaigns page's
+   * paginated table. */
+  static async getCampaigns(businessId: string, pagination?: PaginationOptions): Promise<{ campaigns: OutreachCampaign[]; total: number }> {
     const supabase = await createClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from("outreach_campaigns")
-      .select("*")
+      .select("*", { count: "exact" })
       .eq("business_id", businessId)
       .order("created_at", { ascending: false });
+    if (pagination) {
+      const page = pagination.page || 1;
+      const limit = pagination.limit || 50;
+      const [from, to] = rangeFor(page, limit);
+      query = query.range(from, to);
+    }
+    const { data, error, count } = await query;
     if (error) throw new Error(`Error fetching outreach campaigns: ${error.message}`);
-    return (data as unknown as OutreachCampaign[]) || [];
+    return { campaigns: (data as unknown as OutreachCampaign[]) || [], total: count || 0 };
   }
 
   static async getCampaignById(id: string): Promise<OutreachCampaign | null> {
@@ -211,23 +238,28 @@ export class OutreachCampaignsService {
     return (data as unknown as OutreachCampaign) || null;
   }
 
-  /** Every campaign this business owns, each merged with its live Instantly
-   * analytics — the one place both the Campaigns list and /analytics get
-   * this from, so the Instantly call + resolveCampaignStatus logic isn't
-   * duplicated between them. */
-  static async getCampaignsWithAnalytics(businessId: string): Promise<{ campaign: OutreachCampaign; entry: OutreachCampaignStatusEntry }[]> {
+  /** Every campaign this business owns (or just one page of them — see
+   * getCampaigns), each merged with its live Instantly analytics — the one
+   * place the Campaigns list, Dashboard, and /analytics all get this from,
+   * so the Instantly call + resolveCampaignStatus logic isn't duplicated
+   * between them. Dashboard/Analytics omit `pagination` (they aggregate
+   * over every campaign); the Campaigns page passes it. */
+  static async getCampaignsWithAnalytics(
+    businessId: string,
+    pagination?: PaginationOptions
+  ): Promise<{ rows: { campaign: OutreachCampaign; entry: OutreachCampaignStatusEntry }[]; total: number }> {
     const supabase = await createClient();
-    const campaigns = await this.getCampaigns(businessId);
-    if (campaigns.length === 0) return [];
+    const { campaigns, total } = await this.getCampaigns(businessId, pagination);
+    if (campaigns.length === 0) return { rows: [], total };
 
     const instantlyAnalytics = await InstantlyService.getCampaignsAnalytics();
     const instantlyByExternalId = new Map(instantlyAnalytics.map((c) => [c.campaign_id, c]));
 
-    const resolved: { campaign: OutreachCampaign; entry: OutreachCampaignStatusEntry }[] = [];
+    const rows: { campaign: OutreachCampaign; entry: OutreachCampaignStatusEntry }[] = [];
     for (const campaign of campaigns) {
-      resolved.push({ campaign, entry: await resolveCampaignEntry(supabase, campaign, instantlyByExternalId) });
+      rows.push({ campaign, entry: await resolveCampaignEntry(supabase, campaign, instantlyByExternalId) });
     }
-    return resolved;
+    return { rows, total };
   }
 
   /** Same merge as getCampaignsWithAnalytics, for a single already-fetched

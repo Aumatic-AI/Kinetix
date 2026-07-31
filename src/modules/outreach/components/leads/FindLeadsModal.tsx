@@ -4,7 +4,7 @@ import { Search, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dropdown } from "@/components/ui/Dropdown";
 import { useLeadLists, useCreateLeadList, useStartScrape } from "@/modules/outreach/hooks/useLeads";
 import { useJobsStore } from "@/store";
 import { ROUTES } from "@/config/routes";
@@ -95,13 +95,12 @@ export function FindLeadsModal({ open, onClose }: { open: boolean; onClose: () =
               ) : lists.length === 0 ? (
                 <Button size="sm" variant="outline" onClick={() => setCreatingList(true)}>+ Create a new list</Button>
               ) : (
-                <Select value={listId} onValueChange={(v) => (v === "__new" ? setCreatingList(true) : setListId(v))}>
-                  <SelectTrigger><SelectValue placeholder="Choose a list" /></SelectTrigger>
-                  <SelectContent>
-                    {lists.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                    <SelectItem value="__new">+ Create a new list</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Dropdown
+                  value={listId}
+                  onValueChange={(v) => (v === "__new" ? setCreatingList(true) : setListId(v))}
+                  placeholder="Choose a list"
+                  options={[...lists.map((l) => ({ value: l.id, label: l.name })), { value: "__new", label: "+ Create a new list" }]}
+                />
               )}
             </div>
           </div>

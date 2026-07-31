@@ -1,38 +1,61 @@
-import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 
-/** Latest competitor-intelligence report, shown on the Dashboard tab. Same
- * `ad_analysis_reports` row the weekly competitor-scraper job writes —
- * extracted out of Dashboard.tsx itself so hooks/ mirrors the sidebar tabs
- * (Dashboard / Ad Library / Campaigns / Reports / Lead Responses) the same
- * way pages/ and components/ do. */
-export function useDashboardInsights() {
-  const [insights, setInsights] = useState<any>({});
-  const [generatedAt, setGeneratedAt] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const supabase = createClient();
+export type MetaAdsDashboardRange = "7d" | "14d" | "30d" | "90d" | "all";
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      const { data: intelData } = await (supabase
-        .from("ad_analysis_reports") as any)
-        .select("insights, created_at")
-        .eq("report_type", "competitor")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+export interface MetaAdsDashboardData {
+  rangeDays: number;
+  kpis: {
+    spendCents: number;
+    avgCtr: number;
+    adsTracked: number;
+    competitorsFound: number | null;
+    avgLifespanDays: number | null;
+    gapCount: number | null;
+  };
+  spendTrend: { date: string; spendCents: number }[];
+  scoreBuckets: {
+    label: "Excellent" | "Good" | "Average" | "Needs Work" | "Critical";
+    count: number;
+    ads: {
+      metaAdId: string;
+      ctr: number;
+      spendCents: number;
+      clicks: number;
+      impressions: number;
+      daysRunning: number;
+      adText: string | null;
+      mediaUrl: string | null;
+      link: { campaignId: string; adSetId: string; adId: string } | null;
+    }[];
+  }[];
+  formatMix: { video: number; image: number; carousel: number; text: number } | null;
+  topAngles: { val: string; count: number }[];
+  gaps: { gap: string; opportunity: string; ad_format?: string; priority: string }[];
+}
 
-      if (intelData?.insights) {
-        setInsights(intelData.insights);
-        setGeneratedAt(intelData.created_at);
-      }
-      setLoading(false);
-    };
+async function fetchDashboard(range: MetaAdsDashboardRange): Promise<MetaAdsDashboardData> {
+  const res = await fetch(`/api/meta-ads/dashboard?range=${range}`);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Failed to load dashboard");
+  return data;
+}
 
-    fetchData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  return { insights, generatedAt, loading };
+/** The one call the Meta Ads Dashboard tab makes — spend trend, self-ad
+ * score distribution, and the latest competitor report's chartable fields,
+ * all in one narrow response. Always fresh, never reused from cache
+ * (gcTime 0 — a stale-but-cached result surviving an unmount is exactly
+ * what caused a hydration mismatch on revisit: server always SSRs the
+ * loading state, but a warm client cache would otherwise skip straight to
+ * the loaded one on remount).
+ * `range` only rescopes the spend/CTR KPIs and the spend trend chart —
+ * see the API route's own doc comment for why the rest of the page doesn't
+ * have a meaningful "last N days" version. */
+export function useMetaAdsDashboard(range: MetaAdsDashboardRange) {
+  return useQuery({
+    queryKey: ["meta-ads", "dashboard", range],
+    queryFn: () => fetchDashboard(range),
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: false,
+  });
 }

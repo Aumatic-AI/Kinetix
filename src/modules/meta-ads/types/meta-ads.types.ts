@@ -23,13 +23,16 @@ export interface MetaAdCreative {
 
 /** What the Ad Library grid actually fetches — getCreatives() only selects
  * these columns (see meta-ads.service.ts), unlike getCreativeById()'s full
- * MetaAdCreative row used for edit/retry. */
+ * MetaAdCreative row used for edit/retry. created_at is needed by the
+ * Ad Library's polling schedule (see src/lib/generation-polling.ts), not
+ * displayed anywhere. */
 export interface MetaAdCreativeListItem {
   id: string;
   type: CreativeType;
   status: CreativeStatus;
   media_urls?: string[];
   duration?: string;
+  created_at: string;
 }
 
 /** What the campaign "pick a creative" dialog fetches — getCreativesForPicker()

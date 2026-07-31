@@ -16,6 +16,7 @@ import { getUploadStatus } from "./status";
 import { listScheduledPosts, cancelScheduledPost, updateScheduledPost } from "./schedule";
 import { getFacebookPages } from "./facebook";
 import { getLinkedInPages } from "./linkedin";
+import { getProfileAnalytics, getTotalImpressions, getCachedPostAnalytics } from "./analytics";
 export { buildProfileUrl } from "./profile-url";
 
 export * from "./types";
@@ -38,4 +39,8 @@ export class UploadPostService {
 
   static getFacebookPages = getFacebookPages;
   static getLinkedInPages = getLinkedInPages;
+
+  static getProfileAnalytics = getProfileAnalytics;
+  static getTotalImpressions = getTotalImpressions;
+  static getCachedPostAnalytics = getCachedPostAnalytics;
 }

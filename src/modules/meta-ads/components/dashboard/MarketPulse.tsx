@@ -13,7 +13,7 @@ export function MarketPulse({ topAngles = [] }: MarketPulseProps) {
 
   return (
     <Card className="h-full">
-      <SectionTitle icon={BarChart3} accent={ACCENT.purple} title="Angles Competitors Lean On" />
+      <SectionTitle icon={BarChart3} accent={ACCENT.purple} title="Top Competitor Angles" />
       <div style={{ height: 190 }}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={angleData} layout="vertical" margin={{ left: 4, right: 32, top: 0, bottom: 0 }} barCategoryGap="30%">

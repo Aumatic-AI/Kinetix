@@ -5,6 +5,9 @@ import { Plus, Trash2, Pause, Play, Send, Megaphone } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Avatar } from "@/components/ui/Avatar";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Pagination } from "@/components/ui/Pagination";
+import { PAGE_SIZE_COMPACT } from "@/lib/pagination";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import {
   useOutreachCampaigns,
@@ -16,6 +19,9 @@ import {
 } from "../hooks/useCampaigns";
 import { OutreachCampaignListItem } from "../types/outreach.types";
 import { ROUTES } from "@/config/routes";
+
+// Table rows — compact page size.
+const PAGE_SIZE = PAGE_SIZE_COMPACT;
 
 const TONE_STYLE: Record<string, string> = {
   success: "text-success bg-success-bg",
@@ -47,6 +53,50 @@ const CONFIRM_COPY: Record<Exclude<ConfirmType, "send">, { title: string; descri
   },
 };
 
+/** Mirrors the campaigns table's real columns exactly — only the body
+ * shimmers, the header renders immediately since its labels are already
+ * known. The Avatar slot uses a plain Skeleton (not the real Avatar with an
+ * empty label, which would render a literal "?" glyph). */
+function OutreachCampaignsTableSkeleton() {
+  return (
+    <div className="border border-default rounded-lg overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead className="text-right">Sent</TableHead>
+            <TableHead className="text-right">Opened</TableHead>
+            <TableHead className="text-right">Replied</TableHead>
+            <TableHead />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {[1, 2, 3].map((i) => (
+            <TableRow key={i}>
+              <TableCell>
+                <div className="flex items-center gap-3">
+                  <Skeleton className="w-9 h-9 rounded-lg shrink-0" />
+                  <Skeleton className="h-3.5 w-32 rounded" />
+                </div>
+              </TableCell>
+              <TableCell><Skeleton className="h-5 w-16 rounded-full" /></TableCell>
+              <TableCell className="text-right"><Skeleton className="h-3.5 w-6 rounded ml-auto" /></TableCell>
+              <TableCell className="text-right"><Skeleton className="h-3.5 w-6 rounded ml-auto" /></TableCell>
+              <TableCell className="text-right"><Skeleton className="h-3.5 w-6 rounded ml-auto" /></TableCell>
+              <TableCell>
+                <div className="flex items-center gap-2 justify-end">
+                  <Skeleton className="h-3.5 w-3.5 rounded" />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 interface ModalCopy {
   title: string;
   description: string;
@@ -65,7 +115,9 @@ function getModalCopy(target: { type: ConfirmType; campaign: OutreachCampaignLis
 
 export function CampaignsPage() {
   const router = useRouter();
-  const { data: campaigns = [], isLoading } = useOutreachCampaigns();
+  const [page, setPage] = useState(1);
+  const { data, isLoading } = useOutreachCampaigns(page, PAGE_SIZE);
+  const campaigns = data?.campaigns || [];
 
   const deleteCampaign = useDeleteOutreachCampaign();
   const pauseCampaign = usePauseOutreachCampaign();
@@ -120,10 +172,11 @@ export function CampaignsPage() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">{[1, 2].map((i) => <div key={i} className="h-12 rounded-lg bg-surface animate-pulse" />)}</div>
+        <OutreachCampaignsTableSkeleton />
       ) : campaigns.length === 0 ? (
         <div className="py-16 text-center text-muted border border-default rounded-2xl border-dashed text-sm">No campaigns yet.</div>
       ) : (
+        <>
         <div className="border border-default rounded-lg overflow-hidden">
           <Table>
             <TableHeader>
@@ -184,6 +237,9 @@ export function CampaignsPage() {
             </TableBody>
           </Table>
         </div>
+
+        <Pagination page={page} totalPages={data?.totalPages || 1} onPageChange={setPage} />
+        </>
       )}
 
       <ConfirmModal

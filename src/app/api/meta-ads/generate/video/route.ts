@@ -26,10 +26,40 @@ export async function POST(request: Request) {
     const { data: business } = await supabase.from("businesses").select("id").limit(1).single();
     if (!business) throw new Error("No business found");
 
-    // Create database record first
+    // Confirm the background job queue can actually accept this job BEFORE
+    // creating any DB record — otherwise a down Inngest server (e.g. the
+    // local dev server not started) leaves an orphaned "pending" creative
+    // that will never complete, with no visible error either.
+    const creativeId = crypto.randomUUID();
+    try {
+      await inngest.send({
+        name: "meta-ads/generate-video",
+        data: {
+          duration: body.duration,
+          audioStyle: body.audioStyle,
+          character: body.character,
+          voiceId: body.voiceId,
+          videoStyle: body.videoStyle,
+          language: body.language,
+          ideaPrompt: body.ideaPrompt,
+          service: body.service,
+          creativeId,
+          businessId: business.id
+        }
+      });
+    } catch (sendError) {
+      console.error("[META_ADS_GENERATE_VIDEO] Inngest unreachable", sendError);
+      return NextResponse.json(
+        { error: "Background job queue is not reachable — make sure the Inngest dev server is running." },
+        { status: 503 }
+      );
+    }
+
+    // Job accepted — now create the DB record it will update.
     const { data: creative, error } = await supabase
       .from('meta_ad_creatives')
       .insert({
+        id: creativeId,
         business_id: business.id,
         type: 'video',
         idea_prompt: body.ideaPrompt,
@@ -45,23 +75,6 @@ export async function POST(request: Request) {
       .single();
 
     if (error || !creative) throw new Error("Failed to create record");
-
-    // Trigger the background job
-    await inngest.send({
-      name: "meta-ads/generate-video",
-      data: {
-        duration: body.duration,
-        audioStyle: body.audioStyle,
-        character: body.character,
-        voiceId: body.voiceId,
-        videoStyle: body.videoStyle,
-        language: body.language,
-        ideaPrompt: body.ideaPrompt,
-        service: body.service,
-        creativeId: creative.id,
-        businessId: business.id
-      }
-    });
 
     return NextResponse.json({ success: true, data: creative, message: "Video generation started" });
   } catch (error: any) {

@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState, useRef } from "react";
+import { toast } from "sonner";
 import { X, Video, Image as ImageIcon, Music, Mic, Sparkles, Send, Tag, Monitor, User, Mic2, UploadCloud, File, Trash2, CheckCircle2, Wand2, MessageSquare, Clock, Globe } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
@@ -12,7 +13,7 @@ import { useCreateMetaAdCreative } from "../../hooks/useAdLibrary";
 import { useBusinessStore } from "@/store/business.store";
 
 const DURATION_OPTIONS = ["20 seconds", "28 seconds", "32 seconds", "36 seconds", "40 seconds"].map((v) => ({ value: v, label: v }));
-const AUDIO_STYLE_OPTIONS = ["Background Music", "Voiceover"].map((v) => ({ value: v, label: v }));
+const AUDIO_STYLE_OPTIONS = ["No Voice", "Voiceover"].map((v) => ({ value: v, label: v }));
 const CHARACTER_OPTIONS = [{ value: "male", label: "Male" }, { value: "female", label: "Female" }];
 const VIDEO_STYLE_OPTIONS = ["Bold & Colorful", "Cinematic", "Minimal & Clean", "Dark & Moody", "Neon / Glow", "Hand-drawn / Sketch"].map((v) => ({ value: v, label: v }));
 const LANGUAGE_OPTIONS = ["English", "Spanish", "French", "Hebrew", "Turkish"].map((v) => ({ value: v, label: v }));
@@ -45,7 +46,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
   const [type, setType] = useState("video");
   const [service, setService] = useState("");
   const [duration, setDuration] = useState("28 seconds");
-  const [audioStyle, setAudioStyle] = useState("Background Music");
+  const [audioStyle, setAudioStyle] = useState("Voiceover");
   const [character, setCharacter] = useState<"male"|"female">("male");
   const [voiceId, setVoiceId] = useState(VOICE_OPTIONS.male[0].id);
   const [voiceLabel, setVoiceLabel] = useState(VOICE_OPTIONS.male[0].label);
@@ -98,6 +99,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      const data = await response.json().catch(() => ({}));
       if (response.ok) {
         if (onSuccess) onSuccess();
         onClose();
@@ -105,9 +107,11 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
         setService("");
         setGeneratedIdeas(null);
         setIdeaError("");
+      } else {
+        toast.error(data.error || "Failed to start generation");
       }
     } catch (e) {
-      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Failed to start generation");
     } finally {
       setIsSubmitting(false);
     }

@@ -1,9 +1,11 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { OutreachCampaign, OutreachCampaignListItem, OutreachCampaignDetail, CreateOutreachCampaignInput, OutreachAnalyticsResponse, OutreachCampaignSendPreview } from "../types/outreach.types";
+import { PaginationMeta } from "@/lib/pagination";
 
 export const outreachKeys = {
   all: ["outreach"] as const,
-  campaigns: () => [...outreachKeys.all, "campaigns"] as const,
+  campaignsAll: () => [...outreachKeys.all, "campaigns"] as const,
+  campaigns: (page: number, limit: number) => [...outreachKeys.campaignsAll(), page, limit] as const,
   campaign: (id: string) => [...outreachKeys.all, "campaigns", id] as const,
   analytics: () => [...outreachKeys.all, "analytics"] as const,
   sendPreview: (id: string) => [...outreachKeys.all, "send-preview", id] as const,
@@ -14,7 +16,7 @@ export const outreachKeys = {
  * mutation that changes a campaign's delivery state must invalidate this
  * too, or the badge/KPIs keep showing whatever was cached before the action. */
 function invalidateCampaignState(queryClient: ReturnType<typeof useQueryClient>, id: string) {
-  queryClient.invalidateQueries({ queryKey: outreachKeys.campaigns() });
+  queryClient.invalidateQueries({ queryKey: outreachKeys.campaignsAll() });
   queryClient.invalidateQueries({ queryKey: outreachKeys.campaign(id) });
   queryClient.invalidateQueries({ queryKey: outreachKeys.analytics() });
 }
@@ -26,16 +28,17 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
-export function useOutreachCampaigns() {
+export function useOutreachCampaigns(page: number, limit: number) {
   return useQuery({
-    queryKey: outreachKeys.campaigns(),
-    queryFn: () => fetchJson<{ campaigns: OutreachCampaignListItem[] }>("/api/outreach/campaigns").then((d) => d.campaigns),
+    queryKey: outreachKeys.campaigns(page, limit),
+    queryFn: () => fetchJson<{ campaigns: OutreachCampaignListItem[] } & PaginationMeta>(`/api/outreach/campaigns?page=${page}&limit=${limit}`),
     // Fresh on every mount/reload/mutation-invalidation (staleTime 0), but
     // NOT on every window/tab focus — with the default refetchOnWindowFocus,
     // staleTime 0 means switching tabs and back re-fetches every single time,
     // which is the noisy behavior we don't want.
     staleTime: 0,
     refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -53,7 +56,7 @@ export function useCreateOutreachCampaign() {
     mutationFn: (input: CreateOutreachCampaignInput) =>
       fetchJson<{ campaign: OutreachCampaign }>("/api/outreach/campaigns", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: outreachKeys.campaigns() });
+      queryClient.invalidateQueries({ queryKey: outreachKeys.campaignsAll() });
       queryClient.invalidateQueries({ queryKey: outreachKeys.analytics() });
     },
   });
@@ -115,7 +118,7 @@ export function useDeleteOutreachCampaign() {
   return useMutation({
     mutationFn: (id: string) => fetchJson(`/api/outreach/campaigns/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: outreachKeys.campaigns() });
+      queryClient.invalidateQueries({ queryKey: outreachKeys.campaignsAll() });
       queryClient.invalidateQueries({ queryKey: outreachKeys.analytics() });
     },
   });

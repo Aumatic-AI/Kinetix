@@ -1,91 +1,88 @@
 "use client";
-import React from "react";
-import { Sparkles } from "lucide-react";
-import { formatDate } from "@/utils/datetime";
-import { useDashboardInsights } from "../hooks/useDashboard";
+import { useState } from "react";
+import { useMetaAdsDashboard, MetaAdsDashboardRange } from "../hooks/useDashboard";
 import { KpiRow } from "../components/dashboard/KpiRow";
+import { SpendTrend } from "../components/dashboard/SpendTrend";
+import { ScoreDistribution } from "../components/dashboard/ScoreDistribution";
 import { FormatBreakdown } from "../components/dashboard/FormatBreakdown";
 import { MarketPulse } from "../components/dashboard/MarketPulse";
 import { GapOpportunities } from "../components/dashboard/GapOpportunities";
-import { ReadyAdsGrid } from "../components/dashboard/ReadyAdsGrid";
+import { Card, KpiRowSkeleton, SectionTitleSkeleton, AreaChartSkeleton, BarRowsSkeleton, PieChartSkeleton, GapListSkeleton } from "@/components/global/DashboardKit";
+
+const RANGES: { value: MetaAdsDashboardRange; label: string }[] = [
+  { value: "7d", label: "7 days" },
+  { value: "14d", label: "14 days" },
+  { value: "30d", label: "30 days" },
+  { value: "90d", label: "90 days" },
+  { value: "all", label: "All time" },
+];
 
 export function Dashboard() {
-  const { insights, generatedAt, loading } = useDashboardInsights();
-
-  if (loading) {
-    return (
-      <div className="max-w-6xl mx-auto space-y-8 pb-10">
-        <div className="h-8 w-40 rounded-lg bg-surface animate-pulse" />
-        <div className="h-24 rounded-2xl bg-surface animate-pulse" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => <div key={i} className="h-28 rounded-2xl bg-surface animate-pulse" />)}
-        </div>
-      </div>
-    );
-  }
-
-  const meta = insights.meta || {};
-  const marketStats = meta.market_stats || {};
-  const bestHookFormula = insights.hook_analysis?.best_hook_formula;
-  const hasAnyData = !!insights.executive_summary;
-
-  const formats = marketStats.formats;
-  const formatTotal = formats ? formats.video + formats.image + formats.carousel + formats.text : 0;
-  const dominantFormat = formats && formatTotal
-    ? (() => {
-        const name = (["video", "image", "carousel", "text"] as const).reduce((best, key) => (formats[key] > formats[best] ? key : best), "video");
-        return { name: name.charAt(0).toUpperCase() + name.slice(1), pct: Math.round((formats[name] / formatTotal) * 100) };
-      })()
-    : null;
+  const [range, setRange] = useState<MetaAdsDashboardRange>("30d");
+  const { data, isLoading } = useMetaAdsDashboard(range);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8 pb-10">
-      <div>
-        <h2 className="text-2xl font-bold text-text">Dashboard</h2>
-        <p className="text-muted text-sm mt-1">
-          {generatedAt ? `Competitor intelligence last synced ${formatDate(generatedAt)}` : "Competitor intelligence, updated automatically every week."}
-        </p>
+    <div className="max-w-6xl mx-auto space-y-6 pb-10">
+      <div className="flex justify-end">
+        <div className="flex items-center gap-1 bg-surface rounded-lg p-1">
+          {RANGES.map((r) => (
+            <button
+              key={r.value}
+              onClick={() => setRange(r.value)}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-colors ${range === r.value ? "bg-background text-text shadow-sm" : "text-muted hover:text-text"}`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {!hasAnyData ? (
-        <div className="text-center py-24 text-muted border border-default rounded-2xl border-dashed">
-          No analysis yet. The weekly scraper job will generate one automatically.
-        </div>
+      {isLoading || !data ? (
+        <>
+          <KpiRowSkeleton count={6} cols="grid-cols-3 lg:grid-cols-6" compact />
+
+          <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-5">
+            <Card>
+              <SectionTitleSkeleton titleWidth="w-20" />
+              <AreaChartSkeleton height={200} />
+            </Card>
+            <Card>
+              <SectionTitleSkeleton titleWidth="w-40" trailing />
+              <BarRowsSkeleton rows={5} height={190} />
+            </Card>
+          </div>
+
+          <div className="grid sm:grid-cols-1 md:grid-cols-[7fr_3fr] gap-5">
+            <Card>
+              <SectionTitleSkeleton titleWidth="w-36" />
+              <BarRowsSkeleton rows={5} height={190} labelWidth="w-24" />
+            </Card>
+            <Card>
+              <SectionTitleSkeleton titleWidth="w-32" />
+              <PieChartSkeleton legendRows={4} />
+            </Card>
+          </div>
+
+          <Card>
+            <SectionTitleSkeleton titleWidth="w-36" trailing />
+            <GapListSkeleton rows={5} />
+          </Card>
+        </>
       ) : (
         <>
-          {/* AI Insight — the five-second takeaway, first thing on the page.
-              A quiet neutral card with a small icon accent, not a colored
-              gradient wash — the takeaway itself should carry the weight. */}
-          <div className="flex items-start gap-3 rounded-2xl border border-default/60 bg-background shadow-sm px-6 py-5">
-            <div className="w-9 h-9 rounded-full bg-text text-background flex items-center justify-center shrink-0">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div className="space-y-2 min-w-0">
-              <p className="text-text text-sm leading-relaxed">{insights.executive_summary}</p>
-              {bestHookFormula && (
-                <p className="text-xs text-muted font-semibold">{bestHookFormula}</p>
-              )}
-            </div>
+          <KpiRow kpis={data.kpis} />
+
+          <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-5">
+            <SpendTrend data={data.spendTrend} rangeDays={data.rangeDays} />
+            <ScoreDistribution buckets={data.scoreBuckets} />
           </div>
 
-          {/* KPIs — the top-level numbers, glanceable in five seconds */}
-          <KpiRow
-            totalCompetitors={meta.total_competitors}
-            dominantFormat={dominantFormat}
-            longevity={marketStats.longevity}
-            gapCount={insights.gap_opportunities?.length}
-          />
-
-          {/* Trends — context behind the KPIs */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            <FormatBreakdown formats={marketStats.formats} />
-            <MarketPulse topAngles={marketStats.top_angles} />
+          <div className="grid sm:grid-cols-1 md:grid-cols-[7fr_3fr] gap-5">
+            <MarketPulse topAngles={data.topAngles} />
+            <FormatBreakdown formats={data.formatMix ?? undefined} />
           </div>
 
-          {/* Detail + action */}
-          <GapOpportunities gaps={insights.gap_opportunities} />
-
-          <ReadyAdsGrid scripts={insights.ready_ad_scripts} reportKey={generatedAt ?? undefined} />
+          <GapOpportunities gaps={data.gaps} />
         </>
       )}
     </div>

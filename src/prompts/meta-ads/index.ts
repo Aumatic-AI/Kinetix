@@ -9,6 +9,18 @@
  * from before this pass — the Inngest generation pipeline
  * (generate-image-ad.ts / generate-video-ad.ts) depends on them exactly
  * as they are and must not be touched.
+ *
+ * Beyond the original port, `getVideoAdScriptPrompt` now threads a
+ * `language` input through to an explicit output-language directive (the
+ * legacy prompt collected language but never used it — this was a real,
+ * inherited bug). `getVisualPromptsPrompt` (shared with Social Media) also
+ * adds two sections neither app had before: MAIN CHARACTER CONSISTENCY
+ * (keeps the protagonist's gender/identity — and the reference photo's
+ * face, when one is configured — locked to the correct person even when a
+ * scene includes other people) and LOGICAL / TECHNICAL CONSISTENCY
+ * (explicitly bans the recurring AI-image failure modes seen in practice:
+ * illegible/misspelled on-screen text, backwards-facing device screens,
+ * malformed hands, physically impossible object interactions).
  */
 
 const SERVICE_CATEGORY_MAP: Record<string, string> = {
@@ -23,6 +35,21 @@ const SERVICE_CATEGORY_MAP: Record<string, string> = {
 export function mapServiceToCategory(service: any): string | null {
   if (!service) return null;
   return SERVICE_CATEGORY_MAP[String(service).toLowerCase().trim()] || null;
+}
+
+/** Each script line becomes one fixed ~4-second video scene (see
+ * generate-video-ad.ts / generate-social-video.ts's cinematicPrompt step,
+ * which always requests a 4-second clip per scene) — so the number of
+ * scenes is what actually determines the final stitched video's length,
+ * never something left to the script-writing LLM's own judgment. Both
+ * callers must use this exact number, not their own guess, so the video
+ * comes out to (scene count x 4) seconds — as close to the requested
+ * duration as a whole number of 4-second scenes allows. Accepts either a
+ * plain number of seconds (Social's `duration`) or a dropdown string like
+ * "40 seconds" (Meta Ads' `duration`). */
+export function sceneCountForDuration(duration: string | number | undefined): number {
+  const seconds = typeof duration === "number" ? duration : parseInt(String(duration || "").match(/\d+/)?.[0] || "28", 10);
+  return Math.max(4, Math.round(seconds / 4));
 }
 
 function businessContextBlock(business: any): string {
@@ -94,6 +121,8 @@ IMAGE PROMPT RULES (visual_prompt field)
 - Include camera angle + movement, lighting direction + quality, shallow depth of field, and exact negative space for text overlay (rule of thirds).
 - Include real-world tactile, authentic details relevant to this business and its audience — never generic stock-photo staging.
 - Color temperature and grade should match the brand voice above.
+- If any screen, phone, laptop, sign, or document appears, any visible text must be spelled correctly and sharp, never blurred — keep it short and simple (a single common word, a time, a short label) rather than full sentences, so it renders correctly.
+- A screen is only legible from directly in front of it — never from behind it or from where its user already stands. Never show a person's face facing the camera AND a laptop/phone screen's front display also facing the camera in the same frame — that is two contradictory camera positions at once. Pick one: shoot over the person's shoulder so both they and the camera share the screen's side, or shoot the person face-on with the screen turned away from camera (its back/lid only, no visible display). Any handheld device (phone, cup, book) must be one single, solid, seamless object, never fragmented or floating pieces. Hands must have exactly five fingers each with natural, physically possible poses.
 
 COPY RULES
 - headline: max 6 words, must include a specific benefit or number.
@@ -122,8 +151,11 @@ export function getVideoAdScriptPrompt(intelligence: any, creative: any): string
     .map((p: any) => p.example)
     .filter(Boolean);
   const serviceCategory = mapServiceToCategory(creative.service);
+  const language = creative.language && creative.language !== "English" ? creative.language : null;
+  const sceneCount = sceneCountForDuration(creative.duration);
+  const targetWords = Math.round(sceneCount * 4 * 2.3);
 
-  return `Generate the voiceover script from this input. Return only the JSON object — no other text.
+  return `${language ? `OUTPUT LANGUAGE: Write the ENTIRE script in ${language}. Every single line must be in ${language}, not English. Do not mix languages.\n\n` : ""}Generate the voiceover script from this input. Return only the JSON object — no other text.
 
 Input:
 {
@@ -184,15 +216,9 @@ ASSIGN ONE NAME, use it throughout:
 - Female: Sarah, Emma, Maria, Anna, Lisa, Sophia
 - Couple: Mark and Anna, David and Lisa, Thomas and Emma
 
-LINE COUNT BY DURATION
-ElevenLabs averages ~3.5 seconds per spoken sentence (10-14 words at natural pace). Scale strictly:
-- 10-12s → 4 lines
-- 15s    → 5 lines
-- 18-20s → 6 lines
-- 22-25s → 7 lines
-- 27-30s → 8 lines
-- 32-38s → 10 lines
-- 40s+   → 12 lines
+LINE COUNT — EXACT, NOT A GUIDELINE
+Each script line becomes one fixed ~4-second video scene downstream — the final video's length is EXACTLY (number of lines x 4) seconds, a hard technical constraint, not a stylistic choice. The script array MUST have EXACTLY ${sceneCount} lines — no more, no fewer — to produce a ${sceneCount * 4}-second video for the requested ${creative.duration || "28 seconds"}.
+Target about ${targetWords} words total across all ${sceneCount} lines so the spoken narration's natural length fits within that ${sceneCount * 4}-second video — a script that runs noticeably longer gets cut off mid-sentence once the audio is laid over the fixed-length video.
 Each line = ONE complete sentence, 10-14 words. Hard cap at 16.
 
 3-ACT NARRATIVE ARC
@@ -212,9 +238,10 @@ ACT 3 — NEW STATE (payoff). Narrate the change as LIVED MOMENTS with WITNESSES
 TTS-FRIENDLY WRITING RULES
 - End every line with a period. One sentence per line. Use commas for natural breath pauses inside a line.
 - NEVER use: em dashes, semicolons, colons, ellipses, quote marks, parentheses, asterisks, hashes, slashes, ALL CAPS.
-- Plain conversational English (5th-8th grade reading level). Spell out numbers under twenty. Avoid abbreviations, foreign words, technical jargon.
+- Plain, conversational ${language || "English"} at a natural everyday reading level${language ? "" : " (5th-8th grade)"}. Spell out numbers under twenty. Avoid abbreviations${language ? "" : ", foreign words"}, technical jargon.
 - Mention "${businessName}" by name AT MOST ONCE across the whole script, in Act 2 only.
 - Use the character's name in line 1 at minimum; other lines use he / she / they. Never switch the name or pronoun — check every line before returning.
+- Avoid tongue-twisters, clusters of similar consonant sounds, and rare or hard-to-pronounce words — prefer short, common, everyday words a voice actor could read smoothly in one breath. This is spoken narration, so clarity of delivery matters as much as meaning.
 
 ABSOLUTE FORBIDDEN CONTENT
 1.  Surgical, procedural, or recovery descriptions
@@ -253,12 +280,12 @@ SELF-CHECK BEFORE RETURNING (silently confirm each):
 2. Every Act 1 line has emotion + specific problem + everyday moment
 3. Same name and pronouns in every line
 4. Line 1 is a scroll-stopping HOOK
-5. Line count matches the duration formula exactly
+5. Script array has EXACTLY ${sceneCount} elements — no more, no fewer
 6. "${businessName}" appears at most once, in Act 2
 7. Act 3 ends on a behaviour beat with witnesses, not a tagline
 8. No forbidden punctuation, abbreviations, or characters
 9. JSON is valid, script is an array of strings, no markdown fences, no extra fields
-If any check fails, fix before returning.
+${language ? `10. Every single line is written entirely in ${language} — not English, not mixed\n` : ""}If any check fails, fix before returning.
 `;
 }
 
@@ -266,6 +293,8 @@ export function getVisualPromptsPrompt(scriptLines: string[], creative: any, bus
   const businessName = business?.name || "the business";
   const n = scriptLines.length;
   const serviceCategory = mapServiceToCategory(creative?.service);
+  const protagonistGender = creative.character || "male";
+  const hasReferenceImage = !!creative.hasReferenceImage;
 
   return `Generate visual prompts for the script below. Return ONLY the JSON object — no markdown, no preamble.
 
@@ -311,6 +340,20 @@ If a line's content matches a milestone in the customer's journey (first contact
 - First-contact / arrival scene: a warm handshake or welcome moment with a team member, visible relief.
 - Expert/consultation scene, condition-specific: Hair -> doctor parting hair, viewing a magnified scalp image on a monitor. Dental -> patient in a dental chair, doctor with a mirror and probe, overhead light. Skin -> doctor holding a dermatoscope, skin-analysis monitor. Eye -> patient at an ophthalmic device, doctor adjusting focus. Tier 3 (fertility/oncology/mental health) -> NO physical exam, a compassionate consultation instead: patient seated across from a kind expert in a soft, warm room, a supportive hand on the shoulder, dignified composition, no medical equipment, no gown.
 
+STEP 4 — THE CONDITION MUST VISIBLY CHANGE, BEFORE VS. AFTER
+The specific condition STEP 1 diagnosed from the script (whatever it actually is — read the script line's own words, never a fixed list) must look UNMISTAKABLY, OBVIOUSLY PRESENT in every Phase 1 scene and UNMISTAKABLY, OBVIOUSLY RESOLVED in every Phase 3 scene — not subtle, not implied, not a near-identical shot with a slightly different mood. Apply this test: someone glancing at only a Phase 1 frame and only a Phase 3 frame, side by side, with no other context, must immediately see two visibly different states of the same person's specific condition — if they could be mistaken for the same shot, the difference is not strong enough. This is true even for Tier 1 conditions where "tasteful" applies — tasteful means not graphic or exploitative, it does NOT mean subtle or barely visible; the condition itself must still read clearly at a glance. Tier 2/3 conditions stay within their own softer depiction rule from STEP 1, but the shift in posture, confidence, and framing between phases must still be obvious, not ambiguous. Do not default to the protagonist's normal, healthy, camera-ready appearance throughout the whole video — that erases the entire transformation the script is telling. Read the exact words the script uses to describe the "before" state and depict that specific, strong visible difference in Phase 1; read the script's own words for the resolved "after" state and depict that instead in Phase 3.
+This still applies — and is NOT optional — when a reference photo is configured: the reference photo locks the protagonist's face and identity, but the ONE specific visual attribute the diagnosed condition concerns (never a fixed list — derive it from the condition itself, e.g. hair thickness/coverage for a hair condition, tooth appearance for a dental one, skin clarity for a skin one) MUST still visibly and strongly differ between Phase 1 and Phase 3, overriding the reference photo's default appearance for that one attribute only — this explicitly overrides MAIN CHARACTER CONSISTENCY's "don't invent new features" rule below for that one attribute alone. Every other feature of their face and identity stays exactly as the reference photo defines.
+
+MAIN CHARACTER CONSISTENCY (every scene)
+The protagonist is always ${protagonistGender} and must be the clear PRIMARY subject of every single frame — described first in the prompt and unambiguously the visual focus (largest in frame, sharpest focus, centered or rule-of-thirds placement). If a scene naturally includes another person (a doctor, specialist, staff member, family member, or friend), describe that person as a clearly SECONDARY presence with their own distinct age/role framing — never in a way that could be confused with or visually substitute for the protagonist. Never contradict the protagonist's gender anywhere in the prompt, even implicitly through pronouns or wardrobe.
+${hasReferenceImage ? `A reference photo of the ${protagonistGender} protagonist is injected downstream and will lock every scene's generated face to it — this makes the PRIMARY-subject framing above critical, since the face-lock is applied to whichever person the image model treats as the main subject of the frame. Do not invent new facial features, hair color/style, skin tone, or ethnicity for the protagonist in the prompt text beyond what STEP 4 requires — the reference photo already defines their face and identity; only describe their wardrobe, posture, and expression/emotion, EXCEPT for the one condition attribute STEP 4 requires you to override (e.g. hair thickness for a hair condition), which takes precedence over this reference-lock for that attribute only. Any secondary person in the scene keeps their own separate, different appearance so they are never mistaken for the reference-locked protagonist. The reference photo locks FACE AND IDENTITY ONLY — this scene's lighting, mood, background, and setting always come from STEP 2's phase and the script line, never from the reference photo.\n` : ""}
+LOGICAL / TECHNICAL CONSISTENCY (always required — these are the most common AI-image failures, avoid them explicitly)
+- Any text visible anywhere in the frame (screens, signage, documents, labels) must be spelled correctly and rendered sharp and legible — never blurred or hidden. Keep any such text short and simple (a single common word, a time, a short label) rather than full sentences, so it renders correctly.
+- DEVICE / SCREEN CAMERA GEOMETRY — the single most common failure: a screen is only legible from directly in front of it, never from behind it or from where the person using it already stands. For ANY scene with a laptop, phone, tablet, or monitor, pick exactly ONE of these two shots and follow it precisely — never blend them: (a) OVER-THE-SHOULDER — camera behind or beside the person, looking past them at the screen, so we see the person from behind/the side and the screen's content faces both them and the camera, since they share the same side of it; or (b) FACE-ON, SCREEN AS PROP — camera in front of the person's face, and the screen faces AWAY from camera (we see only its back, lid, or a soft glow on the person's face) — never describe its front display or any content on it in this framing. NEVER put a screen's front/display panel facing the camera in the same frame as the person's face also facing the camera — that requires two contradictory camera positions at once and is the exact failure to avoid. The same rule applies to any other reflective or legible surface a scene might include (a mirror, a window, glass) — it only shows its reflection or content to a viewer standing where it actually faces, never to both sides at once.
+- SMALL HELD OBJECTS (phones, cups, books, and similar) — always one single, solid, seamless object held naturally in one hand, its full outline clear and continuous — never multiple overlapping pieces, never fragmented, floating, or disconnected parts. Prefer a medium shot with the object naturally in-hand over an extreme close-up on the object itself, which is far more likely to render malformed.
+- Hands must have exactly five fingers each, correct proportions, and natural, physically possible poses — no distorted, extra, fused, or missing digits or limbs.
+- Every object and interaction must obey real-world physics and logic — correct hand-to-object contact, correct scale between objects and people, correct reflections and shadows, nothing floating, interpenetrating, duplicated, or arranged in a physically impossible way.
+
 CORE PRINCIPLE
 Script content is the HARD rule. Phase is a SOFT mood guide. Write positive, story-accurate, cinematically composed scenes — do not invent distress or damage beyond what the script line actually describes.
 
@@ -324,7 +367,7 @@ Style modifier by video style:
 - "Documentary" → neutral grade, available light
 - any other style → interpret literally and stay photorealistic
 
-NEVER include: text, logos, UI elements, speech bubbles, watermarks, brand names other than ${businessName}, surgical wounds, blood, exposed bodies, or (for Tier 3 conditions) any depiction of the body or condition itself.
+NEVER include: text, logos, UI elements, speech bubbles, watermarks, brand names other than ${businessName}, surgical wounds, blood, exposed bodies, illegible or misspelled on-screen text, devices shown at an impossible or backwards angle, anatomically incorrect hands or limbs, physically impossible object interactions, or (for Tier 3 conditions) any depiction of the body or condition itself.
 
 VIDEO SCENARIO FORMULA (10-20 words)
 Verbs first, matching the script line's literal action.

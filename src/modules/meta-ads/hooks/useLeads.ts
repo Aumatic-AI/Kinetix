@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { PaginationMeta } from "@/lib/pagination";
 
 export interface Lead {
   id: string;
@@ -74,7 +75,8 @@ export interface CreateLeadFormInput {
 
 export const leadsKeys = {
   all: ["leads"] as const,
-  list: () => [...leadsKeys.all, "list"] as const,
+  listAll: () => [...leadsKeys.all, "list"] as const,
+  list: (page: number, limit: number) => [...leadsKeys.listAll(), page, limit] as const,
   forms: () => [...leadsKeys.all, "forms"] as const,
 };
 
@@ -87,10 +89,11 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 /** Reads straight from our own leads table — populated by the webhook in
  * real time, so unlike Campaigns/Reports there's no live Meta call here. */
-export function useLeadsList() {
+export function useLeadsList(page: number, limit: number) {
   return useQuery({
-    queryKey: leadsKeys.list(),
-    queryFn: () => fetchJson<{ leads: Lead[] }>("/api/meta-ads/leads").then((d) => d.leads),
+    queryKey: leadsKeys.list(page, limit),
+    queryFn: () => fetchJson<{ leads: Lead[] } & PaginationMeta>(`/api/meta-ads/leads?page=${page}&limit=${limit}`),
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -100,7 +103,7 @@ export function useSyncLeads() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => fetchJson<{ success: true; formsChecked: number; leadsImported: number }>("/api/meta-ads/leads/sync", { method: "POST" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: leadsKeys.list() }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: leadsKeys.listAll() }),
   });
 }
 

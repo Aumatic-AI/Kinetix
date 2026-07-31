@@ -2,7 +2,7 @@ import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
 import { getSocialVideoScriptPrompt, getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../../prompts/social-media";
-import { getVisualPromptsPrompt } from "../../../prompts/meta-ads";
+import { getVisualPromptsPrompt, sceneCountForDuration } from "../../../prompts/meta-ads";
 import { FFmpegService } from "../../ffmpeg";
 import { submitSceneStitchJob, downloadAndStoreVideo } from "../../ffmpeg/stitch-scenes";
 import { resolveVideoReferenceUrl } from "../../ai/video-reference";
@@ -65,17 +65,32 @@ export const generateSocialVideo = inngest.createFunction(
       }
 
       // 2. Script (4-act organic arc)
+      const sceneCount = sceneCountForDuration(duration);
       const scriptJson = await step.run("generate-script", async () => {
         const prompt = getSocialVideoScriptPrompt(business, { ideaPrompt, duration, character, service, language });
         const response = await aiOrchestrator.executeTask("text", prompt, "openai");
         const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
-        return JSON.parse(jsonStr);
+        const parsed = JSON.parse(jsonStr);
+        // Video length is scenes x 4s (hard constraint, see the cinematic
+        // prompt below) — truncate defensively if the model overshoots the
+        // requested line count, so the video is never longer than intended.
+        // Undershooting isn't trimmed: a shorter-but-complete video is a
+        // safer failure than the mid-sentence audio cutoff a too-long
+        // script causes once it's laid over the fixed-length video.
+        if (Array.isArray(parsed.script) && parsed.script.length > sceneCount) {
+          parsed.script = parsed.script.slice(0, sceneCount);
+        }
+        return parsed;
       });
 
       // 3. Visual prompts per scene — reuses the same condition/tier system
       // already proven for Meta Ads video (no ad-specific assumptions in it).
+      // referenceUrl resolved here (not just before image generation below)
+      // so the prompt itself can be told whether a reference photo will be
+      // conditioning every scene's face.
+      const referenceUrl = resolveVideoReferenceUrl(business, character);
       const visualPromptsJson = await step.run("generate-visual-prompts", async () => {
-        const vpPrompt = getVisualPromptsPrompt(scriptJson.script, { character, videoStyle: videoStyle || "Cinematic", duration, service }, business);
+        const vpPrompt = getVisualPromptsPrompt(scriptJson.script, { character, videoStyle: videoStyle || "Cinematic", duration, service, hasReferenceImage: !!referenceUrl }, business);
         const response = await aiOrchestrator.executeTask("text", vpPrompt, "openai");
         const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
         return JSON.parse(jsonStr);
@@ -92,8 +107,7 @@ export const generateSocialVideo = inngest.createFunction(
         return { url: data.publicUrl };
       });
 
-      // 5. Trigger per-scene images
-      const referenceUrl = resolveVideoReferenceUrl(business, character);
+      // 5. Trigger per-scene images (referenceUrl resolved above, step 3)
       const imageJobIds = await step.run("trigger-images", async () => {
         const ids = [];
         for (const vp of visualPromptsJson.visual_prompts) {
@@ -159,7 +173,7 @@ export const generateSocialVideo = inngest.createFunction(
       const videoJobIds = await step.run("trigger-videos", async () => {
         const ids = [];
         for (const imgJob of imageJobIds) {
-          const cinematicPrompt = `${imgJob.videoScenario} Cinematic social content, natural color grade, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image.`;
+          const cinematicPrompt = `${imgJob.videoScenario} Cinematic social content, natural color grade, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image, same color grade and lighting as the input image. The person's face, identity, body, and wardrobe must not change or drift at any point in the clip. Facial expression from the input image must be preserved exactly throughout the entire clip — do not alter or relax it.`;
           const jobId = await aiOrchestrator.createVideoTask(cinematicPrompt, [imgJob.url as string], "9:16", "4");
           ids.push({ id: jobId, url: null as string | null, scene: imgJob.scene, cinematicPrompt, sourceImageUrl: imgJob.url as string, resubmitted: false, state: null as string | null });
         }

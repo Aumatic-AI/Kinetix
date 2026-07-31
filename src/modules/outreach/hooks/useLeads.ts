@@ -1,6 +1,7 @@
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Lead, LeadSummary, LeadFilters, LeadList, LeadListSummary, LeadCampaignHistoryEntry } from "../types/leads.types";
 import { ScrapeJob, StartScrapeInput } from "../types/outreach.types";
+import { PaginationMeta } from "@/lib/pagination";
 
 export const leadsKeys = {
   all: ["leads"] as const,
@@ -82,11 +83,26 @@ export interface LeadListWithCount extends LeadListSummary {
   leadCount: number;
 }
 
+/** The full list, unpaginated — for pickers/dropdowns that need every list
+ * at once (FindLeadsModal, NewCampaignPage). For the Leads page's
+ * paginated table, use usePaginatedLeadLists instead. */
 export function useLeadLists() {
   return useQuery({
     queryKey: leadsKeys.lists(),
     queryFn: () => fetchJson<{ lists: LeadListWithCount[] }>("/api/outreach/lists").then((d) => d.lists),
     staleTime: 60 * 1000,
+  });
+}
+
+/** The Leads page's paginated table — same underlying route as
+ * useLeadLists, just with page/limit passed so the response comes back
+ * paginated (see the route's own comment). */
+export function usePaginatedLeadLists(page: number, limit: number) {
+  return useQuery({
+    queryKey: [...leadsKeys.lists(), "paginated", page, limit] as const,
+    queryFn: () => fetchJson<{ lists: LeadListWithCount[] } & PaginationMeta>(`/api/outreach/lists?page=${page}&limit=${limit}`),
+    staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 

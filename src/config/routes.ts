@@ -25,6 +25,7 @@ export const ROUTES = {
     CAMPAIGN_DETAIL: (id: string) => `/outreach/campaigns/${id}`,
   },
   SOCIAL: {
+    DASHBOARD: "/social",
     CONNECTED_ACCOUNTS: "/social/connected-accounts",
     POSTS: "/social/posts",
     POSTS_PUBLISH: "/social/posts/publish",

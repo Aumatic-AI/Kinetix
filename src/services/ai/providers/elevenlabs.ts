@@ -25,10 +25,16 @@ export class ElevenLabsService {
         body: JSON.stringify({
           text,
           model_id: "eleven_flash_v2_5",
+          // Tuned for clear, consistent narration over creative variety —
+          // low stability + high style exaggeration is what was causing
+          // occasional slurred/fumbled words. Higher stability trades some
+          // expressiveness for reliably clear delivery; speaker_boost is
+          // ElevenLabs' own clarity/similarity enhancer.
           voice_settings: {
-            stability: 0.5,
+            stability: 0.75,
             similarity_boost: 0.8,
-            style: 0.5
+            style: 0.3,
+            use_speaker_boost: true
           }
         })
       });

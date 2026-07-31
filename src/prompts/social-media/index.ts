@@ -9,7 +9,7 @@
  * across 3 different n8n Code nodes in the legacy system).
  */
 
-import { mapServiceToCategory } from "../meta-ads";
+import { mapServiceToCategory, sceneCountForDuration } from "../meta-ads";
 
 export type SocialPlatform = "facebook" | "instagram" | "youtube" | "x" | "linkedin" | "tiktok";
 
@@ -188,6 +188,8 @@ VISUAL RULES
 - Include people where relevant to the idea, appearing genuine and at ease.
 - Settings must feel authentic and premium, matching the brand voice above.
 - No text, logos, watermarks, or UI elements anywhere in the image.
+- If any screen, phone, laptop, sign, or document appears, any visible text must be spelled correctly and sharp, never blurred — keep it short and simple (a single common word, a time, a short label) rather than full sentences, so it renders correctly.
+- A screen is only legible from directly in front of it — never from behind it or from where its user already stands. Never show a person's face facing the camera AND a laptop/phone screen's front display also facing the camera in the same frame — that is two contradictory camera positions at once. Pick one: shoot over the person's shoulder so both they and the camera share the screen's side, or shoot the person face-on with the screen turned away from camera (its back/lid only, no visible display). Any handheld device (phone, cup, book) must be one single, solid, seamless object, never fragmented or floating pieces. Hands must have exactly five fingers each with natural, physically possible poses.
 
 PROMPT STRUCTURE — always follow this order:
 1. Scene: describe the specific environment
@@ -223,12 +225,13 @@ export interface SocialVideoScriptInput {
 
 export function getSocialVideoScriptPrompt(business: any, input: SocialVideoScriptInput): string {
   const businessName = business?.name || "the business";
-  const targetWords = Math.round(input.duration * 2.3);
+  const sceneCount = sceneCountForDuration(input.duration);
+  const targetWords = Math.round(sceneCount * 4 * 2.3);
   const characterName = input.character === "male" ? "James" : "Sarah";
   const serviceCategory = mapServiceToCategory(input.service);
   const language = input.language && input.language !== "English" ? input.language : null;
 
-  return `You are an expert short-form video scriptwriter for ${businessName}, a ${business?.industry || "business"}.
+  return `${language ? `OUTPUT LANGUAGE: Write the ENTIRE script in ${language}. Every single line must be in ${language}, not English. Do not mix languages.\n\n` : ""}You are an expert short-form video scriptwriter for ${businessName}, a ${business?.industry || "business"}.
 
 ${businessContextBlock(business)}
 
@@ -237,7 +240,6 @@ You write cinematic, emotionally honest first-person transformation scripts that
 STORY IDEA
 ${input.ideaPrompt}
 ${serviceCategory ? `\nCATEGORY: ${serviceCategory} (from the selected service, "${input.service}") — ground the specific struggle and outcome in this category.` : ""}
-${language ? `\nWrite the entire script in ${language}, not English.` : ""}
 CHARACTER: first-person, ${input.character} voice — use the name "${characterName}" once if a name is needed, otherwise use "I".
 
 Every script MUST follow this four-act emotional arc:
@@ -250,14 +252,15 @@ ACT 3 — JOURNEY (the experience): Narrate the calm, supported experience — w
 
 ACT 4 — HAPPY (the transformation after): Narrate the change as a lived moment with someone else noticing — never as a tagline. End with exactly one of: "Visit ${businessName} for more." / "Your transformation starts at ${businessName}." / "${businessName} changed my life — it can change yours too."
 
-LENGTH: target ${targetWords} words total (±10%), matching a ${input.duration}-second narration at natural pace.
+LENGTH — EXACT, NOT A GUIDELINE: each script line becomes one fixed ~4-second video scene downstream, so the final video's length is EXACTLY (number of lines x 4) seconds — a hard technical constraint. The script array MUST have EXACTLY ${sceneCount} lines — no more, no fewer — to produce a ${sceneCount * 4}-second video for the requested ${input.duration}-second narration. Target about ${targetWords} words total across all ${sceneCount} lines so the spoken narration's natural length fits within that video — a script that runs noticeably longer gets cut off mid-sentence once the audio is laid over the fixed-length video.
 
 HARD RULES
 - Never mention prices, costs, or numbers.
 - Never use jargon or technical/clinical language.
 - Never use em dashes, semicolons, quotation marks, parentheses, asterisks, hashes, emojis, or ALL CAPS.
-- One sentence per line, plain conversational English.
+- One sentence per line, plain conversational ${language || "English"}.
 - Mention "${businessName}" by name exactly once, in Act 2.
+- Avoid tongue-twisters, clusters of similar consonant sounds, and rare or hard-to-pronounce words — prefer short, common, everyday words a voice actor could read smoothly in one breath. This is spoken narration, so clarity of delivery matters as much as meaning.
 
 OUTPUT FORMAT — STRICT
 Return ONLY valid JSON. No markdown fences. No commentary.
@@ -267,7 +270,7 @@ Return ONLY valid JSON. No markdown fences. No commentary.
     "Line two."
   ]
 }
-"script" must be a JSON array of strings, one sentence per element, in order, totaling approximately ${targetWords} words.`;
+"script" must be a JSON array of EXACTLY ${sceneCount} strings, one sentence per element, in order, totaling approximately ${targetWords} words.`;
 }
 
 // ============================================================

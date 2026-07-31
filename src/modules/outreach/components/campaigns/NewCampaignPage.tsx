@@ -6,14 +6,15 @@ import { Sparkles, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dropdown } from "@/components/ui/Dropdown";
 import { useCreateOutreachCampaign } from "../../hooks/useCampaigns";
 import { useLeadLists, useLeads } from "@/modules/outreach/hooks/useLeads";
 import { FormSection } from "./FormSection";
 import { useBusinessStore } from "@/store/business.store";
 import { ROUTES } from "@/config/routes";
 
-const TARGET_REGIONS = ["Europe", "Middle East", "Asia", "North America", "Global"];
+const TARGET_REGIONS = ["Europe", "Middle East", "Asia", "North America", "Global"].map((v) => ({ value: v, label: v }));
+const TONE_OPTIONS = ["Friendly and professional", "Direct and concise", "Warm and consultative"].map((v) => ({ value: v, label: v }));
 const SUPPRESSED_STATUSES = ["bounced", "do_not_contact", "replied"] as const;
 
 export function NewCampaignPage() {
@@ -81,33 +82,18 @@ export function NewCampaignPage() {
             {lists.length === 0 ? (
               <p className="text-xs text-muted pt-2">Create a list on the Leads page first.</p>
             ) : (
-              <Select value={listId} onValueChange={setListId}>
-                <SelectTrigger><SelectValue placeholder="Choose a list" /></SelectTrigger>
-                <SelectContent>
-                  {lists.map((l) => <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <Dropdown value={listId} onValueChange={setListId} placeholder="Choose a list" options={lists.map((l) => ({ value: l.id, label: l.name }))} />
             )}
             {listId && <p className="text-xs text-muted">{audience?.count ?? "…"} lead{audience?.count === 1 ? "" : "s"} will be eligible.</p>}
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-muted uppercase tracking-wide">Service type</label>
-            <Select value={serviceType} onValueChange={setServiceType}>
-              <SelectTrigger><SelectValue placeholder="Choose a service" /></SelectTrigger>
-              <SelectContent>
-                {serviceOptions.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Dropdown value={serviceType} onValueChange={setServiceType} placeholder="Choose a service" options={serviceOptions.map((s) => ({ value: s, label: s }))} />
           </div>
         </div>
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-muted uppercase tracking-wide">Target region</label>
-          <Select value={targetRegion} onValueChange={setTargetRegion}>
-            <SelectTrigger><SelectValue placeholder="Choose a region" /></SelectTrigger>
-            <SelectContent>
-              {TARGET_REGIONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-            </SelectContent>
-          </Select>
+          <Dropdown value={targetRegion} onValueChange={setTargetRegion} placeholder="Choose a region" options={TARGET_REGIONS} />
         </div>
       </FormSection>
 
@@ -119,12 +105,7 @@ export function NewCampaignPage() {
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-muted uppercase tracking-wide">Tone</label>
-            <Select value={tone} onValueChange={setTone}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {["Friendly and professional", "Direct and concise", "Warm and consultative"].map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Dropdown value={tone} onValueChange={setTone} options={TONE_OPTIONS} />
           </div>
         </div>
         <div className="space-y-1.5">

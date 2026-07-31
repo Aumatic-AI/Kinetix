@@ -21,7 +21,7 @@ export function GapOpportunities({ gaps = [] }: { gaps?: Gap[] }) {
 
   return (
     <Card>
-      <SectionTitle icon={Lightbulb} accent={ACCENT.rose} title="Gap Opportunities" trailing={<span className="text-xs text-muted">{sorted.length} found</span>} />
+      <SectionTitle icon={Lightbulb} accent={ACCENT.red} title="Gap Opportunities" trailing={<span className="text-xs text-muted">{sorted.length} found</span>} />
       <div className="divide-y divide-default/60">
         {sorted.map((g, i) => (
           <div key={i} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">

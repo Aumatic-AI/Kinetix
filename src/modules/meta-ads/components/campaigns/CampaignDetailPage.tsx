@@ -4,11 +4,12 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Layers } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { ROUTES } from "@/config/routes";
 import { formatDate, formatDateTime } from "@/utils/datetime";
 import { useCampaignDetail } from "../../hooks/useCampaigns";
-import { StatusChip, LevelChip, InfoItem, MetricsRow, Section } from "./shared";
+import { StatusChip, LevelChip, InfoItem, MetricsRow, Section, DetailBreadcrumbSkeleton, DetailHeaderSkeleton, InfoGridSkeleton, MetricsRowSkeleton, DetailChildRowsSkeleton } from "./shared";
 import { StatusActions } from "./StatusActions";
 import { AddAdSetModal } from "./AddAdSetModal";
 
@@ -41,9 +42,22 @@ export function CampaignDetailPage() {
   if (isLoading || !campaign) {
     return (
       <div className="max-w-5xl mx-auto space-y-6 pb-10">
-        <div className="h-5 w-40 rounded-lg bg-surface animate-pulse" />
-        <div className="h-10 w-72 rounded-lg bg-surface animate-pulse" />
-        <div className="h-40 rounded-lg bg-surface animate-pulse" />
+        <DetailBreadcrumbSkeleton levels={2} />
+        <DetailHeaderSkeleton />
+
+        <Section title="Campaign Info" description="Everything Meta has on record for this campaign.">
+          <InfoGridSkeleton count={9} />
+        </Section>
+
+        <Section title="Performance" description="Lifetime totals, live from Meta — never a cached snapshot.">
+          <MetricsRowSkeleton />
+        </Section>
+
+        <div className="flex items-center justify-between pt-2">
+          <h3 className="text-lg font-semibold text-text">Ad Sets</h3>
+          <Skeleton className="h-8 w-28 rounded-lg" />
+        </div>
+        <DetailChildRowsSkeleton count={2} variant="twoLine" />
       </div>
     );
   }

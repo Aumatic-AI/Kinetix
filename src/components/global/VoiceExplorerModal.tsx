@@ -25,7 +25,8 @@ interface VoiceExplorerModalProps {
   selectedVoiceId: string;
 }
 
-const VOICES_PER_PAGE = 20;
+const PAGE_SIZE = 10;
+const SEARCH_DEBOUNCE_MS = 400;
 
 const LANGUAGE_NAMES: Record<string, string> = {
   ar: "Arabic", bg: "Bulgarian", cs: "Czech", da: "Danish", de: "German",
@@ -46,29 +47,19 @@ const PINNED_LANGUAGES = [
   { code: "tr",      label: "Turkish" },
 ];
 
-// Alternate codes/names ElevenLabs may use for the same language
-const LANGUAGE_ALIASES: Record<string, string> = {
-  english: "en", spanish: "es", french: "fr",
-  hebrew: "he", iw: "he", turkish: "tr",
-  german: "de", arabic: "ar", chinese: "zh",
-};
+// A curated common set — ElevenLabs' shared-voices search takes a free-text
+// accent value with no fixed enum/list endpoint, so this isn't exhaustive,
+// just the accents actually worth offering as one-click filters.
+const ACCENT_OPTIONS = ["American", "British", "Australian", "Indian", "Irish", "Scottish", "Canadian", "South African"];
 
 function getLanguageLabel(code: string): string {
   return LANGUAGE_NAMES[code.toLowerCase()] || code;
 }
 
-function normaliseLang(raw: string): string {
-  const lower = raw.toLowerCase();
-  return LANGUAGE_ALIASES[lower] || lower;
-}
-
-function sortLanguages(langs: string[]): string[] {
-  const pinnedCodes = new Set(PINNED_LANGUAGES.map(p => p.code));
-  const rest = langs
-    .filter(l => !pinnedCodes.has(normaliseLang(l)))
-    .sort((a, b) => getLanguageLabel(a).localeCompare(getLanguageLabel(b)));
-  return rest;
-}
+// Non-pinned language codes, alphabetised by display label
+const OTHER_LANGUAGE_CODES = Object.keys(LANGUAGE_NAMES)
+  .filter((code) => !PINNED_LANGUAGES.some((p) => p.code === code))
+  .sort((a, b) => getLanguageLabel(a).localeCompare(getLanguageLabel(b)));
 
 export default function VoiceExplorerModal({
   isOpen,
@@ -78,44 +69,64 @@ export default function VoiceExplorerModal({
 }: VoiceExplorerModalProps) {
   const [voices, setVoices] = useState<Voice[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [page, setPage] = useState<number>(1);
+
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female'>('all');
   const [accentFilter, setAccentFilter] = useState<string>('all');
   const [languageFilter, setLanguageFilter] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState<number>(1);
 
   // Audio preview state
   const [playingVoiceId, setPlayingVoiceId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Fetch voices on open
+  // Debounce the free-text search before it triggers an API call
   useEffect(() => {
-    if (isOpen) {
-      const fetchVoices = async () => {
-        setLoading(true);
-        try {
-          const res = await fetch('/api/elevenlabs/voices');
-          const data = await res.json();
-          if (data && data.voices) {
-            setVoices(data.voices);
-          }
-        } catch (err) {
-          console.error("Failed to load voices:", err);
-        } finally {
-          setLoading(false);
-        }
-      };
-      fetchVoices();
-    } else {
-      stopAudio();
-    }
-  }, [isOpen]);
+    const t = setTimeout(() => setDebouncedSearch(searchQuery.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [searchQuery]);
 
-  // Reset page when filters change
+  // Any filter change means the current result set is stale — start over at page 1
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, genderFilter, accentFilter, languageFilter]);
+    setPage(1);
+  }, [debouncedSearch, genderFilter, accentFilter, languageFilter]);
+
+  // Fetch from ElevenLabs' own shared-voices search whenever the modal is
+  // open and any filter/page changes — search/gender/accent/language are
+  // real API query params, not a client-side filter over a fetched batch.
+  useEffect(() => {
+    if (!isOpen) {
+      stopAudio();
+      return;
+    }
+    const controller = new AbortController();
+    const fetchVoices = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ page: String(page), page_size: String(PAGE_SIZE) });
+        if (debouncedSearch) params.set('search', debouncedSearch);
+        if (genderFilter !== 'all') params.set('gender', genderFilter);
+        if (accentFilter !== 'all') params.set('accent', accentFilter);
+        if (languageFilter !== 'all') params.set('language', languageFilter);
+
+        const res = await fetch(`/api/elevenlabs/voices?${params.toString()}`, { signal: controller.signal });
+        const data = await res.json();
+        if (data && data.voices) {
+          setVoices(data.voices);
+          setHasMore(!!data.hasMore);
+        }
+      } catch (err) {
+        if ((err as { name?: string })?.name !== 'AbortError') console.error("Failed to load voices:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchVoices();
+    return () => controller.abort();
+  }, [isOpen, debouncedSearch, genderFilter, accentFilter, languageFilter, page]);
 
   // Audio helpers
   const stopAudio = () => {
@@ -139,80 +150,20 @@ export default function VoiceExplorerModal({
 
   useEffect(() => { return () => stopAudio(); }, []);
 
-  // Filter logic
-  const filteredVoices = voices.filter(voice => {
-    const query = searchQuery.toLowerCase();
-    const matchesSearch =
-      voice.name.toLowerCase().includes(query) ||
-      voice.accent.toLowerCase().includes(query) ||
-      voice.language.toLowerCase().includes(query) ||
-      voice.description.toLowerCase().includes(query);
-    const matchesGender = genderFilter === 'all' || voice.gender === genderFilter;
-    const matchesAccent = accentFilter === 'all' || voice.accent.toLowerCase().includes(accentFilter.toLowerCase());
-    const matchesLanguage = languageFilter === 'all' || normaliseLang(voice.language) === languageFilter || voice.language.toLowerCase().includes(languageFilter.toLowerCase());
-    return matchesSearch && matchesGender && matchesAccent && matchesLanguage;
-  });
-
-  // Pagination
-  const totalPages = Math.max(1, Math.ceil(filteredVoices.length / VOICES_PER_PAGE));
-  const safePage = Math.min(currentPage, totalPages);
-  const pageStart = (safePage - 1) * VOICES_PER_PAGE;
-  const pageVoices = filteredVoices.slice(pageStart, pageStart + VOICES_PER_PAGE);
-
   const goToPage = (p: number) => {
-    setCurrentPage(Math.max(1, Math.min(p, totalPages)));
+    setPage(Math.max(1, p));
     gridRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Unique filter options derived from all voices
-  const uniqueAccents = Array.from(new Set(voices.map(v => v.accent).filter(Boolean))).sort();
-  const uniqueLanguages = sortLanguages(Array.from(new Set(voices.map(v => v.language).filter(Boolean))));
-
   const clearFilters = () => {
     setSearchQuery('');
+    setDebouncedSearch('');
     setGenderFilter('all');
     setAccentFilter('all');
     setLanguageFilter('all');
   };
 
   const hasActiveFilters = searchQuery || genderFilter !== 'all' || accentFilter !== 'all' || languageFilter !== 'all';
-
-  // Pagination button helper
-  const PaginationBtn = ({ page, active }: { page: number; active: boolean }) => (
-    <button
-      onClick={() => goToPage(page)}
-      style={{
-        minWidth: '30px',
-        height: '30px',
-        padding: '0 6px',
-        borderRadius: '6px',
-        border: active ? 'none' : '1px solid #e2e8f0',
-        background: active ? '#0f172a' : '#ffffff',
-        color: active ? '#ffffff' : '#475569',
-        fontSize: '12px',
-        fontWeight: active ? 700 : 500,
-        cursor: 'pointer',
-        transition: 'all 0.15s',
-      }}
-    >
-      {page}
-    </button>
-  );
-
-  // Build visible page numbers
-  const getPageNumbers = () => {
-    const pages: (number | '...')[] = [];
-    if (totalPages <= 7) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-    } else {
-      pages.push(1);
-      if (safePage > 3) pages.push('...');
-      for (let i = Math.max(2, safePage - 1); i <= Math.min(totalPages - 1, safePage + 1); i++) pages.push(i);
-      if (safePage < totalPages - 2) pages.push('...');
-      pages.push(totalPages);
-    }
-    return pages;
-  };
 
   return (
     <Dialog.Root open={isOpen} onOpenChange={onOpenChange}>
@@ -246,7 +197,7 @@ export default function VoiceExplorerModal({
                 ElevenLabs Voice Explorer
               </Dialog.Title>
               <Dialog.Description style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', margin: 0 }}>
-                {loading ? 'Loading voice library…' : `${filteredVoices.length.toLocaleString()} voices found · Page ${safePage} of ${totalPages}`}
+                {loading ? 'Loading voice library…' : `Page ${page} · ${voices.length} voice${voices.length === 1 ? '' : 's'} shown${hasMore ? ' · more available' : ''}`}
               </Dialog.Description>
             </div>
             <Dialog.Close asChild>
@@ -271,7 +222,7 @@ export default function VoiceExplorerModal({
                 type="text"
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                placeholder="Search by name, accent, language or description…"
+                placeholder="Search by name or description…"
                 style={{ width: '100%', padding: '10px 12px 10px 38px', fontSize: '13px', border: '1px solid #cbd5e1', borderRadius: '10px', background: '#ffffff', color: '#0f172a', outline: 'none', boxSizing: 'border-box' }}
                 onFocus={e => e.target.style.borderColor = '#0284c7'}
                 onBlur={e => e.target.style.borderColor = '#cbd5e1'}
@@ -318,9 +269,9 @@ export default function VoiceExplorerModal({
                   {PINNED_LANGUAGES.map(p => (
                     <option key={p.code} value={p.code}>{p.label}</option>
                   ))}
-                  {uniqueLanguages.length > 0 && <option disabled>──────────</option>}
-                  {uniqueLanguages.map(lang => (
-                    <option key={lang} value={lang}>{getLanguageLabel(lang)}</option>
+                  <option disabled>──────────</option>
+                  {OTHER_LANGUAGE_CODES.map(code => (
+                    <option key={code} value={code}>{getLanguageLabel(code)}</option>
                   ))}
                 </select>
               </div>
@@ -335,7 +286,7 @@ export default function VoiceExplorerModal({
                   style={{ padding: '5px 10px', fontSize: '12px', border: '1px solid #cbd5e1', borderRadius: '8px', background: '#ffffff', color: '#0f172a', outline: 'none', fontWeight: 500, cursor: 'pointer' }}
                 >
                   <option value="all">All Accents</option>
-                  {uniqueAccents.map(acc => (
+                  {ACCENT_OPTIONS.map(acc => (
                     <option key={acc} value={acc}>{acc}</option>
                   ))}
                 </select>
@@ -360,7 +311,7 @@ export default function VoiceExplorerModal({
                 <Spinner size={36} color="#0284c7" />
                 <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 500 }}>Loading voice library from ElevenLabs…</span>
               </div>
-            ) : pageVoices.length === 0 ? (
+            ) : voices.length === 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '200px', gap: '10px', background: '#f8fafc', borderRadius: '16px', border: '2px dashed #cbd5e1' }}>
                 <X size={28} color="#94a3b8" />
                 <span style={{ fontSize: '13px', color: '#64748b', fontWeight: 600 }}>No voices match your filters.</span>
@@ -370,7 +321,7 @@ export default function VoiceExplorerModal({
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(250px, 100%), 1fr))', gap: '12px' }}>
-                {pageVoices.map(voice => {
+                {voices.map(voice => {
                   const isSelected = selectedVoiceId === voice.voice_id;
                   const isPlaying = playingVoiceId === voice.voice_id;
 
@@ -464,34 +415,29 @@ export default function VoiceExplorerModal({
             )}
           </div>
 
-          {/* ── Pagination ── */}
-          {!loading && filteredVoices.length > VOICES_PER_PAGE && (
-            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', flexWrap: 'wrap' }}>
+          {/* ── Pagination — Previous/Next only, since ElevenLabs' shared-
+              voices search returns a hasMore flag, not a total count, so
+              there's no way to know the total page count to show numbered
+              buttons for. ── */}
+          {!loading && (page > 1 || hasMore) && (
+            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '12px', marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
               <button
-                onClick={() => goToPage(safePage - 1)}
-                disabled={safePage === 1}
-                style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#ffffff', color: safePage === 1 ? '#cbd5e1' : '#475569', cursor: safePage === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                onClick={() => goToPage(page - 1)}
+                disabled={page === 1}
+                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#ffffff', color: page === 1 ? '#cbd5e1' : '#475569', cursor: page === 1 ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, transition: 'all 0.15s' }}
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={14} /> Previous
               </button>
 
-              {getPageNumbers().map((p, i) =>
-                p === '...'
-                  ? <span key={`ellipsis-${i}`} style={{ fontSize: '12px', color: '#94a3b8', padding: '0 2px' }}>…</span>
-                  : <PaginationBtn key={p} page={p as number} active={p === safePage} />
-              )}
+              <span style={{ fontSize: '12px', fontWeight: 700, color: '#0f172a', minWidth: '48px', textAlign: 'center' }}>Page {page}</span>
 
               <button
-                onClick={() => goToPage(safePage + 1)}
-                disabled={safePage === totalPages}
-                style={{ width: '30px', height: '30px', borderRadius: '6px', border: '1px solid #e2e8f0', background: '#ffffff', color: safePage === totalPages ? '#cbd5e1' : '#475569', cursor: safePage === totalPages ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}
+                onClick={() => goToPage(page + 1)}
+                disabled={!hasMore}
+                style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#ffffff', color: !hasMore ? '#cbd5e1' : '#475569', cursor: !hasMore ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, transition: 'all 0.15s' }}
               >
-                <ChevronRight size={14} />
+                Next <ChevronRight size={14} />
               </button>
-
-              <span style={{ fontSize: '11px', color: '#94a3b8', marginLeft: '8px' }}>
-                {pageStart + 1}–{Math.min(pageStart + VOICES_PER_PAGE, filteredVoices.length)} of {filteredVoices.length}
-              </span>
             </div>
           )}
 
