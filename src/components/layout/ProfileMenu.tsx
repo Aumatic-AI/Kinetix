@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { User, LogOut, Loader2 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { authService } from "@/services/auth/auth.service";
+import { authService } from "@/modules/auth/services/auth.service";
 
 import {
   DropdownMenu,
@@ -46,19 +46,19 @@ export function ProfileMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 rounded-full outline-none">
-        <div className="w-8 h-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center font-semibold text-sm border border-border hover:bg-accent transition-colors">
+        <div className="w-8 h-8 rounded-full bg-secondary text-text flex items-center justify-center font-semibold text-sm border border-border hover:bg-accent transition-colors">
           <User size={16} />
         </div>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="flex items-center gap-3 py-2 font-normal">
-            <div className="w-8 h-8 rounded-full bg-secondary text-secondary-foreground flex items-center justify-center border border-border shrink-0">
+            <div className="w-8 h-8 rounded-full bg-secondary text-text flex items-center justify-center border border-border shrink-0">
               <User size={16} />
             </div>
             <div className="flex flex-col space-y-0.5 overflow-hidden">
               <p className="text-sm font-medium text-foreground truncate capitalize">{role}</p>
-              <p className="text-xs text-muted-foreground truncate">{email || "Loading..."}</p>
+              <p className="text-xs text-muted truncate">{email || "Loading..."}</p>
             </div>
           </DropdownMenuLabel>
         </DropdownMenuGroup>

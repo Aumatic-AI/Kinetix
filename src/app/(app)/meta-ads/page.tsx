@@ -1,6 +1,5 @@
-import { Overview } from "@/modules/meta-ads/pages/Overview";
+import { Dashboard } from "@/modules/meta-ads/pages/Dashboard";
 
 export default function Page() {
-  return <Overview />;
+  return <Dashboard />;
 }
-

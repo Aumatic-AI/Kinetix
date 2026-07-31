@@ -1,6 +1,6 @@
 import { createBrowserClient } from '@supabase/ssr';
 import { env } from '@/config';
-import { Database } from '../database.types';
+import { Database } from '@/types/supabase';
 
 export const createClient = () => {
   return createBrowserClient<Database>(

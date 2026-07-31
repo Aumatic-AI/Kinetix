@@ -1,10 +1,10 @@
 import pino from 'pino';
+import { env } from '@/config';
 
-// Safely handle environments where process.env might be partially missing during build
-const isProduction = process.env.NODE_ENV === 'production';
+const isProduction = env.NODE_ENV === 'production';
 
 const pinoLogger = pino({
-  level: process.env.LOG_LEVEL || 'info',
+  level: env.LOG_LEVEL || 'info',
   // In production, we output raw JSON (fast). In development, we use pino-pretty for readable console logs.
   transport: isProduction
     ? undefined

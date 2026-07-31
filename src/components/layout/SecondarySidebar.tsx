@@ -15,8 +15,8 @@ export function SecondarySidebar({ currentModule, currentPath }: SecondarySideba
   if (items.length === 0) return null;
 
   return (
-    <aside className="w-56 h-full bg-surface border-r border-default flex flex-col flex-shrink-0 z-base animate-slide-in">
-      <div className="h-14 px-4 flex items-center border-b border-default flex-shrink-0">
+    <aside className="w-56 h-full bg-background border-r border-border flex flex-col flex-shrink-0 z-base animate-slide-in">
+      <div className="h-14 px-4 flex items-center border-b border-border flex-shrink-0">
         <h2 className="font-semibold text-sm text-text">
           {moduleInfo?.name || ""}
         </h2>
@@ -31,10 +31,9 @@ export function SecondarySidebar({ currentModule, currentPath }: SecondarySideba
             <Link
               key={item.id}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors ${isActive
-                ? "bg-secondary text-text font-medium"
-                : "text-muted hover:bg-secondary-hover hover:text-text"
-                }`}
+              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-muted ${
+                isActive ? "bg-secondary-hover" : "hover:bg-secondary-hover hover:text-text"
+              }`}
             >
               <Icon size={16} />
               {item.label}

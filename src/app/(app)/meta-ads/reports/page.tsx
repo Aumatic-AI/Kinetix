@@ -1,6 +1,5 @@
-import { Reports } from "@/modules/meta-ads/pages/Reports";
+import { ReportsPage } from "@/modules/meta-ads/pages/ReportsPage";
 
 export default function Page() {
-  return <Reports />;
+  return <ReportsPage />;
 }
-

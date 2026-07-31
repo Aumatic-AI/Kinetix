@@ -1,6 +1,5 @@
-import { CampaignSetup } from "@/modules/meta-ads/pages/CampaignSetup";
+import { CampaignsPage } from "@/modules/meta-ads/pages/CampaignsPage";
 
 export default function Page() {
-  return <CampaignSetup />;
+  return <CampaignsPage />;
 }
-

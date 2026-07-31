@@ -1,10 +1,11 @@
 // ElevenLabs TTS and Voice Cloning API
+import { env } from "@/config";
 
 export class ElevenLabsService {
   private static API_BASE = "https://api.elevenlabs.io/v1";
 
   private static getHeaders() {
-    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const apiKey = env.ELEVENLABS_API_KEY;
     if (!apiKey) throw new Error("ELEVENLABS_API_KEY is missing");
 
     return {
@@ -23,16 +24,34 @@ export class ElevenLabsService {
         headers: this.getHeaders(),
         body: JSON.stringify({
           text,
-          model_id: "eleven_monolingual_v1",
+          model_id: "eleven_flash_v2_5",
+          // Tuned for clear, consistent narration over creative variety —
+          // low stability + high style exaggeration is what was causing
+          // occasional slurred/fumbled words. Higher stability trades some
+          // expressiveness for reliably clear delivery; speaker_boost is
+          // ElevenLabs' own clarity/similarity enhancer.
           voice_settings: {
-            stability: 0.5,
-            similarity_boost: 0.75
+            stability: 0.75,
+            similarity_boost: 0.8,
+            style: 0.3,
+            use_speaker_boost: true
           }
         })
       });
 
       if (!response.ok) {
-        throw new Error(`ElevenLabs API Error: ${response.statusText}`);
+        // ElevenLabs puts the actually useful diagnostic (e.g. quota_exceeded
+        // with exact credits remaining/required) in the JSON body, not the
+        // status text — a bare "Unauthorized" hides what's really wrong.
+        const body = await response.text();
+        let detail = body;
+        try {
+          const parsed = JSON.parse(body);
+          detail = parsed?.detail?.message || parsed?.detail?.status || body;
+        } catch {
+          // body wasn't JSON — fall back to the raw text above
+        }
+        throw new Error(`ElevenLabs API Error (${response.status}): ${detail}`);
       }
 
       // Returns the raw audio buffer

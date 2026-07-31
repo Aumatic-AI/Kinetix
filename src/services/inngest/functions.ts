@@ -1,16 +1,22 @@
 import { inngest } from "./client";
-
-// This is where you will define your background jobs using inngest.createFunction.
-// For example:
-// export const helloWorld = inngest.createFunction(
-//   { id: "hello-world" },
-//   { event: "test/hello.world" },
-//   async ({ event, step }) => {
-//     await step.sleep("wait-a-moment", "1s");
-//     return { event, body: "Hello, World!" };
-//   }
-// );
+import { generateImageAd, generateVideoAd } from "./meta-ads";
+import { generateSocialImage, generateSocialVideo } from "./social";
+import { scrapeOutreachContacts, sendOutreachCampaign } from "./outreach";
+import { competitorAdScraperJob, competitorAdScraperWorker } from "@/jobs/competitor-ad-scraper.job";
+import { businessAdAnalysisJob } from "@/jobs/business-ad-analysis.job";
+import { metaAdsPerformanceSyncJob } from "@/jobs/meta-ads-performance-sync.job";
+import { socialScheduledPostCheck } from "@/jobs/social-scheduled-post-check.job";
 
 export const functions = [
-  // helloWorld
+  competitorAdScraperJob,
+  competitorAdScraperWorker,
+  metaAdsPerformanceSyncJob,
+  socialScheduledPostCheck,
+  businessAdAnalysisJob,
+  generateImageAd,
+  generateVideoAd,
+  generateSocialImage,
+  generateSocialVideo,
+  scrapeOutreachContacts,
+  sendOutreachCampaign,
 ];

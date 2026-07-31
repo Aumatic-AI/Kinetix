@@ -1,0 +1,16 @@
+-- The CHECK constraint on meta_ad_creatives.service hardcoded 3 service
+-- names from when Toga Health only offered Hair Transplant/Dental
+-- Implants/Rhinoplasty. Services are now business-configurable via
+-- Settings (businesses.services), so a fixed DB-level enum is wrong — it
+-- silently rejects any service the business has since added or renamed.
+-- Confirmed failing today: the business's real services are now Hair
+-- Transplant, Dental Treatment, Cosmetic Surgery, Eye Treatment, IVF
+-- Fertility, Thermal Wellness — only "Hair Transplant" satisfied the
+-- stale constraint, so picking any other service silently failed the
+-- INSERT in /api/meta-ads/generate/video and /generate/image after the
+-- background job had already been dispatched.
+--
+-- The Create Ad modal already only offers the business's real configured
+-- service names (business.services), so no DB-level enum is needed to
+-- validate this — the UI is the source of truth for what's selectable.
+ALTER TABLE meta_ad_creatives DROP CONSTRAINT IF EXISTS chk_meta_ad_creatives_service;

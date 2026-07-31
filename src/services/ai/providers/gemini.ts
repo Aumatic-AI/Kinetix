@@ -1,8 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { env } from '@/config';
 
 // Initialize the Gemini client
-const apiKey = process.env.GEMINI_API_KEY || "";
-const genAI = new GoogleGenerativeAI(apiKey);
+const genAI = new GoogleGenerativeAI(env.GEMINI_API_KEY || "");
 
 export class GeminiService {
   /**

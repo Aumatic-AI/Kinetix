@@ -14,20 +14,10 @@ export const MODULES: Record<
     description: "AI-powered ad generation and management",
     color: "#1877F2",
   },
-  newsletter: {
-    name: "Newsletter",
-    description: "Create and send AI generated newsletters",
-    color: "#E53E3E",
-  },
   outreach: {
     name: "Outreach",
     description: "Automate personalized cold emails",
     color: "#3182CE",
-  },
-  voice: {
-    name: "Voice Agents",
-    description: "Build AI agents for voice calls",
-    color: "#805AD5",
   },
   social: {
     name: "Social Media",
