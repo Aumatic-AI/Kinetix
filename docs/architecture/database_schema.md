@@ -49,10 +49,19 @@ erDiagram
         jsonb guidelines
         jsonb business_colors
         uuid logo_asset_id FK "media_assets"
-        jsonb settings "incl. settings.competitor_scrape: only_active/max_ads/sort"
+        jsonb settings "incl. settings.competitor_scrape: only_active/max_ads/sort, settings.meta_ads.advantage_audience_default"
         jsonb ad_script_topics "required ready_ad_scripts topics+formats for competitor analysis"
         jsonb services "array of {name, description} — shared across Outreach/Meta Ads/Social, see §8"
         jsonb outreach_settings "daily_limit, timezone, days, send_window — see §8"
+        boolean video_reference_enabled "added 20260803 — default false"
+        text video_reference_male_url
+        text video_reference_female_url
+        smallint competitor_analysis_schedule_day "added 20260804 — 0-6, default 1 (Monday)"
+        smallint competitor_analysis_schedule_hour "0-23, default 0"
+        timestamptz competitor_analysis_last_run_at
+        smallint self_ad_analysis_schedule_day "0-6, default 1 (Monday)"
+        smallint self_ad_analysis_schedule_hour "0-23, default 0"
+        timestamptz self_ad_analysis_last_run_at
         timestamptz created_at
         timestamptz updated_at
     }
@@ -154,7 +163,9 @@ erDiagram
     }
 ```
 
-`revision_history` is an append-only array — prior `media_asset_id`, prior `ad_script`, a human-readable action string, and a timestamp — powering Quick Edit / Undo (see §11).
+`revision_history` is an append-only array — prior `media_asset_id`, prior `ad_script`, a human-readable action string, and a timestamp — powering Quick Edit / Undo.
+
+There is no CHECK constraint on `meta_ad_creatives.service` anymore. An earlier constraint (`chk_meta_ad_creatives_service`) hardcoded 3 service names from before `businesses.services` was configurable in Settings — it silently rejected creative-generation inserts for any service beyond those 3, and was dropped in `20260805000000_drop_stale_service_check.sql`. The Create Ad modal (driven by `businesses.services`) is now the sole source of truth for which services are selectable.
 
 ## 4. Meta Ads (paid campaign structure) — built
 
@@ -193,6 +204,7 @@ erDiagram
         jsonb targeting
         jsonb placements
         integer daily_budget_cents
+        integer lifetime_budget_cents "added 20260801 — Lifetime Budget option when the campaign isn't CBO, mirrors campaigns.lifetime_budget_cents"
         text bid_strategy
         text optimization_goal
         timestamptz start_at
@@ -281,7 +293,7 @@ erDiagram
         uuid id PK
         uuid business_id FK
         uuid ad_id FK "nullable"
-        text meta_lead_id "unique — from Meta webhook"
+        text meta_lead_id "unique — from the Meta Graph API sync"
         text meta_form_id
         text campaign_name
         text adset_name
@@ -291,7 +303,7 @@ erDiagram
     }
 ```
 
-Kept permanently — Meta purges leads after 90 days. `meta_lead_id` uniqueness means the webhook can be retried safely without creating duplicates. Not to be confused with `outreach_leads` (§8) — this table is exclusively for inbound Meta Instant Forms leads; outreach leads are sourced by Apify scraping or manual entry, not this webhook.
+Kept permanently — Meta purges leads after 90 days. No webhook: `GET /api/meta-ads/leads` syncs straight from the Graph API whenever the Leads page's first page is requested (see `modules/meta_ads.md`), upserting on `meta_lead_id` — this is what makes it safe to sync repeatedly (page-open, "Sync now", or both back to back) without ever creating duplicates. Not to be confused with `outreach_leads` (§8) — this table is exclusively for inbound Meta Instant Forms leads; outreach leads are sourced by Apify scraping or manual entry.
 
 ## 7. Social Media — built, real
 
@@ -473,10 +485,14 @@ Inngest jobs write with the service-role key, which bypasses RLS entirely — ex
 6. **Outreach's own lead schema** (`20260727000000_leads_schema.sql`) — replaced the shared `contacts`/`contact_categories`/`outreach_campaign_contacts` with dedicated `outreach_leads`/`outreach_lead_lists`/`outreach_campaign_leads`, renamed the `contact_status` enum to `lead_status`.
 7. **Newsletter schema dropped** (`20260728000000_drop_newsletter_schema.sql`) — that module wasn't being pursued; its tables and `newsletter_campaign_id`/enum remnants were removed rather than left half-built.
 8. **`businesses.services`** (`20260729000000_business_services.sql`) — added as a plain array, then converted to the current `jsonb` `{name, description}[]` shape one migration later.
-9. **`businesses.outreach_settings`** (`20260730000000_business_outreach_settings.sql`) — daily limit / timezone / send days / send window, JSON, no dedicated settings UI yet.
+9. **`businesses.outreach_settings`** (`20260730000000_business_outreach_settings.sql`) — daily limit / timezone / send days / send window, JSON. Now editable via Settings → Automation Defaults (see #11 below); had no settings UI for one migration.
 10. **Send window widened** (`20260731000000_outreach_send_window_24h.sql`) — default send window changed from business-hours-only to all-day, since a campaign sent outside the narrower window looked broken with no UI to explain why.
+11. **`ad_sets.lifetime_budget_cents`** (`20260801000000_ad_sets_lifetime_budget.sql`) — lets an ad set use a Lifetime Budget (not just Daily) when its parent campaign isn't using Campaign Budget Optimization, mirroring the existing `campaigns.lifetime_budget_cents`.
+12. **`businesses.video_reference_*`** (`20260803000000_business_video_reference.sql`) — adds `video_reference_enabled`/`video_reference_male_url`/`video_reference_female_url`. Replaced two hardcoded Cloudinary URLs in `src/services/ai/character-references.ts` with business-configurable uploads, and fixed a real bug where the male/female reference photos were being picked per product-area instead of per-gender (a female Meta Ads video always got the male photo, and vice versa for Social).
+13. **`businesses.*_analysis_schedule_*`** (`20260804000000_business_analysis_schedules.sql`) — adds `competitor_analysis_schedule_day/hour/last_run_at` and `self_ad_analysis_schedule_day/hour/last_run_at` (day 0-6, hour 0-23, CHECK-constrained, both default Monday/0). Replaced the two analysis jobs' hardcoded weekly cron expressions with a per-business day/hour, checked hourly — see `system_design.md` §2.D.
+14. **Dropped `chk_meta_ad_creatives_service`** (`20260805000000_drop_stale_service_check.sql`) — this CHECK constraint hardcoded 3 service names from an earlier single-service setup and was silently rejecting ad-creative-generation inserts for any newer/renamed service, now that `businesses.services` is business-configurable via Settings.
 
-## 13. Worked Examples
+## 12. Worked Examples
 
 ### A. Ad Generation & Refinement
 

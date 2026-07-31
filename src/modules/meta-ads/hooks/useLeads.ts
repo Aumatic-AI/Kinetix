@@ -87,8 +87,10 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
-/** Reads straight from our own leads table — populated by the webhook in
- * real time, so unlike Campaigns/Reports there's no live Meta call here. */
+/** No webhook — opening page 1 makes the route itself sync straight from
+ * Meta before reading `leads` (see the API route's own comment), so this
+ * is never more than one page-open stale. Paginating past page 1 just
+ * reads the DB, no re-sync. */
 export function useLeadsList(page: number, limit: number) {
   return useQuery({
     queryKey: leadsKeys.list(page, limit),
@@ -97,8 +99,8 @@ export function useLeadsList(page: number, limit: number) {
   });
 }
 
-/** User-triggered only — backfills anything submitted before the webhook
- * was registered, or while it was down. Never called automatically. */
+/** The "Sync now" button — forces a fresh check without leaving/reopening
+ * the page (page 1 already syncs on its own via useLeadsList above). */
 export function useSyncLeads() {
   const queryClient = useQueryClient();
   return useMutation({

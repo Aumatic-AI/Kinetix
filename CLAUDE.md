@@ -26,7 +26,7 @@ Never redirect stderr into the types file (`... > src/types/supabase.ts 2>&1`) �
 
 ### Background jobs (Inngest)
 
-Inngest dev server runs at `http://localhost:8288` (`INNGEST_DEV=1` in `.env.local`). A new Inngest function must be added to the `functions` array in `src/services/inngest/functions.ts` or it never registers, even if `createFunction(...)` exists elsewhere. `src/app/api/cron/route.ts` is an unused stub, not the real scheduler — actual cron triggers live on each `src/jobs/*.job.ts` function itself.
+Inngest dev server runs at `http://localhost:8288` (`INNGEST_DEV=1` in `.env.local` — must be unset/`0` in production, or every background job tries to reach a local server that doesn't exist). A new Inngest function must be added to the `functions` array in `src/services/inngest/functions.ts` or it never registers, even if `createFunction(...)` exists elsewhere. All cron scheduling is Inngest-side (declared on each `src/jobs/*.job.ts` function itself, triggered by Inngest's own scheduler hitting `/api/inngest`) — there is no `vercel.json` `crons` entry or `/api/cron` route; an earlier no-op stub of both was removed since it did nothing and (being hourly) tripped Vercel Hobby-plan's daily-cron-jobs limit on deploy.
 
 `src/jobs/*.job.ts`, registered in `src/services/inngest/functions.ts`:
 - `meta-ads-performance-sync.job.ts` — nightly, populates `ad_performance_daily`.
@@ -73,13 +73,15 @@ There is no per-user auth gating (no `middleware.ts`) and almost every API route
 
 ### Meta Ads module — credentials and data model
 
-Two separate Meta credentials, read directly via `process.env` (not through `src/config/env.ts`'s zod schema, which doesn't cover these):
+Two separate Meta credentials, both declared in `src/config/env.ts`'s zod schema (optional there, since they're server-only) and read via the parsed `env` object, not `process.env` directly:
 - `META_ACCESS_TOKEN` + `META_AD_ACCOUNT_ID` — ad-account scope, covers Campaigns/Reports/Ad Library.
-- `META_PAGE_ID` + `META_PAGE_TOKEN` + `META_APP_SECRET` + `META_WEBHOOK_VERIFY_TOKEN` — Page scope, only for Leads (Instant Forms + the leadgen webhook).
+- `META_PAGE_ID` + `META_PAGE_TOKEN` — Page scope, only for Leads (Instant Forms).
 
 `src/services/meta/graph-client.ts` is the one shared Graph API client (`graphGet`/`graphGetAllPages`/`graphPost`/`graphPostForm`/`graphDelete` + `metaErrorMessage()`) — every Meta call should go through it rather than a fresh `fetch()`.
 
-The `campaigns`/`ad_sets`/`ads`/`leads` tables are a **pointer, not a mirror**: they store our own config plus an `external_*_id` pointing at the real Meta object. Current status/spend is always fetched live from the Graph API (short TanStack Query cache), never persisted — only `ad_performance_daily` (nightly snapshot job) and `leads` (webhook-fed) are meant to be durably stored. New Campaigns/Ad Sets/Ads are always created `PAUSED` on Meta; going live is a separate explicit action (Smart Run / Resume).
+The `campaigns`/`ad_sets`/`ads`/`leads` tables are a **pointer, not a mirror**: they store our own config plus an `external_*_id` pointing at the real Meta object. Current status/spend is always fetched live from the Graph API (short TanStack Query cache), never persisted — only `ad_performance_daily` (nightly snapshot job) and `leads` are meant to be durably stored. New Campaigns/Ad Sets/Ads are always created `PAUSED` on Meta; going live is a separate explicit action (Smart Run / Resume).
+
+**Leads has no webhook.** `GET /api/meta-ads/leads` syncs straight from the Meta Graph API (`LeadsService.syncFromMeta`, upserts on `meta_lead_id`) whenever page 1 is requested — i.e. every time the Leads page is opened — then reads `leads` from our own DB. There's also a manual "Sync now" button (`POST /api/meta-ads/leads/sync`, same underlying service) for refreshing without leaving the page. No `META_APP_SECRET`/`META_WEBHOOK_VERIFY_TOKEN`/HMAC verification/dashboard subscription needed — deliberately simpler than a real-time webhook for a single-tenant app where "fresh as of the last page-open" is good enough.
 
 ### Outreach module — Instantly.ai and the unified status system
 

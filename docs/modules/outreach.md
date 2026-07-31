@@ -28,15 +28,17 @@ The whole module is built around one idea: **a human approves content once, and 
 
 | Page | Route | What you can do there |
 |---|---|---|
-| Dashboard | `/outreach` | See total leads, campaigns sent, and aggregate delivery performance at a glance — always live, never a stored snapshot. |
-| Leads | `/outreach/leads` | Manage lists, scrape or manually add leads, browse a list's leads in a side drawer. |
-| Campaigns | `/outreach/campaigns` | See every campaign's status at a glance; send, pause, resume, or delete from the same table. |
+| Dashboard | `/outreach` | A KPI row (total leads, sending now, emails sent, open/reply/bounce rate) plus a sends-trend chart, a lead-status breakdown, and a per-campaign performance chart — always live, never a stored snapshot. |
+| Leads | `/outreach/leads` | Manage lists (paginated table), scrape or manually add leads, browse a list's leads in a side drawer. |
+| Campaigns | `/outreach/campaigns` | See every campaign's status at a glance (paginated table); send, pause, resume, or delete from the same table. |
 | New Campaign | `/outreach/campaigns/new` | Fill in a short brief and generate the first AI draft — creation only, nothing else lives here. |
 | Campaign Detail | `/outreach/campaigns/:id` | Review/edit the email, see campaign settings and (once sending) live performance, side by side. |
 
 ### 3.1 Leads page, in a bit more detail
 
-The Leads page shows **lists**, not individual leads — each list is a row with its own live lead count. Opening a list slides in a drawer showing every lead in it (loaded a page at a time as you scroll, rather than all at once). From there you can add a lead by hand, or close the drawer and use "Find Leads" to scrape a whole new batch into any list.
+The Leads page shows **lists**, not individual leads — each list is a row with its own live lead count, in a paginated table (see §7.1). Opening a list slides in a drawer showing every lead in it (loaded a page at a time as you scroll, rather than all at once). From there you can add a lead by hand, or close the drawer and use "Find Leads" to scrape a whole new batch into any list.
+
+Two hooks back the same underlying `GET /api/outreach/lists` route: `useLeadLists()` (unpaginated — used by pickers like "Find Leads" and New Campaign's list dropdown, which need every list at once) and `usePaginatedLeadLists(page, limit)` (used by this page's own table). The route itself branches on whether `page`/`limit` are present in the query string, so both call shapes hit the exact same endpoint.
 
 ### 3.2 Campaigns page, in a bit more detail
 
@@ -120,24 +122,29 @@ Full column-level detail lives in [`../architecture/database_schema.md`](../arch
 | `outreach_campaigns` | The campaign itself — brief, generated content, revision history, and its linked Instantly campaign. |
 | `outreach_campaign_leads` | Per-campaign send record — separate from a lead's own status, so the same lead can be targeted again by a different campaign. |
 | `outreach_scrape_jobs` | One row per "Find Leads" run and its results. |
-| `businesses.outreach_settings` | Daily send limit, timezone, and send window (storage only — no settings screen yet). |
+| `businesses.outreach_settings` | Daily send limit, timezone, sending days, and send window — editable via Settings → Automation Defaults → Outreach Defaults (see `settings.md`). |
 
 ## 7. API Surface (`/api/outreach/**`)
 
 | Route | What it does |
 |---|---|
 | `analytics` | Cross-references every campaign against live Instantly delivery data and resolves its unified status. |
-| `campaigns` | List every campaign, or create a new one (which also triggers AI drafting immediately). |
+| `campaigns` | List every campaign (paginated), or create a new one (which also triggers AI drafting immediately). |
 | `campaigns/[id]` | Fetch one campaign, or update it — manual edit, AI regeneration, approve, pause, or resume, all through the same endpoint. |
 | `campaigns/[id]/send` | Fires off an actual send. |
 | `campaigns/[id]/send-preview` | Reports who a send would actually reach, before you confirm it. |
-| `leads` | List/search leads, or add one manually. |
-| `leads/[id]` | Update or delete a single lead. |
+| `dashboard` | Builds the whole Dashboard payload — KPIs, sends trend, lead-status breakdown, and campaign performance, in one call. |
+| `leads` | List/search leads (paginated), or add one manually. |
+| `leads/[id]` | Delete a single lead. *(No update/PATCH handler exists for an individual lead today — editing isn't supported past creation.)* |
 | `leads/[id]/history` | Every campaign a given lead has ever been part of. |
-| `lists` | List every lead list, or create a new one. |
+| `lists` | List every lead list — paginated if `page`/`limit` are passed, the full list otherwise (see §3.1) — or create a new one. |
 | `lists/[id]` | Rename or delete a list. |
 | `scrape` | Starts a new lead-scraping run. |
 | `scrape/jobs` | Check on scrape runs in progress or already finished. |
+
+### 7.1 Pagination
+
+Leads (Lead Lists table) and Campaigns both paginate server-side at `PAGE_SIZE_COMPACT` (10) through the shared system described in `../architecture/system_design.md` §6. Paginating Campaigns has a real side benefit beyond the UI: `getCampaignsWithAnalytics` runs one Supabase count query per *currently-active* campaign to distinguish "sending" from "sent" — fewer campaigns fetched per page means fewer of those queries per request, on top of the smaller response payload.
 
 ## 8. Instantly.ai — Things Worth Knowing
 
@@ -163,7 +170,7 @@ The Dashboard's totals and every campaign's Sent/Opened/Replied/Clicked/Bounced 
 
 ## 11. Known Limitations
 
-- No settings screen yet for daily limit / send window / timezone — changeable only by editing the record directly.
+- No update/edit endpoint for an individual lead once created (`leads/[id]` only supports delete) — a lead's contact details can't be corrected after entry, only removed and re-added.
 - Analytics are campaign-level only — no per-lead open/click tracking.
 - No reply-sentiment detection or auto-pause on a positive reply.
 - No multi-step drip sequencing — one email per campaign, not a sequence with waits between steps.

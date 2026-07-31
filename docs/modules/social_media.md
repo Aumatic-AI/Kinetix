@@ -79,9 +79,14 @@ These capabilities gate what you can even attempt — e.g. a text-only post only
 
 | Page | Route | What you can do there |
 |---|---|---|
-| Posts | `/social/posts` | Browse everything generated or uploaded so far, grouped by status, and start a new post. |
+| Dashboard | `/social` | KPIs (followers, impressions, engagement, reach, connected accounts), an impressions trend chart, engagement breakdown, per-platform comparison and impressions, platform connection health, and (Instagram-only, when enough data exists) audience demographics. This is the module's default/first tab, not a secondary page. |
+| Posts | `/social/posts` | Browse everything generated or uploaded so far, grouped by status, paginated, and start a new post. |
 | Publish | `/social/posts/publish` | The review wizard for a post already created — pick platforms, preview, then schedule or publish. |
 | Connected Accounts | `/social/connected-accounts` | See which accounts are connected right now and jump to Upload-Post to manage them. |
+
+### 6.1 Pagination, in a bit more detail
+
+The Posts page is the one place in the whole app that paginates *in-memory* rather than at the database query level — see `../architecture/system_design.md` §6 for exactly why (a `social_posts` row is per-platform, not per-post, so there's no single DB-level "post" to page over). It still fetches a lightweight query and pages the resulting masonry grid at `PAGE_SIZE_DENSE` (20).
 
 ## 7. How Publishing Works
 
@@ -127,6 +132,7 @@ Posting the same generated video to Instagram and TikTok is genuinely **two rows
 
 | Route | What it does |
 |---|---|
+| `dashboard` | Builds the whole Dashboard payload — connection health from `platform_connections` plus live Upload-Post profile analytics/impressions. |
 | `posts/generate` | Starts AI image/video generation for one or more platforms. |
 | `posts/generate-text` | Writes a caption-only post immediately, no background job. |
 | `posts/generate-idea` | Expands a rough idea into a few angle variations — doesn't save anything. |

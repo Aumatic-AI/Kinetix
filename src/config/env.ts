@@ -33,8 +33,6 @@ const envSchema = z.object({
   // Meta Graph API — Leads (separate Page-scoped token, not the ad-account one above)
   META_PAGE_ID: z.string().optional(),
   META_PAGE_TOKEN: z.string().optional(),
-  META_APP_SECRET: z.string().optional(),
-  META_WEBHOOK_VERIFY_TOKEN: z.string().optional(),
 
   // Storage
   STORAGE_PROVIDER: z.enum(["supabase", "s3", "local"]).default("supabase"),
@@ -44,9 +42,6 @@ const envSchema = z.object({
 
   // Logging
   LOG_LEVEL: z.string().optional(),
-
-  // Cron (src/app/api/cron/route.ts is currently an unused stub)
-  CRON_SECRET: z.string().optional(),
 
   // App Settings
   NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
@@ -75,16 +70,12 @@ const _env = envSchema.safeParse({
   META_AD_ACCOUNT_ID: process.env.META_AD_ACCOUNT_ID,
   META_PAGE_ID: process.env.META_PAGE_ID,
   META_PAGE_TOKEN: process.env.META_PAGE_TOKEN,
-  META_APP_SECRET: process.env.META_APP_SECRET,
-  META_WEBHOOK_VERIFY_TOKEN: process.env.META_WEBHOOK_VERIFY_TOKEN,
 
   STORAGE_PROVIDER: process.env.STORAGE_PROVIDER,
 
   INNGEST_EVENT_KEY: process.env.INNGEST_EVENT_KEY,
 
   LOG_LEVEL: process.env.LOG_LEVEL,
-
-  CRON_SECRET: process.env.CRON_SECRET,
 
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   NODE_ENV: process.env.NODE_ENV,

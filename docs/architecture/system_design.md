@@ -26,10 +26,8 @@ graph TD
 
 ### B. Next.js Backend (Server Actions / API Routes)
 - **Responsibility:** Secure operations only.
-- **Usage:** Used *only* for things the client cannot do securely:
-  1. Dispatching background events to Inngest (`inngest.send()`).
-  2. Receiving webhooks from external platforms (Meta Lead webhooks, provider callbacks).
-  3. OAuth callback handling.
+- **Usage:** Used *only* for things the client cannot do securely — chiefly, dispatching background events to Inngest (`inngest.send()`, e.g. `meta-ads/generate-image`, `outreach/scrape-contacts`) and calling third-party APIs with server-only secrets (Meta Graph, Instantly, Upload-Post) that a browser could never hold safely.
+- **No inbound webhooks and no OAuth callbacks today.** Meta Ads' Leads previously used a real-time Lead Ads webhook; it was removed in favor of syncing on page-open instead (see `modules/meta_ads.md`). Social Media never does OAuth itself — accounts are connected on Upload-Post's own dashboard (see `modules/social_media.md` §3). If either is ever added back, it belongs in this layer.
 
 ### C. Supabase (Database & Auth)
 - **Auth:** Supabase Auth only. RLS's `auth.uid()` requires Supabase-issued JWTs — there is no separate NextAuth session layer in this app.
@@ -40,23 +38,29 @@ graph TD
 ### D. Inngest (Background Job Engine)
 - **Responsibility:** Managing long-running, error-prone tasks.
 - **Why Inngest?** AI video generation (Kie AI) can take up to 3–5 minutes. Vercel serverless functions time out after 10–60 seconds. Inngest's step functions (`step.run`, `step.sleep`) pause execution, wait for the external job to finish, and resume — without holding a Vercel function open or hitting the timeout.
-- **Canonical jobs.** These are the *actual* event names in the working code — earlier drafts of this doc set invented idealized names (`generate-meta-creative`, `ads/competitors.scrape`) instead of checking what the real Inngest functions already used; this table has been corrected to match reality, not the other way around:
+- **Canonical jobs.** The authoritative list is whatever's actually in the `functions` array exported from `src/services/inngest/functions.ts` — a function not in that array never registers, even if `createFunction(...)` exists elsewhere in the codebase. This table is that array, verified, not an idealized/proposed list:
 
-| Job | Trigger | Event name |
+| Job | Trigger | Event name / cron |
 |---|---|---|
-| Weekly competitor scrape (fan-out) | cron `0 0 * * 0` | — |
-| Competitor scrape + analyze worker (per business) | event | `jobs/competitor-ad-scraper` |
-| Weekly self-ad performance analysis | cron `0 2 * * 0` | — |
+| Competitor scrape + analyze (per business) | cron, hourly — see note below | `0 * * * *` |
+| Competitor scrape + analyze worker | event (fanned out by the job above) | `jobs/competitor-ad-scraper` |
+| Self-ad performance analysis | cron, hourly — see note below | `0 * * * *` |
+| Meta Ads performance sync (writes `ad_performance_daily`) | cron, daily | `0 4 * * *` |
 | Meta ad creative generation (image) | event | `meta-ads/generate-image` |
 | Meta ad creative generation (video) | event | `meta-ads/generate-video` |
-| Outreach campaign send | event (triggered from the Campaigns list, not a cron) | `outreach/send-campaign` |
+| Social post generation (image) | event | `social/generate-image` |
+| Social post generation (video) | event | `social/generate-video` |
+| Scheduled social post publish | event, one instance per scheduled post — not a recurring poll | `social/scheduled-post-created` |
 | Outreach lead scraping | event (triggered from Find Leads) | `outreach/scrape-contacts` |
-| Social post generation *(not yet built — proposed name)* | event | `social/post.generate` |
-| Meta lead webhook *(not yet built — proposed name)* | event | `meta-ads/lead.received` |
+| Outreach campaign send | event (triggered from the Campaigns list, not a cron) | `outreach/send-campaign` |
 
-Note there's no separate "weekly competitor analysis" row anymore — the scraper worker does both the scrape and the analysis in one job, since nothing is persisted in between for a separate job to read.
+**Why the competitor-scrape and self-ad-analysis jobs run hourly, not weekly:** each business now picks its own day/hour for these two reports via Settings' "Analysis Schedule" (`businesses.competitor_analysis_schedule_day/hour` and `self_ad_analysis_schedule_day/hour` — see `modules/settings.md`). Inngest's own cron trigger can't read a per-business DB value at schedule-definition time, so instead the job runs on a fixed hourly cron and, on every tick, calls `shouldRunScheduledJob()` (`src/services/scheduling/business-schedule.ts`) per business to decide whether *this* is the hour it's actually due to run. An earlier version of this doc described these as fixed weekly crons (`0 0 * * 0` / `0 2 * * 0`) with no per-business schedule — that was true before the Settings schedule editor existed and is no longer accurate.
 
-  Every event payload carries `business_id` explicitly. Inngest functions run with the Supabase service-role key, which bypasses RLS entirely — scoping for background writes comes from the payload, never inferred from a session (there is no user session inside a background worker).
+Every event payload carries `business_id` explicitly. Inngest functions run with the Supabase service-role key, which bypasses RLS entirely — scoping for background writes comes from the payload, never inferred from a session (there is no user session inside a background worker).
+
+One thing that looks like it should be an Inngest job but deliberately isn't: **`src/services/inngest/outreach/broadcast-progress.ts`** is a plain Inngest Realtime-channel helper used *inside* the scrape job to stream progress to the Leads page — it exports no `createFunction()` of its own, so it correctly doesn't appear in the registered-jobs table above.
+
+Meta Ads' own lead capture also isn't an Inngest job, but for a different reason: there's no webhook or background work to defer at all. Opening the Meta Ads Leads page synchronously syncs straight from the Graph API and upserts into `leads` before rendering — see `modules/meta_ads.md`'s "Lead Capture" section. An earlier version of this system deliberately used a real-time webhook (HMAC-verified, one-time dashboard subscription) instead; it was removed in favor of this simpler sync-on-open model, since a webhook's added complexity (a stable public URL, secret management, a manual Meta dashboard registration step) wasn't worth it for a single-tenant app where "fresh as of the last page-open" is good enough.
 
 ## 3. Tenancy Model
 
@@ -86,3 +90,36 @@ One code-level follow-up for whenever the migration actually happens (not part o
 ## 4. Intelligence: no RAG, no vector DB
 
 Competitor and self-ad intelligence is generated by direct context-window prompting: the top-scored competitor ads, or a business's own "seasoned" ad metrics, are assembled into a single prompt and sent to OpenAI in one call. Kinetix does not use Pinecone or any vector store for this. The legacy n8n pipeline used a Pinecone-backed RAG step for competitor analysis; it's deliberately not carried forward — the data volumes involved (a few hundred competitor ads per business, not tens of thousands) don't need retrieval, and a single well-scoped prompt is simpler to build, debug, and reason about.
+
+## 5. Root Dashboard — cross-module rollup
+
+`/dashboard` (`src/modules/dashboard/`) is the app's landing page — `/` itself is a hard redirect to it (`src/app/page.tsx`), it isn't served at `/` directly. It's the only page that reads across all three product modules in one request, backed by a single `GET /api/dashboard?range=` handler that aggregates:
+
+- **Meta Ads:** active campaign count, `ad_performance_daily` spend/impressions/clicks for the selected range, `leads` table count.
+- **Outreach:** `OutreachCampaignsService.getCampaignsWithAnalytics()` (the same merge Outreach's own Dashboard and Campaigns page use), plus DB-only aggregates from `outreach_campaign_leads`/`outreach_leads`.
+- **Social:** `platform_connections` status, plus Upload-Post profile analytics/impressions (best-effort — a Social API failure degrades gracefully rather than failing the whole dashboard).
+
+Only two KPIs are genuine cross-module sums — **Total Leads** (Meta inbound + Outreach added) and **Total Reach** (Meta + Social impressions) — because those are the only concepts that are genuinely the same thing across modules. Everything else (spend, reply rate, followers) stays scoped to its own module; Outreach's "leads" (cold-scraped prospects) are never silently merged with Meta's "leads" (inbound Instant Form conversions) beyond that one explicitly-labeled combined KPI.
+
+The page itself: a range switcher (7d/14d/30d/90d/All — `range=all` is a capped 180-day window, not a true earliest-row lookup), a KPI row, an acquisition funnel (Reach → Clicks → Leads), two trend charts (Leads by source, Reach by channel), three per-module trend cards linking out to that module's own Dashboard, and a channel comparison table. Current-state numbers (active campaigns, "sending now," followers) are live snapshots that don't rescope with the selected range — only the trend/summary numbers do.
+
+## 6. Shared Pagination System
+
+Every list page across all three modules (Meta Ads: Campaigns, Reports, Ad Library, Leads; Social: Posts; Outreach: Leads, Campaigns) uses one shared pagination contract instead of each inventing its own:
+
+- **`src/lib/pagination.ts`** — the only two allowed page sizes, `PAGE_SIZE_COMPACT` (10, for tables and low-density grids) and `PAGE_SIZE_DENSE` (20, for denser card/thumbnail grids) — picked per page based on roughly how many items its layout shows per viewport, never a bespoke number. Plus three helpers: `paginationMeta(total, page, limit)` (returns `{ total, page, limit, totalPages }`, floored at 1 page), `rangeFor(page, limit)` (the `[from, to]` tuple for Supabase's `.range()`), and `paginateArray(items, page, limit)` (in-memory slicing for the one list that can't be paginated at the query level — see below).
+- **`src/components/ui/Pagination.tsx`** — the one Prev/1…N…Last/Next control every paginated page renders, with page-number condensation (always page 1 and the last page, plus current±1, collapsing any gap into a single "…").
+- **API contract:** every paginated route reads `page`/`limit` query params and returns its data array plus the spread of `paginationMeta(...)` alongside it (e.g. `{ campaigns, total, page, limit, totalPages }`) — the array key name stays domain-specific (`campaigns`, `leads`, `ads`, `lists`) rather than a generic `items`, for readability at each call site.
+- **Client hooks** use TanStack Query's `keepPreviousData` so switching pages doesn't flash a loading skeleton — the previous page's rows stay visible until the next page resolves.
+
+**The one exception — Social Posts is paginated in-memory, not at the query level.** A `social_posts` row exists per *platform a post targets*, not per logical post — one post published to 3 platforms is 3 rows, tied together only by a shared `media_asset_id` (or, for text posts with no media, a `created_at`+`idea_prompt` coincidence — see `modules/social_media.md` §8). Slicing raw rows with `.range()` could split one post's rows across two pages. So `Posts.tsx` fetches all rows (still a lightweight query), groups them client-side into `PostGroup[]` (existing logic, unchanged), then applies `paginateArray()` to the *grouped* list before rendering. This is the one page in the system that doesn't reduce its initial fetch size via pagination — a real, currently-accepted trade-off. Fixing it at the query level would need a schema change (a real `post_group_id` stamped at creation time for both image/video and text posts), which is a worthwhile follow-up but out of scope for the pagination pass that added this system.
+
+Some hooks that back a *picker* rather than a *list page* deliberately stay unpaginated even though a paginated sibling exists for the same data — e.g. `useLeadLists()` (full list, for `FindLeadsModal`/`NewCampaignPage`'s dropdowns) alongside `usePaginatedLeadLists()` (for the Leads page's table). Both hit the same API route, which branches on whether `page`/`limit` are present in the query string at all.
+
+## 7. Shared Dashboard UI Kit
+
+`src/components/global/DashboardKit.tsx` is the one file the Root Dashboard and all three module dashboards (Meta Ads, Outreach, Social) are built from, so the four read as one product instead of four one-off designs. It exports:
+- A fixed color system (`ACCENT` — purple/blue/green/amber/red, mapped to `DESIGN.md`'s tokens) and `CHART_SERIES`, a categorical color order that's never re-picked per chart (per the dataviz convention: color follows the entity, not its rank).
+- `chartTickInterval(pointCount, targetLabels = 7)` — scales a chart's x-axis label interval to the actual number of data points, so labels never overlap regardless of how long a selected date range is (replacing an earlier fixed-threshold approach that broke down for very long ranges).
+- Layout primitives: `Card`, `SectionTitle`, `KpiTile` (compact/tint/default variants), `EmptyState`.
+- A matching family of loading skeletons — `KpiRowSkeleton`, `AreaChartSkeleton`, `PieChartSkeleton`, `BarRowsSkeleton`, `ProportionalListSkeleton`, `TableSkeleton`, `ModuleCardSkeleton`, and more — each built on the real `Skeleton` primitive (`src/components/ui/skeleton.tsx`) and shaped to mirror its corresponding real component's exact layout, so nothing visibly reflows once real data arrives. The same principle extends beyond dashboards: every list/detail page in the app (including the three Meta Ads detail pages, Ad Library, and Outreach's Campaign Detail) follows the same rule — real static chrome (headers, breadcrumbs, known labels) renders immediately, and only the genuinely data-dependent parts shimmer.
