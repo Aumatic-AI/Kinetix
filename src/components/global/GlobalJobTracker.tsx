@@ -4,10 +4,49 @@ import { useEffect } from "react";
 import { toast } from "sonner";
 import { useJobsStore } from "@/store";
 import { createClient } from "@/lib/supabase/client";
+import { useScrapeJobs } from "@/modules/outreach/hooks/useLeads";
 
 export function GlobalJobTracker() {
   const { updateJob } = useJobsStore();
   const supabase = createClient();
+
+  // -------------------------------------------------------------
+  // DB RECONCILIATION FALLBACK (outreach scrape jobs)
+  // The broadcast below is a single, unpersisted WebSocket message — if
+  // the browser's Realtime connection has any hiccup during a multi-minute
+  // scrape job (reconnect, brief network blip, tab throttled in the
+  // background), the terminal "completed"/"failed" message is gone
+  // forever and the progress banner is stranded at whatever percentage
+  // was last received, even though the job genuinely finished. This
+  // polls the real outreach_scrape_jobs table (useScrapeJobs' own
+  // refetchInterval already stops once nothing is queued/running there)
+  // and corrects the store the moment the DB shows a terminal status,
+  // independent of whether any broadcast ever arrived.
+  const { data: scrapeJobs } = useScrapeJobs();
+
+  useEffect(() => {
+    if (!scrapeJobs) return;
+    for (const dbJob of scrapeJobs) {
+      if (dbJob.status === "queued" || dbJob.status === "running") continue;
+
+      const storeJob = useJobsStore.getState().jobs.find((j) => j.id === dbJob.id);
+      if (!storeJob || storeJob.status === "completed" || storeJob.status === "failed") continue;
+
+      const nextStatus = dbJob.status === "succeeded" ? "completed" : "failed";
+      updateJob(dbJob.id, {
+        status: nextStatus,
+        progress: 100,
+        ...(nextStatus === "failed" && { error: dbJob.error_message || "Find Leads failed" }),
+      });
+
+      const label = storeJob.title || "Find Leads";
+      if (nextStatus === "completed") {
+        toast.success(`${label} — found ${dbJob.total_scraped}, ${dbJob.valid_emails} verified`);
+      } else {
+        toast.error(dbJob.error_message || `${label} — failed`);
+      }
+    }
+  }, [scrapeJobs, updateJob]);
 
   useEffect(() => {
     // -------------------------------------------------------------

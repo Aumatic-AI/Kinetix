@@ -30,9 +30,13 @@ Inngest dev server runs at `http://localhost:8288` (`INNGEST_DEV=1` in `.env.loc
 
 `src/jobs/*.job.ts`, registered in `src/services/inngest/functions.ts`:
 - `meta-ads-performance-sync.job.ts` — nightly, populates `ad_performance_daily`.
-- `competitor-ad-scraper.job.ts` / `business-ad-analysis.job.ts` — weekly Meta Ads intelligence (competitor + self-ad analysis).
+- `competitor-ad-scraper.job.ts` / `business-ad-analysis.job.ts` — hourly cron that checks each business's own configured day/hour (Settings → Automation Defaults → Analysis Schedule) before actually doing the weekly competitor/self-ad analysis work.
 - `social-scheduled-post-check.job.ts` — publishes scheduled social posts when due.
+- `social-analytics-cache-refresh.job.ts` — every 5 minutes, refreshes `upload_post_analytics_cache` (see the Social/Root Dashboard note below) so those dashboards never call Upload-Post live.
+- `meta-ads-leads-sync.job.ts` — every 5 minutes, syncs `leads` from the Meta Graph API in the background (see the Meta Ads Leads note above) so the Leads page never calls Meta live.
 - `src/services/inngest/outreach/send-campaign.ts` (event `outreach/send-campaign`) — sends one outreach campaign through Instantly.ai; fired on-demand from the Campaigns list, not on a cron.
+
+**Never call a slow third-party API (Meta Graph, Upload-Post, Instantly) directly from a page-load GET route.** Both the Leads page (Meta Graph, ~7-8s) and the Root/Social dashboards (Upload-Post analytics, ~10s) were originally built this way and had to be fixed — the pattern now is: a scheduled Inngest job is the only thing that ever calls the slow API, writing its result into our own table (`leads`, `upload_post_analytics_cache`); the page's own route only ever reads that table, so it's a fast Postgres query regardless of how slow the upstream API is. A manual "force refresh now" button is fine to keep calling the live API synchronously, since that's an explicit user action with its own loading state, not a passive page load.
 
 ## Documentation map
 
@@ -81,7 +85,7 @@ Two separate Meta credentials, both declared in `src/config/env.ts`'s zod schema
 
 The `campaigns`/`ad_sets`/`ads`/`leads` tables are a **pointer, not a mirror**: they store our own config plus an `external_*_id` pointing at the real Meta object. Current status/spend is always fetched live from the Graph API (short TanStack Query cache), never persisted — only `ad_performance_daily` (nightly snapshot job) and `leads` are meant to be durably stored. New Campaigns/Ad Sets/Ads are always created `PAUSED` on Meta; going live is a separate explicit action (Smart Run / Resume).
 
-**Leads has no webhook.** `GET /api/meta-ads/leads` syncs straight from the Meta Graph API (`LeadsService.syncFromMeta`, upserts on `meta_lead_id`) whenever page 1 is requested — i.e. every time the Leads page is opened — then reads `leads` from our own DB. There's also a manual "Sync now" button (`POST /api/meta-ads/leads/sync`, same underlying service) for refreshing without leaving the page. No `META_APP_SECRET`/`META_WEBHOOK_VERIFY_TOKEN`/HMAC verification/dashboard subscription needed — deliberately simpler than a real-time webhook for a single-tenant app where "fresh as of the last page-open" is good enough.
+**Leads has no webhook, and `GET /api/meta-ads/leads` never calls Meta live either** — both would make the page load wait on Meta's API (a real, measured 7-8s round trip). Instead `jobs/meta-ads-leads-sync.job.ts` (Inngest cron, every 5 minutes) calls `LeadsService.syncFromMeta()` (upserts on `meta_lead_id`) in the background, and the GET route only ever reads the now-current `leads` table — a single fast Postgres query. The "Sync now" button (`POST /api/meta-ads/leads/sync`, same underlying service) still exists for forcing an immediate on-demand sync instead of waiting for the next tick. No `META_APP_SECRET`/`META_WEBHOOK_VERIFY_TOKEN`/HMAC verification/dashboard subscription needed either way.
 
 ### Outreach module — Instantly.ai and the unified status system
 

@@ -71,7 +71,7 @@ export function LeadsPage() {
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold text-text">Lead Responses</h2>
-          <p className="text-sm text-muted mt-1">Synced fresh from Meta every time you open this page — use &quot;Sync now&quot; to check again without leaving.</p>
+          <p className="text-sm text-muted mt-1">Synced from Meta every few minutes — use &quot;Sync now&quot; for an immediate check.</p>
         </div>
         <Button
           variant="outline"

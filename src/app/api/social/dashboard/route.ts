@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Database } from "@/types/supabase";
 import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
 import { env } from "@/config/env";
-import { UploadPostService, SUPPORTED_UPLOAD_POST_PLATFORMS, type UploadPostPlatform, type UploadPostProfileAnalytics } from "@/services/upload-post";
+import { UploadPostCacheService, SUPPORTED_UPLOAD_POST_PLATFORMS, type UploadPostPlatform } from "@/services/upload-post";
 
 export const dynamic = "force-dynamic";
 
@@ -38,15 +38,17 @@ function engagementOf(m: { likes?: number; comments?: number; shares?: number; s
   return (m.likes || 0) + (m.comments || 0) + (m.shares || 0) + (m.saves || 0);
 }
 
-/** Everything the Social dashboard renders, in one call — all of it real,
- * live Upload-Post account analytics for every connected platform, plus
- * which platforms are actually connected right now. Deliberately built only
- * from the two calls that reliably return data (profile analytics, total
- * impressions) — the cached-post-analytics endpoint (per-post engagement,
- * "top posts") consistently comes back empty for this account (likely needs
- * time to accumulate snapshots on Upload-Post's side), so nothing here
- * depends on it; every section is sourced from data already confirmed
- * working instead. */
+/** Everything the Social dashboard renders, in one call — real Upload-Post
+ * account analytics for every connected platform, plus which platforms are
+ * actually connected right now. Analytics come from
+ * upload_post_analytics_cache, never a live Upload-Post call (see
+ * cache.service.ts) — Upload-Post's own analytics endpoints can take
+ * several seconds, which a background job absorbs instead of this route.
+ * Deliberately built only from the two cached calls that reliably return
+ * data (profile analytics, total impressions) — the cached-post-analytics
+ * endpoint (per-post engagement, "top posts") consistently comes back empty
+ * for this account (likely needs time to accumulate snapshots on
+ * Upload-Post's side), so nothing here depends on it. */
 export async function GET() {
   try {
     const supabase = (await createClient()) as SupabaseClient<Database>;
@@ -71,9 +73,11 @@ export async function GET() {
       return NextResponse.json(response);
     }
 
+    // Read-only from upload_post_analytics_cache — never calls Upload-Post
+    // live here (see cache.service.ts). A background job keeps it warm.
     const [profileAnalytics, totalImpressions] = await Promise.all([
-      UploadPostService.getProfileAnalytics(username, connectedPlatforms).catch(() => ({}) as Record<string, UploadPostProfileAnalytics>),
-      UploadPostService.getTotalImpressions(username, { period: "last_month", breakdown: true }).catch(() => null),
+      UploadPostCacheService.readProfileAnalytics(supabase, businessId, username, connectedPlatforms),
+      UploadPostCacheService.readTotalImpressions(supabase, businessId, username, "last_month"),
     ]);
 
     // KPIs — real totals across every connected platform.
