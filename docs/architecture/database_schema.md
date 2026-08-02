@@ -129,11 +129,21 @@ erDiagram
         timestamptz created_at
         timestamptz updated_at
     }
+
+    upload_post_analytics_cache {
+        uuid id PK
+        uuid business_id FK
+        text cache_key "'profile_analytics' | 'total_impressions:<period>'"
+        jsonb data "raw Upload-Post API response for that key"
+        timestamptz fetched_at
+    }
 ```
 
 There's no stored `public_url` column on `media_assets` — public URLs are derived at request time via Supabase Storage's `getPublicUrl(bucket, storage_path)`, not persisted.
 
-**`platform_connections` in practice today only has one real writer: Social Media, and only with `account_kind = "upload_post"`.** Accounts aren't connected via OAuth from Kinetix — they're connected by hand on upload-post.com's own dashboard; Kinetix's `/api/social/upload-post/sync` route mirrors that connection state into this table (plus the Facebook/LinkedIn Page IDs needed at publish time) purely for local display and lookup. The `access_token_ref`/`refresh_token_ref`/`scopes` columns shown above are part of the general-purpose shape but are unused by this writer — see `modules/social_media.md` §1 for the full mechanism. Meta Ads does not use this table at all as of today (it reads Meta credentials from `process.env` — see `CLAUDE.md`'s Meta Ads section).
+**`platform_connections` in practice today only has one real writer: Social Media, and only with `account_kind = "upload_post"`.** Accounts aren't connected via OAuth from Kinetix — they're connected by hand on upload-post.com's own dashboard; Kinetix's `/api/social/upload-post/sync` route mirrors that connection state into this table (plus the Facebook/LinkedIn Page IDs needed at publish time) purely for local display and lookup. The `access_token_ref`/`refresh_token_ref`/`scopes` columns shown above are part of the general-purpose shape but are unused by this writer — see `modules/social_media.md` §1 for the full mechanism. Meta Ads does not use this table at all as of today (it reads Meta credentials via `src/config/env.ts`'s zod schema — see `CLAUDE.md`'s Meta Ads section).
+
+**`upload_post_analytics_cache`** (added `20260806000000_upload_post_analytics_cache.sql`) exists purely so the Root and Social dashboards never call Upload-Post's own analytics API live — that API aggregates each connected platform server-side and can take several seconds, which a dashboard page load can't afford. `jobs/social-analytics-cache-refresh.job.ts` (cron, every 5 minutes) is the only writer; both dashboard routes only ever read it — see `system_design.md`'s "Never call a slow third-party API from a page-load GET route" note. One row per `(business_id, cache_key)`, upserted in place — this isn't an audit log, just a single current snapshot per key.
 
 ## 3. Ad Creative Generation (Meta Ads) — the first module with real, working code
 
@@ -491,6 +501,7 @@ Inngest jobs write with the service-role key, which bypasses RLS entirely — ex
 12. **`businesses.video_reference_*`** (`20260803000000_business_video_reference.sql`) — adds `video_reference_enabled`/`video_reference_male_url`/`video_reference_female_url`. Replaced two hardcoded Cloudinary URLs in `src/services/ai/character-references.ts` with business-configurable uploads, and fixed a real bug where the male/female reference photos were being picked per product-area instead of per-gender (a female Meta Ads video always got the male photo, and vice versa for Social).
 13. **`businesses.*_analysis_schedule_*`** (`20260804000000_business_analysis_schedules.sql`) — adds `competitor_analysis_schedule_day/hour/last_run_at` and `self_ad_analysis_schedule_day/hour/last_run_at` (day 0-6, hour 0-23, CHECK-constrained, both default Monday/0). Replaced the two analysis jobs' hardcoded weekly cron expressions with a per-business day/hour, checked hourly — see `system_design.md` §2.D.
 14. **Dropped `chk_meta_ad_creatives_service`** (`20260805000000_drop_stale_service_check.sql`) — this CHECK constraint hardcoded 3 service names from an earlier single-service setup and was silently rejecting ad-creative-generation inserts for any newer/renamed service, now that `businesses.services` is business-configurable via Settings.
+15. **`upload_post_analytics_cache`** (`20260806000000_upload_post_analytics_cache.sql`) — added so the Root/Social dashboards could stop calling Upload-Post's analytics API live (a measured ~10-second round trip); a new 5-minute Inngest job keeps it warm, both dashboard routes only ever read it.
 
 ## 12. Worked Examples
 

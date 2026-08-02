@@ -6,9 +6,9 @@ import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
 import { LeadsService } from "@/modules/meta-ads/services/leads.service";
 
 /**
- * Manual "Sync now" — the Leads page itself already syncs automatically
- * every time it's opened (see GET /api/meta-ads/leads), so this exists
- * purely for forcing a fresh check without leaving/reopening the page.
+ * Manual "Sync now" — a background job already syncs every 5 minutes (see
+ * jobs/meta-ads-leads-sync.job.ts), so this exists purely for forcing an
+ * immediate, on-demand check instead of waiting for the next tick.
  */
 export async function POST() {
   try {

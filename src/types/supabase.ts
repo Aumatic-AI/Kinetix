@@ -1251,6 +1251,38 @@ export type Database = {
           },
         ]
       }
+      upload_post_analytics_cache: {
+        Row: {
+          business_id: string
+          cache_key: string
+          data: Json
+          fetched_at: string
+          id: string
+        }
+        Insert: {
+          business_id: string
+          cache_key: string
+          data: Json
+          fetched_at?: string
+          id?: string
+        }
+        Update: {
+          business_id?: string
+          cache_key?: string
+          data?: Json
+          fetched_at?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "upload_post_analytics_cache_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

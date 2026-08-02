@@ -18,6 +18,7 @@ import { getFacebookPages } from "./facebook";
 import { getLinkedInPages } from "./linkedin";
 import { getProfileAnalytics, getTotalImpressions, getCachedPostAnalytics } from "./analytics";
 export { buildProfileUrl } from "./profile-url";
+export { UploadPostCacheService } from "./cache.service";
 
 export * from "./types";
 export type { PublishVideoParams, PublishPhotosParams, PublishTextParams } from "./publish";

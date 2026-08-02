@@ -141,7 +141,7 @@ export function AdLibrary() {
       <CreateAdModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSuccess={() => queryClient.invalidateQueries({ queryKey: metaAdsKeys.creatives() })}
+        onSuccess={() => queryClient.invalidateQueries({ queryKey: metaAdsKeys.all })}
       />
 
       <MediaPreview

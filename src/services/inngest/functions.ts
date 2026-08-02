@@ -6,12 +6,16 @@ import { competitorAdScraperJob, competitorAdScraperWorker } from "@/jobs/compet
 import { businessAdAnalysisJob } from "@/jobs/business-ad-analysis.job";
 import { metaAdsPerformanceSyncJob } from "@/jobs/meta-ads-performance-sync.job";
 import { socialScheduledPostCheck } from "@/jobs/social-scheduled-post-check.job";
+import { socialAnalyticsCacheRefresh } from "@/jobs/social-analytics-cache-refresh.job";
+import { metaAdsLeadsSyncJob } from "@/jobs/meta-ads-leads-sync.job";
 
 export const functions = [
   competitorAdScraperJob,
   competitorAdScraperWorker,
   metaAdsPerformanceSyncJob,
   socialScheduledPostCheck,
+  socialAnalyticsCacheRefresh,
+  metaAdsLeadsSyncJob,
   businessAdAnalysisJob,
   generateImageAd,
   generateVideoAd,

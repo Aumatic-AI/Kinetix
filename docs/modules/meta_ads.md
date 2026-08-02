@@ -18,7 +18,7 @@ Meta Ads automates the whole lifecycle of a Meta (Facebook/Instagram) advertisin
 | **Performance Polling** | Daily sync of every ad's live spend/impressions/clicks into `ad_performance_daily` — the input to self-ad analysis. |
 | **Competitor Analysis** | Scrapes the Facebook Ads Library for a business's own target countries/keywords, scores relevance in memory, and writes an executive-summary report — no persisted ad gallery. |
 | **Self-Ad Analysis** | Scores "seasoned" (7+ day) ads on a CTR-curve formula and writes next-cycle creative directives. |
-| **Lead Capture** | No webhook — opening the Leads page syncs straight from the Meta Graph API and upserts into our own `leads` table (Meta itself purges leads after 90 days, so this is the permanent copy). A manual "Sync now" button forces the same check without leaving the page. |
+| **Lead Capture** | No webhook, and no live Meta call on page load either — a background job syncs into our own `leads` table every 5 minutes (Meta itself purges leads after 90 days, so this is the permanent copy). A manual "Sync now" button forces an immediate check. |
 | **Instant Forms management** | Create/view/archive Meta Lead Gen forms directly from Kinetix. |
 
 ## 3. Pages
@@ -32,7 +32,7 @@ Meta Ads automates the whole lifecycle of a Meta (Facebook/Instagram) advertisin
 | Ad Detail | `/meta-ads/campaigns/:campaignId/:adSetId/:adId` | Creative preview, full ad copy, lifetime performance, "Preview on Meta," and inline copy editing. |
 | Reports | `/meta-ads/reports` | Live ad-level performance table (spend/CTR/CPM/score) for a selected range, paginated. |
 | Ad Library | `/meta-ads/ad-library` | Every generated/uploaded creative as a dense thumbnail grid, paginated; approve, retry, delete, or launch/relaunch a campaign from one. |
-| Leads | `/meta-ads/leads` | Browse captured leads (paginated table, synced fresh from Meta on open) or manage Instant Forms, on two tabs; "Sync now" forces a re-check without leaving the page. |
+| Leads | `/meta-ads/leads` | Browse captured leads (paginated table, synced from Meta every 5 minutes in the background) or manage Instant Forms, on two tabs; "Sync now" forces an immediate check. |
 | Create Campaign | `/meta-ads/campaigns/create` | The 3-step Launch wizard (reached from Campaigns or Ad Library, not in the sidebar). |
 
 ### 3.1 Campaign Launch & Management Flow, in more detail
@@ -51,9 +51,9 @@ Manual placement choices are genuinely sent to Meta (`publisher_platforms`/`face
 
 Both Launch and the nightly sync job read `META_ACCESS_TOKEN`/`META_AD_ACCOUNT_ID` directly via `requireMetaAdAccountEnv()` in `src/services/meta/graph-client.ts` — this module does not read from `platform_connections`/Vault at all today. Lead Capture uses a *separate* pair of credentials (`META_PAGE_ID`/`META_PAGE_TOKEN`) — Page scope, not ad-account scope. See `CLAUDE.md`'s Meta Ads section.
 
-### Lead Capture — sync-on-open, not a webhook
+### Lead Capture — background sync, not a webhook and not a live page-load call
 
-`GET /api/meta-ads/leads` syncs straight from the Graph API (`LeadsService.syncFromMeta` — every Instant Form's leads, upserted on `meta_lead_id`) whenever page 1 is requested, i.e. every time the Leads page is opened, then reads the now-current `leads` table. A "Sync now" button (`POST /api/meta-ads/leads/sync`, same underlying service) forces a fresh check without leaving the page. There's deliberately no real-time webhook here — that would need a stable public URL, HMAC signature verification, and a one-time dashboard subscription, none of which is worth the complexity for a single-tenant app where "fresh as of the last page-open" is good enough. Upserting on `meta_lead_id` means syncing twice in a row (or the manual button firing right after an automatic sync) never creates duplicates.
+`jobs/meta-ads-leads-sync.job.ts` (Inngest cron, every 5 minutes) is the only thing that calls the Graph API for leads — `LeadsService.syncFromMeta()` walks every Instant Form's leads and upserts them on `meta_lead_id`. `GET /api/meta-ads/leads` only ever reads the now-current `leads` table, so opening the page is a single fast Postgres query. This wasn't the original design: the route used to sync live from Meta on every page-1 load, which measured at 7-8 seconds — far too slow for a page load, so it moved to the same background-job pattern used for the Root/Social dashboards (see `../architecture/system_design.md`'s "Never call a slow third-party API from a page-load GET route"). A "Sync now" button (`POST /api/meta-ads/leads/sync`, same underlying service) still exists for forcing an immediate, on-demand check instead of waiting for the next tick — that one *is* allowed to block, since it's an explicit action with its own loading state. There's deliberately no real-time webhook either — that would need a stable public URL, HMAC signature verification, and a one-time dashboard subscription, none of which is worth the complexity for a single-tenant app where "fresh as of the last 5-minute tick" is good enough. Upserting on `meta_lead_id` means syncing twice in a row (background tick + manual button) never creates duplicates.
 
 ## 4. Pagination
 
@@ -94,5 +94,6 @@ See `../architecture/database_schema.md` for the full table list — this doc on
 | Competitor/self-ad analysis jobs | `src/jobs/competitor-ad-scraper.job.ts`, `src/jobs/business-ad-analysis.job.ts` |
 | API routes | `src/app/api/meta-ads/**` |
 | Lead sync logic | `src/modules/meta-ads/services/leads.service.ts` |
+| Lead sync background job | `src/jobs/meta-ads-leads-sync.job.ts` |
 
 </details>

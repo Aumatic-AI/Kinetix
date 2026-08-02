@@ -87,10 +87,8 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
-/** No webhook — opening page 1 makes the route itself sync straight from
- * Meta before reading `leads` (see the API route's own comment), so this
- * is never more than one page-open stale. Paginating past page 1 just
- * reads the DB, no re-sync. */
+/** DB-only read, always fast — a background job (jobs/meta-ads-leads-sync.job.ts,
+ * every 5 minutes) is what keeps `leads` synced from Meta, not this route. */
 export function useLeadsList(page: number, limit: number) {
   return useQuery({
     queryKey: leadsKeys.list(page, limit),
@@ -99,8 +97,8 @@ export function useLeadsList(page: number, limit: number) {
   });
 }
 
-/** The "Sync now" button — forces a fresh check without leaving/reopening
- * the page (page 1 already syncs on its own via useLeadsList above). */
+/** The "Sync now" button — the only way to force an immediate sync rather
+ * than waiting for the next background tick (every 5 minutes). */
 export function useSyncLeads() {
   const queryClient = useQueryClient();
   return useMutation({

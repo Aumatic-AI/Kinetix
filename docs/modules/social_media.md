@@ -88,6 +88,10 @@ These capabilities gate what you can even attempt — e.g. a text-only post only
 
 The Posts page is the one place in the whole app that paginates *in-memory* rather than at the database query level — see `../architecture/system_design.md` §6 for exactly why (a `social_posts` row is per-platform, not per-post, so there's no single DB-level "post" to page over). It still fetches a lightweight query and pages the resulting masonry grid at `PAGE_SIZE_DENSE` (20).
 
+### 6.2 Dashboard analytics — cached, never fetched live on page load
+
+The Dashboard's Upload-Post analytics (followers, impressions, engagement, per-platform breakdown, audience demographics) come from `upload_post_analytics_cache`, not a live call to Upload-Post — their analytics API aggregates each connected platform's own data server-side and was measured taking around 10 seconds, far too slow for a page load. `jobs/social-analytics-cache-refresh.job.ts` (Inngest cron, every 5 minutes) is the only thing that calls Upload-Post; the Dashboard route only ever reads the cache. See `../architecture/system_design.md`'s "Never call a slow third-party API from a page-load GET route" and `../architecture/database_schema.md` §2 for the cache table itself.
+
 ## 7. How Publishing Works
 
 ```mermaid
@@ -132,7 +136,7 @@ Posting the same generated video to Instagram and TikTok is genuinely **two rows
 
 | Route | What it does |
 |---|---|
-| `dashboard` | Builds the whole Dashboard payload — connection health from `platform_connections` plus live Upload-Post profile analytics/impressions. |
+| `dashboard` | Builds the whole Dashboard payload — connection health from `platform_connections` plus Upload-Post profile analytics/impressions, read from `upload_post_analytics_cache` (never a live Upload-Post call — see §6.2). |
 | `posts/generate` | Starts AI image/video generation for one or more platforms. |
 | `posts/generate-text` | Writes a caption-only post immediately, no background job. |
 | `posts/generate-idea` | Expands a rough idea into a few angle variations — doesn't save anything. |

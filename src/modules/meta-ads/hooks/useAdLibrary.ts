@@ -7,6 +7,16 @@ import { paginationMeta, PaginationMeta } from "@/lib/pagination";
 
 const supabase = createClient();
 
+// Mutations invalidate with `metaAdsKeys.all`, not `metaAdsKeys.creatives()`
+// called with no args — `creatives()` always appends its `filters`/`pagination`
+// params (as explicit `undefined` when omitted), so it never actually
+// prefix-matches the real, paginated query key (which has a concrete
+// `{page, limit}` object in that slot, not `undefined`) — TanStack Query's
+// partial-match invalidation checks every array index the filter key has,
+// so an explicit `undefined` there does NOT act as a wildcard. Invalidating
+// the shorter `all` key sidesteps this entirely and also catches the
+// picker's query (`useMetaAdCreativesForPicker`), which is desirable —
+// approving/deleting/retrying a creative should refresh that dropdown too.
 export const metaAdsKeys = {
   all: ["meta-ads"] as const,
   creatives: (filters?: CreativeFilters, pagination?: PaginationOptions) =>
@@ -73,7 +83,7 @@ export function useCreateMetaAdCreative() {
   return useMutation({
     mutationFn: (data: Partial<MetaAdCreative>) => MetaAdsService.createCreative(supabase, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: metaAdsKeys.creatives() });
+      queryClient.invalidateQueries({ queryKey: metaAdsKeys.all });
     },
   });
 }
@@ -84,7 +94,7 @@ export function useUpdateMetaAdCreative() {
     mutationFn: ({ id, data }: { id: string; data: Partial<MetaAdCreative> }) => 
       MetaAdsService.updateCreative(supabase, id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: metaAdsKeys.creatives() });
+      queryClient.invalidateQueries({ queryKey: metaAdsKeys.all });
     },
   });
 }
@@ -94,7 +104,7 @@ export function useDeleteMetaAdCreative() {
   return useMutation({
     mutationFn: (id: string) => MetaAdsService.deleteCreative(supabase, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: metaAdsKeys.creatives() });
+      queryClient.invalidateQueries({ queryKey: metaAdsKeys.all });
     },
   });
 }
@@ -113,7 +123,7 @@ export function useRetryMetaAdCreative() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: metaAdsKeys.creatives() });
+      queryClient.invalidateQueries({ queryKey: metaAdsKeys.all });
     },
   });
 }
