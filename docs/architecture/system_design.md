@@ -60,7 +60,7 @@ graph TD
 
 Every event payload carries `business_id` explicitly. Inngest functions run with the Supabase service-role key, which bypasses RLS entirely — scoping for background writes comes from the payload, never inferred from a session (there is no user session inside a background worker).
 
-One thing that looks like it should be an Inngest job but deliberately isn't: **`src/services/inngest/outreach/broadcast-progress.ts`** is a plain Inngest Realtime-channel helper used *inside* the scrape job to stream progress to the Leads page — it exports no `createFunction()` of its own, so it correctly doesn't appear in the registered-jobs table above.
+The Outreach scrape job (`scrapeOutreachContacts`) reports its progress purely through `outreach_scrape_jobs.status` — earlier versions pushed realtime Supabase broadcasts to a global "jobs" widget on top of that, but a broadcast is a single unpersisted message with no replay: any WebSocket hiccup during the job's several-minute run silently and permanently lost the terminal "done" message, stranding the UI. That widget (and the whole global job-tracking store behind it) was removed — the Leads page now polls `outreach_scrape_jobs` directly (`useScrapeJobs`, see `modules/outreach.md`), the same page-scoped-polling pattern already used for Meta Ads/Social Media AI generation (`generationRefetchInterval` — see `modules/meta_ads.md` / `modules/social_media.md`). No global widget, no broadcast channel, one consistent pattern for every "something's generating/running in the background" case in the app.
 
 ### Never call a slow third-party API from a page-load GET route
 

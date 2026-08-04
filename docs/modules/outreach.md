@@ -90,7 +90,7 @@ flowchart LR
     C -->|invalid / risky| E[Discarded — counted, not saved]
 ```
 
-Progress streams live to the Leads page while the scrape runs, so nothing needs to be refreshed manually to see it finish. Only addresses that come back genuinely **verified** are ever saved — anything invalid, risky, or unknown is discarded and simply counted, never stored as a half-good lead.
+The Leads page shows a running banner for as long as the scrape is active — it polls `outreach_scrape_jobs` directly (`useScrapeJobs`, every 4 seconds while something's queued/running) and clears on its own once the job finishes, no manual refresh needed. This is the same page-scoped-polling pattern Meta Ads/Social Media use for AI generation, not a global "jobs" widget — an earlier version pushed realtime broadcasts to one instead, but a broadcast is a single unpersisted message that a several-minute job's terminal "done" event could silently miss if the browser's WebSocket had any hiccup, permanently stranding the banner. Only addresses that come back genuinely **verified** are ever saved — anything invalid, risky, or unknown is discarded and simply counted, never stored as a half-good lead.
 
 ### 5.2 Drafting and sending a campaign
 

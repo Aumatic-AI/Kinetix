@@ -131,9 +131,9 @@ export function useDeleteLeadList() {
 }
 
 /** "Find Leads" (Leads tab) — kicks off a background scrape job, recorded in
- * outreach_scrape_jobs. useScrapeJobs itself has no UI consumer right now
- * (the "Past Searches" list was removed) but is kept for querying job
- * status later — the data and API route are still there either way. */
+ * outreach_scrape_jobs. Polled directly by ScrapeProgressBanner while a job
+ * is queued/running — this is the only source of truth for that banner,
+ * no realtime broadcast or global jobs widget involved. */
 export function useScrapeJobs() {
   return useQuery({
     queryKey: scrapeJobsKeys.all,
