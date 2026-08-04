@@ -2,7 +2,6 @@ import { inngest } from "../client";
 import { createClient } from "@supabase/supabase-js";
 import { ApifyService } from "@/services/apify";
 import { MillionVerifierService } from "@/services/millionverifier";
-import { broadcastJobProgress } from "./broadcast-progress";
 import { env } from "@/config";
 
 const supabase = createClient(
@@ -48,6 +47,12 @@ function buildApifyInput(niches: string, location: string, maxResults: number) {
   };
 }
 
+/**
+ * Progress is tracked purely through `outreach_scrape_jobs.status` — the
+ * Leads page polls that table directly (see useScrapeJobs) rather than
+ * this job pushing realtime broadcasts. Same page-level-polling pattern
+ * Meta Ads/Social Media use for AI generation, no global "jobs" widget.
+ */
 export const scrapeOutreachContacts = inngest.createFunction(
   { id: "outreach-scrape-contacts", triggers: [{ event: "outreach/scrape-contacts" }] },
   async ({ event, step }) => {
@@ -62,21 +67,18 @@ export const scrapeOutreachContacts = inngest.createFunction(
     await step.run("mark-running", async () => {
       await supabase.from("outreach_scrape_jobs").update({ status: "running" }).eq("id", jobId);
     });
-    await broadcastJobProgress(jobId, 5, "processing");
 
     try {
       const { runId, datasetId: initialDatasetId } = await step.run("start-apify", async () => {
         const result = await ApifyService.runActor(LEADS_FINDER_ACTOR, buildApifyInput(job.niches, job.location, job.max_results));
         return { runId: result.runId, datasetId: result.datasetId };
       });
-      await broadcastJobProgress(jobId, 15, "processing");
 
       const datasetId = initialDatasetId;
       let succeeded = false;
       for (let attempt = 0; attempt < MAX_POLL_ATTEMPTS; attempt++) {
         await step.sleep("wait-for-scrape", "15s");
         const status = await step.run(`check-status-${attempt}`, () => ApifyService.getRunStatus(runId));
-        await broadcastJobProgress(jobId, Math.min(20 + Math.round((attempt / MAX_POLL_ATTEMPTS) * 50), 70), "processing");
         if (status === "SUCCEEDED") {
           succeeded = true;
           break;
@@ -88,7 +90,6 @@ export const scrapeOutreachContacts = inngest.createFunction(
       if (!succeeded) throw new Error("Scrape timed out waiting for results");
 
       const items = await step.run("fetch-results", () => ApifyService.getDatasetItems(datasetId));
-      await broadcastJobProgress(jobId, 75, "processing");
 
       const stats = await step.run("verify-and-save", async () => {
         let validEmails = 0;
@@ -132,7 +133,6 @@ export const scrapeOutreachContacts = inngest.createFunction(
 
         return { total: items.length, validEmails, invalidEmails };
       });
-      await broadcastJobProgress(jobId, 95, "processing");
 
       await step.run("mark-succeeded", async () => {
         await supabase.from("outreach_scrape_jobs").update({
@@ -143,14 +143,12 @@ export const scrapeOutreachContacts = inngest.createFunction(
           invalid_emails: stats.invalidEmails,
         }).eq("id", jobId);
       });
-      await broadcastJobProgress(jobId, 100, "completed", `Found ${stats.total}, ${stats.validEmails} verified`);
 
       return stats;
     } catch (error: any) {
       await step.run("mark-failed", async () => {
         await supabase.from("outreach_scrape_jobs").update({ status: "failed", error_message: error.message }).eq("id", jobId);
       });
-      await broadcastJobProgress(jobId, 100, "failed", error.message);
       throw error;
     }
   }

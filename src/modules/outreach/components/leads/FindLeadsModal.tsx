@@ -6,12 +6,11 @@ import { Input } from "@/components/ui/Input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { useLeadLists, useCreateLeadList, useStartScrape } from "@/modules/outreach/hooks/useLeads";
-import { useJobsStore } from "@/store";
-import { ROUTES } from "@/config/routes";
 
-/** The scrape job this kicks off still gets recorded in outreach_scrape_jobs
- * as before — only the "Past Searches" list UI was removed, not the data or
- * the ability to query it later (useScrapeJobs is still there, unused for now). */
+/** The scrape job this kicks off is recorded in outreach_scrape_jobs and
+ * tracked purely by ScrapeProgressBanner polling that table (see
+ * useScrapeJobs) — no global jobs widget, same pattern as Meta Ads/Social
+ * Media AI generation. */
 export function FindLeadsModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [niches, setNiches] = useState("");
   const [location, setLocation] = useState("");
@@ -24,7 +23,6 @@ export function FindLeadsModal({ open, onClose }: { open: boolean; onClose: () =
   const { data: lists = [] } = useLeadLists();
   const createList = useCreateLeadList();
   const startScrape = useStartScrape();
-  const addJob = useJobsStore((s) => s.addJob);
 
   const reset = () => {
     setNiches("");
@@ -51,8 +49,7 @@ export function FindLeadsModal({ open, onClose }: { open: boolean; onClose: () =
     const parsedMax = Number(maxResults);
     if (!parsedMax || parsedMax < 1) return setError("Enter how many leads to find.");
     try {
-      const result = await startScrape.mutateAsync({ niches: niches.trim(), location: location.trim(), maxResults: parsedMax, listId });
-      addJob({ id: result.job.id, title: `Finding leads: ${niches.trim()} in ${location.trim()}`, type: "outreach-scrape", targetUrl: ROUTES.OUTREACH.LEADS });
+      await startScrape.mutateAsync({ niches: niches.trim(), location: location.trim(), maxResults: parsedMax, listId });
       reset();
       onClose();
     } catch (e) {
