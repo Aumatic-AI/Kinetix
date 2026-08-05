@@ -12,12 +12,24 @@ import type { LeadForm, CreateLeadFormInput } from "@/modules/meta-ads/hooks/use
  * one-way ARCHIVED-as-delete pattern as campaigns/ad sets/ads), so this is
  * the only way to see it again.
  */
-export async function GET() {
+const FORM_FIELDS = "id,name,status,locale,leads_count,created_time,questions,privacy_policy_url,is_optimized_for_quality,context_card,thank_you_page";
+
+/** ?formId=X fetches just that one form directly by ID (e.g. the Ad Detail
+ * page showing the single Instant Form a given ad is linked to) instead of
+ * pulling the whole account's form list — which only grows over time since
+ * Meta has no true delete for forms, just ARCHIVED. */
+export async function GET(request: Request) {
   try {
     const { pageId, pageToken } = requireMetaPageEnv();
-    const data = await graphGet<{ data?: LeadForm[] }>(`${pageId}/leadgen_forms`, pageToken, {
-      fields: "id,name,status,locale,leads_count,created_time,questions,privacy_policy_url,is_optimized_for_quality,context_card,thank_you_page",
-    });
+    const { searchParams } = new URL(request.url);
+    const formId = searchParams.get("formId");
+
+    if (formId) {
+      const form = await graphGet<LeadForm>(formId, pageToken, { fields: FORM_FIELDS });
+      return NextResponse.json({ form });
+    }
+
+    const data = await graphGet<{ data?: LeadForm[] }>(`${pageId}/leadgen_forms`, pageToken, { fields: FORM_FIELDS });
     return NextResponse.json({ forms: data.data || [] });
   } catch (error: any) {
     console.error("[META_ADS_LEAD_FORMS_LIST]", error);

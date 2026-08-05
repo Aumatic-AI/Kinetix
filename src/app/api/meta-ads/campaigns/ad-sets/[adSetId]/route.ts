@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireMetaAdAccountEnv, graphGet } from "@/services/meta/graph-client";
+import { requireMetaAdAccountEnv, graphGet, graphPost } from "@/services/meta/graph-client";
 import { fetchObjectMetrics } from "@/modules/meta-ads/services/insights.service";
 import { CampaignsService } from "@/modules/meta-ads/services/campaigns.service";
 import { AdSetPageDetail } from "@/modules/meta-ads/types/meta-ads.types";
@@ -89,5 +89,71 @@ export async function GET(_request: Request, { params }: { params: Promise<{ adS
   } catch (error: any) {
     console.error("[META_ADS_AD_SET_DETAIL]", error);
     return NextResponse.json({ error: error.message || "Failed to load ad set" }, { status: 500 });
+  }
+}
+
+/**
+ * Editable fields: name, end date, age range, gender, Advantage+ Audience,
+ * and — only when this ad set already has its own budget (i.e. the parent
+ * campaign isn't using Campaign Budget Optimization) — the amount of
+ * whichever budget type it already has. Age/gender/Advantage+ Audience all
+ * live inside Meta's single `targeting` object, which Meta replaces
+ * wholesale on update (no partial merge on Meta's side) — so this rebuilds
+ * the full object from our own stored `ad_sets.targeting` row, only
+ * overriding the fields actually being edited, to avoid silently wiping
+ * out geo_locations/location_types.
+ *
+ * Not editable, and deliberately not accepted here: optimization goal, bid
+ * strategy, locations, placements, start date, and switching budget type —
+ * same reasoning as the Campaign PATCH (see its own comment), plus
+ * optimization goal/bid strategy carrying real cascading-validation risk
+ * (pixel requirements, Lead Gen Form compatibility) that create/launch
+ * already handles but an edit path doesn't reimplement here.
+ */
+export async function PATCH(request: Request, { params }: { params: Promise<{ adSetId: string }> }) {
+  try {
+    const { adSetId } = await params;
+    const body = await request.json();
+    const ourAdSet = await CampaignsService.getAdSetById(adSetId);
+    if (!ourAdSet?.external_adset_id) return NextResponse.json({ error: "Ad set not found" }, { status: 404 });
+
+    const { accessToken } = requireMetaAdAccountEnv();
+    const payload: Record<string, unknown> = {};
+    if (body.name) payload.name = body.name;
+    if (body.endAt) payload.end_time = Math.floor(new Date(body.endAt).getTime() / 1000);
+    if (typeof body.dailyBudgetCents === "number" && ourAdSet.daily_budget_cents != null) {
+      payload.daily_budget = body.dailyBudgetCents;
+    } else if (typeof body.lifetimeBudgetCents === "number" && ourAdSet.lifetime_budget_cents != null) {
+      payload.lifetime_budget = body.lifetimeBudgetCents;
+    }
+
+    const hasTargetingEdit = body.ageMin !== undefined || body.ageMax !== undefined || body.gender !== undefined || body.advantageAudience !== undefined;
+    if (hasTargetingEdit) {
+      const currentTargeting = (ourAdSet.targeting || {}) as Record<string, unknown>;
+      payload.targeting = {
+        ...currentTargeting,
+        ...(body.ageMin !== undefined ? { age_min: body.ageMin } : {}),
+        ...(body.ageMax !== undefined ? { age_max: body.ageMax } : {}),
+        ...(body.gender !== undefined ? { genders: body.gender === 1 || body.gender === 2 ? [body.gender] : undefined } : {}),
+        ...(body.advantageAudience !== undefined ? { targeting_automation: { advantage_audience: body.advantageAudience ? 1 : 0 } } : {}),
+      };
+    }
+
+    if (Object.keys(payload).length > 0) {
+      await graphPost(ourAdSet.external_adset_id, accessToken, payload);
+    }
+
+    await CampaignsService.updateAdSet(adSetId, {
+      ...(body.name ? { name: body.name } : {}),
+      ...(body.endAt ? { end_at: body.endAt } : {}),
+      ...(payload.daily_budget != null ? { daily_budget_cents: body.dailyBudgetCents } : {}),
+      ...(payload.lifetime_budget != null ? { lifetime_budget_cents: body.lifetimeBudgetCents } : {}),
+      ...(payload.targeting ? { targeting: payload.targeting } : {}),
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("[META_ADS_AD_SET_UPDATE]", error);
+    return NextResponse.json({ error: error.message || "Failed to update ad set" }, { status: 500 });
   }
 }

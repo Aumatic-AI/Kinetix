@@ -123,6 +123,39 @@ export function useEditAdCreative() {
   });
 }
 
+/** Campaign Detail page's Edit action — name, end date, and (only when
+ * this campaign already uses CBO) the budget amount. See the API route's
+ * own comment for exactly which fields are and aren't accepted. */
+export function useUpdateCampaignDetails() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { campaignId: string; name?: string; endAt?: string; dailyBudgetCents?: number; lifetimeBudgetCents?: number }) =>
+      fetchJson(`/api/meta-ads/campaigns/${input.campaignId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (_data, variables) => invalidateCampaigns(queryClient, { campaignId: variables.campaignId }),
+  });
+}
+
+/** Ad Set Detail page's Edit action — name, end date, age range, gender,
+ * Advantage+ Audience, and (only when this ad set has its own budget) the
+ * budget amount. See the API route's own comment for exactly which fields
+ * are and aren't accepted. */
+export function useUpdateAdSetDetails() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { adSetId: string; campaignId: string; name?: string; endAt?: string; dailyBudgetCents?: number; lifetimeBudgetCents?: number; ageMin?: number; ageMax?: number; gender?: 0 | 1 | 2; advantageAudience?: boolean }) =>
+      fetchJson(`/api/meta-ads/campaigns/ad-sets/${input.adSetId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (_data, variables) => invalidateCampaigns(queryClient, { campaignId: variables.campaignId, adSetId: variables.adSetId }),
+  });
+}
+
 export function useArchiveCampaign() {
   const queryClient = useQueryClient();
   return useMutation({

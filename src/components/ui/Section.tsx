@@ -6,11 +6,11 @@ import { ReactNode } from "react";
  * Meta Ads Create Campaign wizard (still re-exported from
  * meta-ads/components/campaigns/shared.tsx for its existing consumers),
  * promoted here since the Settings page needed the identical pattern. */
-export function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
+export function Section({ title, description, children }: { title: ReactNode; description?: string; children: ReactNode }) {
   return (
     <div className="rounded-lg border border-border bg-surface p-4 space-y-4">
       <div>
-        <h3 className="text-sm font-bold text-text">{title}</h3>
+        <h3 className="text-sm font-bold text-text flex items-center gap-2">{title}</h3>
         {description && <p className="text-xs text-muted mt-0.5">{description}</p>}
       </div>
       {children}

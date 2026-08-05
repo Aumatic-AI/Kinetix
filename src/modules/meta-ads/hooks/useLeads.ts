@@ -78,6 +78,7 @@ export const leadsKeys = {
   listAll: () => [...leadsKeys.all, "list"] as const,
   list: (page: number, limit: number) => [...leadsKeys.listAll(), page, limit] as const,
   forms: () => [...leadsKeys.all, "forms"] as const,
+  form: (id: string) => [...leadsKeys.forms(), id] as const,
 };
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -115,6 +116,16 @@ export function useLeadForms() {
     queryKey: leadsKeys.forms(),
     queryFn: () => fetchJson<{ forms: LeadForm[] }>("/api/meta-ads/lead-forms").then((d) => d.forms),
     retry: false,
+  });
+}
+
+/** The Ad Detail page's "Instant Form" link — fetches just the one form an
+ * ad is linked to, by ID, instead of the whole account's form list. */
+export function useLeadForm(formId: string | null) {
+  return useQuery({
+    queryKey: leadsKeys.form(formId || ""),
+    queryFn: () => fetchJson<{ form: LeadForm }>(`/api/meta-ads/lead-forms?formId=${formId}`).then((d) => d.form),
+    enabled: !!formId,
   });
 }
 

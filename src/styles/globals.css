@@ -359,10 +359,6 @@ button {
 .overflow-auto { overflow: auto; }
 .overflow-y-auto { overflow-y: auto; }
 
-.grid { display: grid; }
-.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
-.md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-
 .z-nav { z-index: var(--z-nav); }
 .z-base { z-index: var(--z-base); }
 .z-50 { z-index: var(--z-modal); }
