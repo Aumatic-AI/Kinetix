@@ -75,6 +75,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cam
   }
 }
 
+/**
+ * Editable fields: name, end date, and — only when this campaign already
+ * uses Campaign Budget Optimization (a daily or lifetime budget set at the
+ * campaign level) — the amount of whichever budget type it already has.
+ * Not editable, and deliberately not accepted here: objective, buying
+ * type, currency, start date, and switching budget type (Meta doesn't
+ * allow changing daily<->lifetime after creation, or adding/removing CBO).
+ */
 export async function PATCH(request: Request, { params }: { params: Promise<{ campaignId: string }> }) {
   try {
     const { campaignId } = await params;
@@ -86,6 +94,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ca
     const payload: Record<string, unknown> = {};
     if (body.name) payload.name = body.name;
     if (body.endAt) payload.end_time = Math.floor(new Date(body.endAt).getTime() / 1000);
+    // Only the amount of whichever budget type this campaign already has
+    // (CBO) can change — never send both, and never introduce CBO where
+    // there wasn't any (that's a per-ad-set-only campaign, nothing to edit here).
+    if (typeof body.dailyBudgetCents === "number" && ourCampaign.daily_budget_cents != null) {
+      payload.daily_budget = body.dailyBudgetCents;
+    } else if (typeof body.lifetimeBudgetCents === "number" && ourCampaign.lifetime_budget_cents != null) {
+      payload.lifetime_budget = body.lifetimeBudgetCents;
+    }
     if (Object.keys(payload).length > 0) {
       await graphPost(ourCampaign.external_campaign_id, accessToken, payload);
     }
@@ -93,6 +109,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ca
     await CampaignsService.updateCampaign(campaignId, {
       ...(body.name ? { name: body.name } : {}),
       ...(body.endAt ? { end_at: body.endAt } : {}),
+      ...(payload.daily_budget != null ? { daily_budget_cents: body.dailyBudgetCents } : {}),
+      ...(payload.lifetime_budget != null ? { lifetime_budget_cents: body.lifetimeBudgetCents } : {}),
     });
 
     return NextResponse.json({ success: true });

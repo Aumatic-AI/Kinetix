@@ -2,13 +2,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Layers } from "lucide-react";
+import { Layers, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { DateTimePicker } from "@/components/ui/date-time-picker";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { ROUTES } from "@/config/routes";
 import { formatDate, formatDateTime } from "@/utils/datetime";
-import { useCampaignDetail } from "../../hooks/useCampaigns";
+import { useCampaignDetail, useUpdateCampaignDetails } from "../../hooks/useCampaigns";
 import { StatusChip, LevelChip, InfoItem, MetricsRow, Section, DetailBreadcrumbSkeleton, DetailHeaderSkeleton, InfoGridSkeleton, MetricsRowSkeleton, DetailChildRowsSkeleton } from "./shared";
 import { StatusActions } from "./StatusActions";
 import { AddAdSetModal } from "./AddAdSetModal";
@@ -33,11 +36,22 @@ function budgetSummary(dailyBudgetCents: number | null, lifetimeBudgetCents: num
  * performance, then the list of its Ad Sets (counts only — a given Ad
  * Set's own Ads are a separate page, one level down).
  */
+interface CampaignDraft {
+  name: string;
+  endAt?: Date;
+  budgetDollars: string;
+}
+
 export function CampaignDetailPage() {
   const { campaignId } = useParams<{ campaignId: string }>();
   const router = useRouter();
   const { data: campaign, isLoading } = useCampaignDetail(campaignId);
   const [addingAdSet, setAddingAdSet] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState<CampaignDraft>({ name: "", budgetDollars: "" });
+  const [confirmingSave, setConfirmingSave] = useState(false);
+  const [error, setError] = useState("");
+  const updateCampaign = useUpdateCampaignDetails();
 
   if (isLoading || !campaign) {
     return (
@@ -65,6 +79,39 @@ export function CampaignDetailPage() {
   const isLeadsObjective = campaign.objective === "OUTCOME_LEADS";
   const isCbo = campaign.dailyBudgetCents != null || campaign.lifetimeBudgetCents != null;
 
+  const startEditing = () => {
+    setError("");
+    setDraft({
+      name: campaign.name,
+      endAt: campaign.endAt ? new Date(campaign.endAt) : undefined,
+      budgetDollars: isCbo ? String((campaign.dailyBudgetCents ?? campaign.lifetimeBudgetCents ?? 0) / 100) : "",
+    });
+    setIsEditing(true);
+  };
+
+  const discardEditing = () => {
+    setIsEditing(false);
+    setError("");
+  };
+
+  const handleSave = async () => {
+    setError("");
+    try {
+      const budgetCents = isCbo ? Math.round(Number(draft.budgetDollars) * 100) : undefined;
+      await updateCampaign.mutateAsync({
+        campaignId: campaign.id,
+        ...(draft.name.trim() && draft.name !== campaign.name ? { name: draft.name.trim() } : {}),
+        ...(draft.endAt && draft.endAt.toISOString() !== campaign.endAt ? { endAt: draft.endAt.toISOString() } : {}),
+        ...(budgetCents != null && campaign.dailyBudgetCents != null ? { dailyBudgetCents: budgetCents } : {}),
+        ...(budgetCents != null && campaign.lifetimeBudgetCents != null ? { lifetimeBudgetCents: budgetCents } : {}),
+      });
+      setIsEditing(false);
+      setConfirmingSave(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to save changes");
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-10">
       <Breadcrumb>
@@ -80,24 +127,65 @@ export function CampaignDetailPage() {
       </Breadcrumb>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2.5 flex-wrap">
             <LevelChip level="campaign" />
-            <h2 className="text-2xl font-bold text-text truncate">{campaign.name}</h2>
-            <StatusChip status={campaign.status} />
+            {isEditing ? (
+              <div className="w-full max-w-sm">
+                <Input
+                  value={draft.name}
+                  onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+                  className="h-9 text-base font-bold"
+                />
+              </div>
+            ) : (
+              <h2 className="text-2xl font-bold text-text truncate">{campaign.name}</h2>
+            )}
           </div>
         </div>
-        <StatusActions level="campaign" id={campaign.id} campaignId={campaign.id} status={campaign.status} />
+        {isEditing ? (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={discardEditing}>Discard</Button>
+            <Button size="sm" onClick={() => setConfirmingSave(true)} disabled={!draft.name.trim()}>Save</Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <StatusActions level="campaign" id={campaign.id} campaignId={campaign.id} status={campaign.status} />
+            <Button variant="outline" size="sm" onClick={startEditing} icon={<Pencil className="w-3.5 h-3.5" />}>Edit</Button>
+          </div>
+        )}
       </div>
 
-      <Section title="Campaign Info" description="Everything Meta has on record for this campaign.">
+      <Section
+        title={
+          <>
+            Campaign Info
+            <StatusChip status={campaign.status} />
+          </>
+        }
+        description="Everything Meta has on record for this campaign."
+      >
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
           <InfoItem label="Objective" value={campaign.objective?.replace("OUTCOME_", "") || "—"} />
           <InfoItem label="Buying Type" value={buyingTypeLabel(campaign.buyingType)} />
-          <InfoItem label="Budget" value={budgetSummary(campaign.dailyBudgetCents, campaign.lifetimeBudgetCents)} />
+          {isEditing && isCbo ? (
+            <div className="min-w-0 space-y-1.5">
+              <p className="text-[11px] font-semibold text-muted uppercase tracking-wide">Budget ({campaign.dailyBudgetCents != null ? "daily" : "lifetime"})</p>
+              <Input type="number" min="1" step="1" value={draft.budgetDollars} onChange={(e) => setDraft((d) => ({ ...d, budgetDollars: e.target.value }))} className="h-9 text-sm" />
+            </div>
+          ) : (
+            <InfoItem label="Budget" value={budgetSummary(campaign.dailyBudgetCents, campaign.lifetimeBudgetCents)} />
+          )}
           <InfoItem label="Currency" value={campaign.currency} />
           <InfoItem label="Start" value={campaign.startAt ? formatDateTime(campaign.startAt) : "—"} />
-          <InfoItem label="End" value={campaign.endAt ? formatDateTime(campaign.endAt) : "No end date"} />
+          {isEditing ? (
+            <div className="min-w-0 space-y-1.5">
+              <p className="text-[11px] font-semibold text-muted uppercase tracking-wide">End</p>
+              <DateTimePicker value={draft.endAt} onChange={(d) => setDraft((prev) => ({ ...prev, endAt: d }))} className="w-full h-9 text-sm" />
+            </div>
+          ) : (
+            <InfoItem label="End" value={campaign.endAt ? formatDateTime(campaign.endAt) : "No end date"} />
+          )}
           <InfoItem label="Created" value={formatDate(campaign.createdAt)} />
           <InfoItem label="Ad Sets" value={String(campaign.adSetCount)} />
           <InfoItem label="Ads" value={String(campaign.adCount)} />
@@ -142,6 +230,18 @@ export function CampaignDetailPage() {
       )}
 
       <AddAdSetModal campaignId={campaign.id} campaignObjective={campaign.objective} isCbo={isCbo} open={addingAdSet} onClose={() => setAddingAdSet(false)} />
+
+      <ConfirmModal
+        open={confirmingSave}
+        onOpenChange={(open) => { if (!open && !updateCampaign.isPending) { setConfirmingSave(false); setError(""); } }}
+        title="Save changes?"
+        description="This updates the campaign directly on Meta."
+        confirmLabel="Save"
+        variant="primary"
+        loading={updateCampaign.isPending}
+        error={error}
+        onConfirm={handleSave}
+      />
     </div>
   );
 }

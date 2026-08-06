@@ -10,10 +10,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { ROUTES } from "@/config/routes";
 import { useAdDetail, useEditAdCreative } from "../../hooks/useCampaigns";
+import { useLeadForm, LeadForm } from "../../hooks/useLeads";
 import { CTA_TYPES } from "./shared";
 import { StatusChip, LevelChip, InfoItem, MetricsRow, Section, DetailBreadcrumbSkeleton, DetailHeaderSkeleton, InfoItemSkeleton, MetricsRowSkeleton } from "./shared";
 import { StatusActions } from "./StatusActions";
 import { MediaPreview } from "@/components/global/MediaPreview";
+import { LeadFormDetailsModal } from "../leads/LeadFormDetailsModal";
 
 function ctaLabel(ctaType: string | null): string {
   return CTA_TYPES.find((c) => c.value === ctaType)?.label || ctaType || "—";
@@ -29,12 +31,14 @@ function ctaLabel(ctaType: string | null): string {
 export function AdDetailPage() {
   const { campaignId, adSetId, adId } = useParams<{ campaignId: string; adSetId: string; adId: string }>();
   const { data: ad, isLoading } = useAdDetail(adId);
+  const { data: linkedForm } = useLeadForm(ad?.leadGenFormId ?? null);
   const editCreative = useEditAdCreative();
   const [previewing, setPreviewing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [headline, setHeadline] = useState("");
   const [primaryText, setPrimaryText] = useState("");
   const [editError, setEditError] = useState("");
+  const [viewingForm, setViewingForm] = useState<LeadForm | null>(null);
 
   useEffect(() => {
     if (ad) {
@@ -57,8 +61,8 @@ export function AdDetailPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InfoItemSkeleton />
                 <InfoItemSkeleton />
-                <div className="sm:col-span-2"><InfoItemSkeleton wide /></div>
-                <div className="sm:col-span-2"><InfoItemSkeleton wide /></div>
+                <InfoItemSkeleton />
+                <InfoItemSkeleton />
               </div>
             </Section>
 
@@ -113,7 +117,6 @@ export function AdDetailPage() {
           <div className="flex items-center gap-2.5 flex-wrap">
             <LevelChip level="ad" />
             <h2 className="text-2xl font-bold text-text truncate">{ad.name}</h2>
-            <StatusChip status={ad.status} />
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -154,29 +157,41 @@ export function AdDetailPage() {
         )}
 
         <div className="flex-1 min-w-0 space-y-6">
-          <Section title="Ad Copy" description="What people see, and where they go after clicking.">
+          <Section
+            title={
+              <>
+                Ad Copy
+                <StatusChip status={ad.status} />
+              </>
+            }
+            description="What people see, and where they go after clicking."
+          >
             {!editing ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <InfoItem label="Headline" value={ad.headline || "—"} />
                 <InfoItem label="Call to Action" value={ctaLabel(ad.ctaType)} />
-                <div className="sm:col-span-2"><InfoItem label="Primary Text" value={ad.primaryText || "—"} truncate={false} /></div>
-                {ad.description && <div className="sm:col-span-2"><InfoItem label="Description" value={ad.description} /></div>}
-                <div className="sm:col-span-2">
-                  <InfoItem
-                    label={ad.leadGenFormId ? "Destination" : "Destination URL"}
-                    value={
-                      ad.leadGenFormId ? (
-                        "Instant Form"
-                      ) : ad.destinationUrl ? (
-                        <a href={ad.destinationUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
-                          {ad.destinationUrl}
-                        </a>
+                <InfoItem label="Primary Text" value={<span className="whitespace-pre-wrap">{ad.primaryText || "—"}</span>} truncate={false} />
+                <InfoItem
+                  label={ad.leadGenFormId ? "Destination" : "Destination URL"}
+                  value={
+                    ad.leadGenFormId ? (
+                      linkedForm ? (
+                        <button type="button" onClick={() => setViewingForm(linkedForm)} className="text-primary hover:underline text-left">
+                          Instant Form
+                        </button>
                       ) : (
-                        "—"
+                        "Instant Form"
                       )
-                    }
-                  />
-                </div>
+                    ) : ad.destinationUrl ? (
+                      <a href={ad.destinationUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                        {ad.destinationUrl}
+                      </a>
+                    ) : (
+                      "—"
+                    )
+                  }
+                />
+                {ad.description && <div className="sm:col-span-2"><InfoItem label="Description" value={ad.description} /></div>}
               </div>
             ) : (
               <div className="space-y-3">
@@ -211,6 +226,7 @@ export function AdDetailPage() {
       </div>
 
       <MediaPreview open={previewing} onClose={() => setPreviewing(false)} mediaUrl={ad.mediaUrl || null} type={ad.mediaType} />
+      <LeadFormDetailsModal form={viewingForm} onClose={() => setViewingForm(null)} />
     </div>
   );
 }

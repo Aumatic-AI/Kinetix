@@ -17,6 +17,25 @@ export interface StitchScenesOptions {
  * Callers still own the actual step.sleep/step.run polling loop — Inngest
  * steps can't live inside an imported helper — this only removes the
  * duplicated command-building that used to be copy-pasted in both jobs.
+ *
+ * `outputDuration` used to be a pure assumption (`clipUrls.length x
+ * clipDurationSeconds`) with no guarantee any given Kie clip actually came
+ * back at exactly that length — generative video models commonly return a
+ * clip a few tenths of a second short or long of what was requested. Each
+ * clip is now force-conformed to exactly `clipDurationSeconds` before the
+ * concat (`tpad` freeze-pads a short clip with its own last frame, `trim`
+ * cuts a long one — applying both unconditionally, in that order, is a
+ * standard way to land on an exact duration regardless of which direction
+ * the input actually drifted), so `outputDuration` is now a real guarantee
+ * instead of a hope. The audio track is `apad`-padded with silence so it
+ * always covers the full output length even if the narration naturally
+ * runs shorter than the scene count implies — the final `-t` still trims
+ * anything longer, same as before. This narrows, but doesn't fully
+ * eliminate, audio/video drift: the remaining source is that one
+ * continuous narration track is laid over evenly-spaced fixed-length
+ * scenes, while spoken sentences naturally vary in length — perfectly
+ * mapping each line's real spoken duration to its own scene would need
+ * per-line TTS with measured timestamps, a larger change than this fix.
  */
 export async function submitSceneStitchJob({ clipUrls, audioUrl, clipDurationSeconds = 4 }: StitchScenesOptions): Promise<string> {
   const hasAudio = !!audioUrl;
@@ -28,13 +47,16 @@ export async function submitSceneStitchJob({ clipUrls, audioUrl, clipDurationSec
 
   const filterParts: string[] = [];
   clipUrls.forEach((_, i) => {
-    filterParts.push(`[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24[v${i}]`);
+    filterParts.push(
+      `[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24,tpad=stop_mode=clone:stop_duration=${clipDurationSeconds},trim=duration=${clipDurationSeconds},setpts=PTS-STARTPTS[v${i}]`
+    );
   });
   const concatInputs = clipUrls.map((_, i) => `[v${i}]`).join("");
   filterParts.push(`${concatInputs}concat=n=${clipUrls.length}:v=1:a=0,format=yuv420p[v]`);
+  if (hasAudio) filterParts.push(`[${clipUrls.length}:a]apad[aout]`);
   const filterComplex = filterParts.join(",");
 
-  const audioMap = hasAudio ? `-map ${clipUrls.length}:a ` : "";
+  const audioMap = hasAudio ? `-map "[aout]" ` : "";
   const audioEncode = hasAudio ? `-c:a aac -b:a 192k -ar 44100 -ac 2 ` : `-an `;
 
   const fullCommand = `ffmpeg -y ${inputs} -filter_complex "${filterComplex}" -map "[v]" ${audioMap}-t ${outputDuration.toFixed(2)} -c:v libx264 -preset superfast -crf 23 ${audioEncode}-avoid_negative_ts make_zero -movflags +faststart {output}`;
