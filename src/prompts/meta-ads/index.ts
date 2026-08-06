@@ -23,8 +23,25 @@
  * malformed hands, physically impossible object interactions).
  */
 
+/** Keys match `businesses.services[].name` exactly (lowercased) — see
+ * `supabase/migrations/20260729000000_business_services.sql` for the live
+ * list: Hair Transplant, Dental Treatment, Cosmetic Surgery, Eye Treatment,
+ * IVF Fertility, Thermal Wellness. "dental implants"/"rhinoplasty" are kept
+ * as legacy aliases for older data or a manually typed service name that
+ * doesn't match one of the 6 current options verbatim. This previously only
+ * had 3 entries and neither matched "Dental Treatment" nor any of Cosmetic
+ * Surgery/Eye Treatment/IVF Fertility/Thermal Wellness — meaning
+ * `mapServiceToCategory` silently returned null for 5 of the 6 real
+ * services, forcing every one of them through the much less reliable
+ * keyword-detection fallback below instead of using the service actually
+ * selected. */
 const SERVICE_CATEGORY_MAP: Record<string, string> = {
   "hair transplant": "HAIR",
+  "dental treatment": "DENTAL",
+  "cosmetic surgery": "COSMETIC",
+  "eye treatment": "EYE",
+  "ivf fertility": "IVF",
+  "thermal wellness": "WELLNESS",
   "dental implants": "DENTAL",
   "rhinoplasty": "RHINOPLASTY",
 };
@@ -35,6 +52,50 @@ const SERVICE_CATEGORY_MAP: Record<string, string> = {
 export function mapServiceToCategory(service: any): string | null {
   if (!service) return null;
   return SERVICE_CATEGORY_MAP[String(service).toLowerCase().trim()] || null;
+}
+
+/** Real, specific "before" problem phrasing per condition category — reused
+ * by the video script prompts (spoken narration), the visual-prompts tier
+ * system, and both single-image prompts (visual depiction guidance), so an
+ * idea's described problem state is always grounded in concrete, varied
+ * language rather than a vague "something is wrong" cue the model can
+ * default away from. Deliberately many variants per category, not one —
+ * real customers describe the same condition many different ways, and a
+ * single canned phrase repeats and reads as generic. Genderless — the
+ * calling prompt tells the model to adapt the pronoun (his/her/their) to
+ * the character. */
+export const PROBLEM_VOCABULARY: Record<string, string[]> = {
+  HAIR: ["thinning hair", "a receding hairline", "a bald patch", "hair loss", "a visible scalp", "patchy hair growth", "a hairline creeping back every year", "thinning at the crown", "a widening part", "a hat worn just to hide it"],
+  DENTAL: ["a chipped tooth", "a discolored smile", "crooked teeth", "uneven teeth", "a stained front tooth", "a missing tooth", "gapped front teeth", "receding gums", "crowded lower teeth", "a smile hidden behind a closed mouth"],
+  COSMETIC: ["stubborn fat that won't shift", "a sagging midsection", "loose skin kept covered up", "clothes that don't fit the way they used to", "an outfit avoided ever since", "a profile always hidden in photos"],
+  EYE: ["poor vision", "thick glasses", "struggling to see clearly", "blurry vision", "squinting at street signs", "eyes straining at every screen", "holding a phone at arm's length just to read it"],
+  IVF: ["failed attempts to conceive", "a years-long struggle to have a child", "another negative test", "a nursery never let themselves plan", "dread before every appointment"],
+  WELLNESS: ["exhaustion that never lifts", "tension locked in the shoulders", "constant low-grade stress", "an ache that won't ease", "trouble winding down at night", "feeling run down every single day"],
+  BODY: ["a fuller figure", "a heavier midsection", "a body shape they're self-conscious about"],
+  RHINOPLASTY: ["a nose shape they're self-conscious about", "a bump on the nose", "a nose profile avoided in photos", "wide nostrils"],
+  FACELIFT: ["an aging appearance", "a sagging jawline", "loose skin", "tired-looking eyes"],
+  BARIATRIC: ["a struggle with mobility", "difficulty breathing", "a tired, heavy body"],
+};
+
+/** Shared "read the idea, don't default to happy/flawless" depiction rule
+ * for SINGLE-IMAGE prompts (Meta Ads image ads and Social image posts) —
+ * there's no phase 1/3 pair to contrast the way video has (see STEP 4 in
+ * getVisualPromptsPrompt below), so a single image has to get the ONE
+ * moment right the first time. Written to directly counter the most common
+ * single-image failure mode seen in practice: an idea describing an
+ * unresolved "before" problem (self-conscious, embarrassed, sad, hiding, in
+ * discomfort) rendering as a generically attractive, happy, flawless
+ * subject instead — the image model's own bias toward idealized
+ * stock-photo people overriding what the idea actually described. */
+export function problemDepictionBlock(serviceCategory: string | null, serviceName?: string | null): string {
+  const knownVocab = serviceCategory ? PROBLEM_VOCABULARY[serviceCategory] : null;
+
+  return `PROBLEM / EMOTIONAL STATE — READ THE IDEA LITERALLY, DO NOT DEFAULT TO HAPPY
+This image depicts ONE specific moment described in the idea above — not a generic, idealized version of the subject. Read the idea's own exact words for the person's emotional state and physical condition AT THIS MOMENT, and depict that faithfully:
+- If the idea describes an unresolved "before" state (self-conscious, embarrassed, sad, ashamed, hiding, struggling, in discomfort, dissatisfied), the person's expression, posture, and the specific physical condition mentioned must visibly and unmistakably show that — a downward gaze, a closed-mouth smile, a hand covering the mouth or hairline, tense shoulders, dim/cooler lighting, whatever the idea's own words imply. Do NOT render a generically happy, camera-ready, flawless subject when the idea describes distress or an unresolved problem — that is the single most common failure to avoid here.
+- If the idea describes an already-resolved "after" state or a moment of genuine confidence and relief, depict that instead — open posture, warm lighting, a natural smile.
+${knownVocab ? `- The condition here is ${serviceCategory}${serviceName ? ` ("${serviceName}")` : ""} — ground the depiction in specifics like: ${knownVocab.slice(0, 5).join(", ")} (adapt to the subject's gender: his/her/their).` : `- If the idea mentions a physical or emotional condition, identify it from its own words (hair loss/thinning, dental/smile issues, vision, body shape, stress and fatigue, fertility struggles, or similar) and depict that specific condition, not a vague or generic stand-in.`}
+- Never invent distress or damage beyond what the idea actually describes, and never sanitize distress the idea does describe into a neutral or happy expression.`;
 }
 
 /** Each script line becomes one fixed ~4-second video scene (see
@@ -86,6 +147,7 @@ export function getImageAdPrompt(intelligence: any, creative: any): string {
 
   const winningAngle = self?.winning_patterns?.best_angle || "Not enough data yet — no live-performance history available.";
   const creativeDirectives: string[] = self?.creative_directives || [];
+  const serviceCategory = mapServiceToCategory(creative.service);
 
   return `You are a world-class direct response ad creative specialist with 15 years of experience producing high-converting image ads for ${business.industry || "this"} brands on Meta and Instagram.
 
@@ -114,6 +176,8 @@ AD CREATIVE RULES
    - TRUST: credentials, accreditations, expert care — whatever is real for this business.
 3. Do NOT invent stats, claims, or proof not present in the business context or intelligence above.
 4. The image prompt must NEVER describe text, logos, UI elements, or overlays — those are composited separately.
+
+${problemDepictionBlock(serviceCategory, creative.service)}
 
 IMAGE PROMPT RULES (visual_prompt field)
 - 3-5 sentences, cinematic and photorealistic.
@@ -191,25 +255,20 @@ Required fields:
 ${serviceCategory
   ? `CATEGORY IS ALREADY KNOWN: ${serviceCategory} (from the selected service, "${creative.service}"). Use the ${serviceCategory} vocabulary below directly — do not re-detect it from the idea text.`
   : `If the idea describes a physical transformation, DETECT CATEGORY from keywords in the idea (this picks the vocabulary for ACT 1 below); otherwise adapt the same 3-act structure to whatever the idea is actually about:
-- "hair", "bald" → HAIR
-- "teeth", "smile" → DENTAL
-- "weight" → BODY
+- "hair", "bald", "thinning", "scalp" → HAIR
+- "teeth", "smile", "dental" → DENTAL
+- "weight", "belly", "figure" (general body shape, not a named service below) → BODY
 - "nose" → RHINOPLASTY
-- "vision" → EYE
-- "aging" → FACELIFT
-- "obese" → BARIATRIC
-- "conceive" → IVF
+- "vision", "glasses", "eyesight" → EYE
+- "aging", "wrinkles", "jawline" → FACELIFT
+- "obese", "mobility", "breathing" → BARIATRIC
+- "conceive", "fertility", "IVF" → IVF
+- "stress", "tired", "exhausted", "burnout", "tension" → WELLNESS
+- "fat", "loose skin", "body contouring", "liposuction" → COSMETIC
 - anything else appearance/health related → COSMETIC`}
 
-PROBLEM VOCABULARY — if the category matches, use phrases like these (verbatim or close paraphrase):
-- HAIR: "his thinning hair", "his receding hairline", "his bald patch", "her hair loss", "her visible scalp"
-- DENTAL: "his chipped tooth", "his discolored smile", "his crooked teeth", "her uneven teeth", "her stained front tooth"
-- BODY: "his midsection", "his belly", "his weight", "her fuller figure", "her body shape"
-- RHINOPLASTY: "his nose shape", "the bump on his nose", "her nose profile", "her wide nostrils"
-- EYE: "his poor vision", "his thick glasses", "his struggle to see clearly", "her blurry vision"
-- FACELIFT: "his aging appearance", "his sagging jawline", "her loose skin", "her tired eyes"
-- BARIATRIC: "his struggle with mobility", "his weight", "her difficulty breathing", "her tired body"
-- IVF: "her failed attempts", "their struggle to conceive"
+PROBLEM VOCABULARY — if the category matches, use phrases like these (verbatim or close paraphrase; adapt the pronoun to the character's gender):
+${Object.entries(PROBLEM_VOCABULARY).map(([cat, phrases]) => `- ${cat}: ${phrases.map((p) => `"${p}"`).join(", ")}`).join("\n")}
 
 ASSIGN ONE NAME, use it throughout:
 - Male:   James, David, Mark, Daniel, Thomas, Michael
@@ -321,10 +380,12 @@ ${serviceCategory ? `The service is already known: ${serviceCategory} (from "${c
 | wrinkles, fine lines, aging, sagging | Anti-aging | 2 | soft, tasteful — imply, don't dramatize |
 | glasses, blurry, vision | Eye / vision | 1 | may show glasses / squinting |
 | weight, belly, obesity | Body / bariatric | 2 | imply via posture and fit of clothing — no body close-ups |
+| stubborn fat, loose skin, body contouring, liposuction, tummy tuck, sagging midsection | Cosmetic / body contouring | 2 | imply via posture, fit of clothing, and mirror moments — no body close-ups |
 | nose, jaw, chin, profile | Facial contouring | 2 | imply via profile shots and mirror moments — never dramatize |
 | conceive, IVF, fertility | Fertility | 3 | emotional/consultation framing only — NO physical depiction |
 | cancer, oncology | Oncology | 3 | emotional/consultation framing only — NO physical depiction |
 | mental health, anxiety, depression | Mental health | 3 | emotional framing only — NO physical depiction |
+| stress, tension, fatigue, burnout, exhausted, run down, spa, wellness | Stress / wellness | 2 | imply via tired posture, tense shoulders, dull expression — no medical depiction needed |
 | anything else | General transformation | 2 | tasteful, imply rather than dramatize |
 
 Tier 1: the condition may be shown directly and tastefully. Tier 2: imply through posture, wardrobe, and mirror moments rather than graphic depiction. Tier 3: never depict the body or condition — use consultation and quiet-emotion framing only (a warm room, a caring listener, a moment of relief).

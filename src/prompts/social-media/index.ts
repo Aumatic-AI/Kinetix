@@ -9,7 +9,7 @@
  * across 3 different n8n Code nodes in the legacy system).
  */
 
-import { mapServiceToCategory, sceneCountForDuration } from "../meta-ads";
+import { mapServiceToCategory, sceneCountForDuration, problemDepictionBlock, PROBLEM_VOCABULARY } from "../meta-ads";
 
 export type SocialPlatform = "facebook" | "instagram" | "youtube" | "x" | "linkedin" | "tiktok";
 
@@ -171,8 +171,9 @@ export function formatPlatformCaptions(meta: CaptionMetadata, platforms: SocialP
 // Image post generation
 // ============================================================
 
-export function getSocialImagePrompt(business: any, ideaPrompt: string): string {
+export function getSocialImagePrompt(business: any, ideaPrompt: string, service?: string): string {
   const businessName = business?.name || "the business";
+  const serviceCategory = mapServiceToCategory(service);
 
   return `You are a professional AI image prompt writer for ${businessName}, a ${business?.industry || "business"}.
 
@@ -183,9 +184,11 @@ Your ONLY job is to generate one photorealistic image generation prompt for the 
 CONTENT IDEA
 ${ideaPrompt}
 
+${problemDepictionBlock(serviceCategory, service)}
+
 VISUAL RULES
 - Show a real, specific environment relevant to ${businessName}'s offerings above.
-- Include people where relevant to the idea, appearing genuine and at ease.
+- Include people where relevant to the idea, appearing genuine and at ease UNLESS the idea describes an unresolved problem or negative emotional state — in that case their expression and posture must show that instead, per the rule above.
 - Settings must feel authentic and premium, matching the brand voice above.
 - No text, logos, watermarks, or UI elements anywhere in the image.
 - If any screen, phone, laptop, sign, or document appears, any visible text must be spelled correctly and sharp, never blurred — keep it short and simple (a single common word, a time, a short label) rather than full sentences, so it renders correctly.
@@ -239,12 +242,14 @@ You write cinematic, emotionally honest first-person transformation scripts that
 
 STORY IDEA
 ${input.ideaPrompt}
-${serviceCategory ? `\nCATEGORY: ${serviceCategory} (from the selected service, "${input.service}") — ground the specific struggle and outcome in this category.` : ""}
+${serviceCategory
+  ? `\nCATEGORY: ${serviceCategory} (from the selected service, "${input.service}") — ground the specific struggle and outcome in this category. Use concrete phrasing like: ${(PROBLEM_VOCABULARY[serviceCategory] || []).slice(0, 5).join(", ")} (adapt the pronoun to the character's gender).`
+  : `\nIf the story idea describes a physical or emotional condition, identify it from its own words and use concrete, specific phrasing for it in Act 1 — never a vague "something is wrong."`}
 CHARACTER: first-person, ${input.character} voice — use the name "${characterName}" once if a name is needed, otherwise use "I".
 
 Every script MUST follow this four-act emotional arc:
 
-ACT 1 — SAD (the problem before ${businessName}): Open with the exact scenario from the story idea above. Describe the specific struggle and how it affects daily life. Do NOT mention ${businessName} yet.
+ACT 1 — SAD (the problem before ${businessName}): Open with the exact scenario from the story idea above. Describe the specific struggle and how it affects daily life, using the concrete phrasing above rather than a vague or softened version of it. Do NOT mention ${businessName} yet.
 
 ACT 2 — MEET ${String(businessName).toUpperCase()} (the discovery): Introduce ${businessName} by name for the FIRST time. Describe finding it and the moment of deciding to reach out.
 
