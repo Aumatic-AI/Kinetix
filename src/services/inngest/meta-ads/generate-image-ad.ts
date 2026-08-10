@@ -1,7 +1,7 @@
 import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
-import { getImageAdPrompt } from "../../../prompts/meta-ads";
+import { getImageAdPrompt } from "../../../prompts/meta-ads/image";
 import { env } from "@/config";
 
 const supabase = createClient(

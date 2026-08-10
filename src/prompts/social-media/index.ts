@@ -9,11 +9,9 @@
  * across 3 different n8n Code nodes in the legacy system).
  */
 
-import { mapServiceToCategory, sceneCountForDuration, problemDepictionBlock, PROBLEM_VOCABULARY } from "../meta-ads";
-
 export type SocialPlatform = "facebook" | "instagram" | "youtube" | "x" | "linkedin" | "tiktok";
 
-function businessContextBlock(business: any): string {
+export function businessContextBlock(business: any): string {
   const name = business?.name || "the business";
   const industry = business?.industry || "this industry";
   const offerings = business?.core_offerings || "Not specified";
@@ -39,13 +37,15 @@ function businessContextBlock(business: any): string {
 export interface CaptionPromptInput {
   ideaPrompt: string;
   contentType: "image" | "video" | "text";
+  language?: string;
 }
 
 export function getSocialCaptionPrompt(business: any, input: CaptionPromptInput) {
   const businessName = business?.name || "the business";
   const hashtag = `#${String(businessName).replace(/[^a-zA-Z0-9]/g, "")}`;
+  const language = input.language && input.language !== "English" ? input.language : null;
 
-  const system = `You are a social media content strategist for ${businessName}, a ${business?.industry || "business"} serving ${business?.target_audience || "its customers"}.
+  const system = `${language ? `OUTPUT LANGUAGE: Write the title, post, and caption ENTIRELY in ${language} — not other language, not mixed. Keep the hashtags in TAGS RULES in their normal Latin/English form (standard practice for discoverability even on non-English posts).\n\n` : ""}You are a social media content strategist for ${businessName}, a ${business?.industry || "business"} serving ${business?.target_audience || "its customers"}.
 
 ${businessContextBlock(business)}
 
@@ -67,7 +67,7 @@ POST RULES
 - Compress the situation, the value, and the outcome into one concise story
 - Emotional and human, never jargon-heavy
 - No pricing, no invented statistics
-- End with exactly: Visit ${businessName} to learn more.
+- End with a call-to-action equivalent to "Visit ${businessName} to learn more."${language ? ` — written naturally in ${language}, not left in English` : ""}
 
 CAPTION RULES
 - 150 to 300 characters
@@ -168,117 +168,6 @@ export function formatPlatformCaptions(meta: CaptionMetadata, platforms: SocialP
 }
 
 // ============================================================
-// Image post generation
-// ============================================================
-
-export function getSocialImagePrompt(business: any, ideaPrompt: string, service?: string): string {
-  const businessName = business?.name || "the business";
-  const serviceCategory = mapServiceToCategory(service);
-
-  return `You are a professional AI image prompt writer for ${businessName}, a ${business?.industry || "business"}.
-
-${businessContextBlock(business)}
-
-Your ONLY job is to generate one photorealistic image generation prompt for the content idea below. The image must show a real, authentic environment relevant to this business's offerings and audience — never a generic stock-photo scene.
-
-CONTENT IDEA
-${ideaPrompt}
-
-${problemDepictionBlock(serviceCategory, service)}
-
-VISUAL RULES
-- Show a real, specific environment relevant to ${businessName}'s offerings above.
-- Include people where relevant to the idea, appearing genuine and at ease UNLESS the idea describes an unresolved problem or negative emotional state — in that case their expression and posture must show that instead, per the rule above.
-- Settings must feel authentic and premium, matching the brand voice above.
-- No text, logos, watermarks, or UI elements anywhere in the image.
-- If any screen, phone, laptop, sign, or document appears, any visible text must be spelled correctly and sharp, never blurred — keep it short and simple (a single common word, a time, a short label) rather than full sentences, so it renders correctly.
-- A screen is only legible from directly in front of it — never from behind it or from where its user already stands. Never show a person's face facing the camera AND a laptop/phone screen's front display also facing the camera in the same frame — that is two contradictory camera positions at once. Pick one: shoot over the person's shoulder so both they and the camera share the screen's side, or shoot the person face-on with the screen turned away from camera (its back/lid only, no visible display). Any handheld device (phone, cup, book) must be one single, solid, seamless object, never fragmented or floating pieces. Hands must have exactly five fingers each with natural, physically possible poses.
-
-PROMPT STRUCTURE — always follow this order:
-1. Scene: describe the specific environment
-2. Action: what the subject(s) are doing
-3. Camera: shot on a 50mm or 85mm lens, shallow depth of field
-4. Lighting: describe direction and quality matching the mood of the idea
-5. Quality: photorealistic 4K, no CGI, no illustration, no text, no watermarks, no logos
-
-HARD RULES
-- Output ONLY the final prompt as a single plain string.
-- Maximum 120 words.
-- No line breaks, no bullet points, no JSON, no markdown, no quotation marks, no explanations.
-- Never use words like rendered, illustrated, digital art, painting, 3D, or CGI.`;
-}
-
-// ============================================================
-// Video post generation — 4-act arc (SAD -> MEET BUSINESS -> JOURNEY ->
-// HAPPY), ported from the legacy story-writer prompt. Kept distinct from
-// the Meta Ads video script prompt's 3-act arc (`meta-ads.ts`) since
-// organic social content favors a slower, less sales-driven pace than an
-// ad — but scenes are still handed to the SAME visual-prompts system
-// (`getVisualPromptsPrompt` in `meta-ads.ts`) since that condition/tier
-// logic is universal, not ad-specific.
-// ============================================================
-
-export interface SocialVideoScriptInput {
-  ideaPrompt: string;
-  duration: number; // seconds
-  character: "male" | "female";
-  service?: string;
-  language?: string;
-}
-
-export function getSocialVideoScriptPrompt(business: any, input: SocialVideoScriptInput): string {
-  const businessName = business?.name || "the business";
-  const sceneCount = sceneCountForDuration(input.duration);
-  const targetWords = Math.round(sceneCount * 4 * 2.3);
-  const characterName = input.character === "male" ? "James" : "Sarah";
-  const serviceCategory = mapServiceToCategory(input.service);
-  const language = input.language && input.language !== "English" ? input.language : null;
-
-  return `${language ? `OUTPUT LANGUAGE: Write the ENTIRE script in ${language}. Every single line must be in ${language}, not English. Do not mix languages.\n\n` : ""}You are an expert short-form video scriptwriter for ${businessName}, a ${business?.industry || "business"}.
-
-${businessContextBlock(business)}
-
-You write cinematic, emotionally honest first-person transformation scripts that move the viewer from struggle to hope. You write AUDIO ONLY — spoken narration read aloud by ElevenLabs TTS. No camera directions, no on-screen text, just the words the voice will say.
-
-STORY IDEA
-${input.ideaPrompt}
-${serviceCategory
-  ? `\nCATEGORY: ${serviceCategory} (from the selected service, "${input.service}") — ground the specific struggle and outcome in this category. Use concrete phrasing like: ${(PROBLEM_VOCABULARY[serviceCategory] || []).slice(0, 5).join(", ")} (adapt the pronoun to the character's gender).`
-  : `\nIf the story idea describes a physical or emotional condition, identify it from its own words and use concrete, specific phrasing for it in Act 1 — never a vague "something is wrong."`}
-CHARACTER: first-person, ${input.character} voice — use the name "${characterName}" once if a name is needed, otherwise use "I".
-
-Every script MUST follow this four-act emotional arc:
-
-ACT 1 — SAD (the problem before ${businessName}): Open with the exact scenario from the story idea above. Describe the specific struggle and how it affects daily life, using the concrete phrasing above rather than a vague or softened version of it. Do NOT mention ${businessName} yet.
-
-ACT 2 — MEET ${String(businessName).toUpperCase()} (the discovery): Introduce ${businessName} by name for the FIRST time. Describe finding it and the moment of deciding to reach out.
-
-ACT 3 — JOURNEY (the experience): Narrate the calm, supported experience — warm, reassuring, professional. Never narrate procedural/technical/clinical detail, risk, or discomfort.
-
-ACT 4 — HAPPY (the transformation after): Narrate the change as a lived moment with someone else noticing — never as a tagline. End with exactly one of: "Visit ${businessName} for more." / "Your transformation starts at ${businessName}." / "${businessName} changed my life — it can change yours too."
-
-LENGTH — EXACT, NOT A GUIDELINE: each script line becomes one fixed ~4-second video scene downstream, so the final video's length is EXACTLY (number of lines x 4) seconds — a hard technical constraint. The script array MUST have EXACTLY ${sceneCount} lines — no more, no fewer — to produce a ${sceneCount * 4}-second video for the requested ${input.duration}-second narration. Target about ${targetWords} words total across all ${sceneCount} lines so the spoken narration's natural length fits within that video — a script that runs noticeably longer gets cut off mid-sentence once the audio is laid over the fixed-length video.
-
-HARD RULES
-- Never mention prices, costs, or numbers.
-- Never use jargon or technical/clinical language.
-- Never use em dashes, semicolons, quotation marks, parentheses, asterisks, hashes, emojis, or ALL CAPS.
-- One sentence per line, plain conversational ${language || "English"}.
-- Mention "${businessName}" by name exactly once, in Act 2.
-- Avoid tongue-twisters, clusters of similar consonant sounds, and rare or hard-to-pronounce words — prefer short, common, everyday words a voice actor could read smoothly in one breath. This is spoken narration, so clarity of delivery matters as much as meaning.
-
-OUTPUT FORMAT — STRICT
-Return ONLY valid JSON. No markdown fences. No commentary.
-{
-  "script": [
-    "Line one.",
-    "Line two."
-  ]
-}
-"script" must be a JSON array of EXACTLY ${sceneCount} strings, one sentence per element, in order, totaling approximately ${targetWords} words.`;
-}
-
-// ============================================================
 // Idea generation — expands a short user-typed idea into 3 angle
 // variations, the same "Generate Ideas" pattern already proven in
 // CreateAdModal (`idea-generation.prompt.ts`), adapted for organic social
@@ -293,12 +182,11 @@ export interface SocialIdeaPromptInput {
 
 export function getSocialIdeaPrompt(business: any, input: SocialIdeaPromptInput) {
   const businessName = business?.name || "the business";
-  const serviceCategory = mapServiceToCategory(input.service);
 
   const system = `You are a social media content strategist for ${businessName}, a ${business?.industry || "business"}.
 
 ${businessContextBlock(business)}
-${serviceCategory ? `\nTHIS IDEA IS SPECIFICALLY FOR: ${input.service}. All 3 variations must be about this service — never blend in another.\n` : ""}
+${input.service ? `\nTHIS IDEA IS SPECIFICALLY FOR: ${input.service}. All 3 variations must be about this service — never blend in another.\n` : ""}
 YOUR JOB
 Take the short user input describing a topic, offer, or moment, then expand it into 3 emotionally distinct variations of the same idea — each a content description for one ${input.format} post (not a finished caption, just what the post should show and be about).
 

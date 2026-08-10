@@ -1,11 +1,13 @@
 import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
-import { getSocialVideoScriptPrompt, getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../../prompts/social-media";
-import { getVisualPromptsPrompt, sceneCountForDuration } from "../../../prompts/meta-ads";
+import { getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../../prompts/social-media";
+import { getSocialVideoScriptPrompt } from "../../../prompts/social-media/video";
+import { getVisualPromptsPrompt, sceneCountForDuration } from "../../../prompts/meta-ads/video";
 import { FFmpegService } from "../../ffmpeg";
 import { submitSceneStitchJob, downloadAndStoreVideo } from "../../ffmpeg/stitch-scenes";
 import { resolveVideoReferenceUrl } from "../../ai/video-reference";
+import { elevenLabsLanguageCode } from "../../ai/providers/elevenlabs";
 import { env } from "@/config";
 
 const supabase = createClient(
@@ -56,7 +58,7 @@ export const generateSocialVideo = inngest.createFunction(
       let captionMeta: any = null;
       if (platforms.length) {
         captionMeta = await step.run("generate-captions", async () => {
-          const prompt = getSocialCaptionPrompt(business, { ideaPrompt, contentType: "video" });
+          const prompt = getSocialCaptionPrompt(business, { ideaPrompt, contentType: "video", language });
           const response = await aiOrchestrator.executeTask("analysis", prompt.user, "openai", { systemPrompt: prompt.system });
           const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
           return JSON.parse(jsonStr);
@@ -99,7 +101,7 @@ export const generateSocialVideo = inngest.createFunction(
       // 4. ElevenLabs narration
       const audioResult = await step.run("audio-generation", async () => {
         const fullScript = scriptJson.script.join(" ");
-        const audioBuffer = await aiOrchestrator.generateSpeech(fullScript, voiceId);
+        const audioBuffer = await aiOrchestrator.generateSpeech(fullScript, voiceId, elevenLabsLanguageCode(language));
         const fileName = `${businessId}/social/audio/${Date.now()}.mp3`;
         const { error } = await supabase.storage.from("business_media").upload(fileName, audioBuffer, { contentType: "audio/mpeg" });
         if (error) throw new Error("Audio upload failed: " + error.message);
