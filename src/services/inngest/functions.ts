@@ -1,5 +1,5 @@
 import { inngest } from "./client";
-import { generateImageAd, generateVideoAd } from "./meta-ads";
+import { generateImageAd, generateVideoAd, generateStudioImage, editStudioImage } from "./meta-ads";
 import { generateSocialImage, generateSocialVideo } from "./social";
 import { scrapeOutreachContacts, sendOutreachCampaign } from "./outreach";
 import { competitorAdScraperJob, competitorAdScraperWorker } from "@/jobs/competitor-ad-scraper.job";
@@ -19,6 +19,8 @@ export const functions = [
   businessAdAnalysisJob,
   generateImageAd,
   generateVideoAd,
+  generateStudioImage,
+  editStudioImage,
   generateSocialImage,
   generateSocialVideo,
   scrapeOutreachContacts,

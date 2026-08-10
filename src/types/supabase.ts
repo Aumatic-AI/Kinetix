@@ -1251,6 +1251,107 @@ export type Database = {
           },
         ]
       }
+      studio_messages: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          kind: string
+          payload: Json | null
+          role: string
+          session_id: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          payload?: Json | null
+          role: string
+          session_id: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          payload?: Json | null
+          role?: string
+          session_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "studio_messages_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "studio_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      studio_sessions: {
+        Row: {
+          aspect_ratio: string
+          business_id: string
+          created_at: string
+          creative_id: string | null
+          id: string
+          initial_idea: string
+          product_area: string
+          qa_brief: Json
+          raw_image_url: string | null
+          reference_image_url: string | null
+          service: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          aspect_ratio?: string
+          business_id: string
+          created_at?: string
+          creative_id?: string | null
+          id?: string
+          initial_idea: string
+          product_area?: string
+          qa_brief?: Json
+          raw_image_url?: string | null
+          reference_image_url?: string | null
+          service?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          aspect_ratio?: string
+          business_id?: string
+          created_at?: string
+          creative_id?: string | null
+          id?: string
+          initial_idea?: string
+          product_area?: string
+          qa_brief?: Json
+          raw_image_url?: string | null
+          reference_image_url?: string | null
+          service?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "studio_sessions_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "studio_sessions_creative_id_fkey"
+            columns: ["creative_id"]
+            isOneToOne: false
+            referencedRelation: "meta_ad_creatives"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       upload_post_analytics_cache: {
         Row: {
           business_id: string

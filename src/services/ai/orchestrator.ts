@@ -16,8 +16,8 @@ export class AIOrchestrator {
     return OpenAIService.generateText(prompt, options?.systemPrompt);
   }
 
-  createImageTask(prompt: string, imageSize?: "9:16" | "4:5" | "16:9" | "1:1", referenceImageUrl?: string) {
-    return KieService.createImageTask(prompt, imageSize, referenceImageUrl);
+  createImageTask(prompt: string, imageSize?: "9:16" | "4:5" | "16:9" | "1:1", referenceImageUrl?: string, mode?: "identity" | "reference") {
+    return KieService.createImageTask(prompt, imageSize, referenceImageUrl, mode);
   }
 
   createVideoTask(prompt: string, imageUrls: string[], aspectRatio?: string, duration?: string) {

@@ -18,6 +18,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   else if (pathname.startsWith("/social")) currentModule = "social";
   else if (pathname.startsWith("/settings")) currentModule = "settings";
 
+  // AI Ad Studio is a full-bleed chat surface — it manages its own internal
+  // scroll region and floating input, so it skips the page's usual padding/
+  // max-width/scroll container instead of nesting a second scrollbar inside them.
+  const isFullBleed = pathname.startsWith("/meta-ads/ad-library/studio");
+
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden bg-background">
       <SessionBootstrap />
@@ -30,8 +35,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <SecondarySidebar currentModule={currentModule} currentPath={pathname} />
         )}
         
-        <main className="flex-1 overflow-auto p-6">
-          <div className="max-w-7xl mx-auto h-full">
+        <main className={isFullBleed ? "flex-1 overflow-hidden" : "flex-1 overflow-auto p-6"}>
+          <div className={isFullBleed ? "h-full" : "max-w-7xl mx-auto h-full"}>
             {children}
           </div>
         </main>

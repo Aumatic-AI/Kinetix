@@ -16,6 +16,8 @@ export const ROUTES = {
     AD_DETAIL: (campaignId: string, adSetId: string, adId: string) => `/meta-ads/campaigns/${campaignId}/${adSetId}/${adId}`,
     REPORTS: "/meta-ads/reports",
     LEADS: "/meta-ads/leads",
+    AD_STUDIO: "/meta-ads/ad-library/studio",
+    AD_STUDIO_SESSION: (sessionId: string) => `/meta-ads/ad-library/studio/${sessionId}`,
   },
   OUTREACH: {
     DASHBOARD: "/outreach",
