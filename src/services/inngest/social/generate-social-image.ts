@@ -1,7 +1,8 @@
 import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
-import { getSocialImagePrompt, getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../../prompts/social-media";
+import { getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../../prompts/social-media";
+import { getSocialImagePrompt } from "../../../prompts/social-media/image";
 import { env } from "@/config";
 
 const supabase = createClient(

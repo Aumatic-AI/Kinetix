@@ -1,10 +1,11 @@
 import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
-import { getVideoAdScriptPrompt, getVisualPromptsPrompt, sceneCountForDuration } from "../../../prompts/meta-ads";
+import { getVideoAdScriptPrompt, getVisualPromptsPrompt, sceneCountForDuration } from "../../../prompts/meta-ads/video";
 import { FFmpegService } from "../../ffmpeg";
 import { submitSceneStitchJob, downloadAndStoreVideo } from "../../ffmpeg/stitch-scenes";
 import { resolveVideoReferenceUrl } from "../../ai/video-reference";
+import { elevenLabsLanguageCode } from "../../ai/providers/elevenlabs";
 import { env } from "@/config";
 
 const supabase = createClient(
@@ -90,7 +91,7 @@ export const generateVideoAd = inngest.createFunction(
       const audioResult = await step.run("audio-generation", async () => {
         if (audioStyle === "Voiceover" && voiceId) {
           const fullScript = scriptJson.script.join(" ");
-          const audioBuffer = await aiOrchestrator.generateSpeech(fullScript, voiceId);
+          const audioBuffer = await aiOrchestrator.generateSpeech(fullScript, voiceId, elevenLabsLanguageCode(language));
           
           // Upload to Supabase
           const fileName = `${businessId}/meta-ads/audio/${creativeId}_${Date.now()}.mp3`;

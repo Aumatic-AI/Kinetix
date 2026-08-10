@@ -1,13 +1,15 @@
 "use client";
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Image as ImageIcon, Plus } from "lucide-react";
+import { Image as ImageIcon, Plus, Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { CreateAdModal } from "../components/ad-library/CreateAdModal";
 import { MediaPreview } from "@/components/global/MediaPreview";
 import { AdCreativeCard } from "../components/ad-library/AdCreativeCard";
 import { Button } from "@/components/ui/Button";
 import { Pagination } from "@/components/ui/Pagination";
 import { PAGE_SIZE_DENSE } from "@/lib/pagination";
+import { ROUTES } from "@/config/routes";
 
 import { useQueryClient } from "@tanstack/react-query";
 import { useMetaAdCreatives, useUpdateMetaAdCreative, useDeleteMetaAdCreative, useRetryMetaAdCreative, metaAdsKeys } from "../hooks/useAdLibrary";
@@ -22,6 +24,7 @@ const PAGE_SIZE = PAGE_SIZE_DENSE;
 // subscription — simpler (no channel lifecycle) and cheaper (no open
 // websocket for the tab's whole lifetime) for a single-tenant admin tool.
 export function AdLibrary() {
+  const router = useRouter();
   const [page, setPage] = useState(1);
   const { data, isLoading: loading } = useMetaAdCreatives({ page, limit: PAGE_SIZE });
   const ads = data?.items || [];
@@ -91,9 +94,14 @@ export function AdLibrary() {
             )}
           </p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)} icon={<Plus className="w-4 h-4" />}>
-          Create Ad
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => router.push(ROUTES.META_ADS.AD_STUDIO)} icon={<Sparkles className="w-4 h-4" />}>
+            AI Ad Studio
+          </Button>
+          <Button onClick={() => setIsModalOpen(true)} icon={<Plus className="w-4 h-4" />}>
+            Create Ad
+          </Button>
+        </div>
       </div>
 
 

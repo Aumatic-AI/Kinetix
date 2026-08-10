@@ -34,14 +34,23 @@ export class KieService {
   /**
    * Triggers an Image Generation Task and returns the raw jobId.
    *
-   * `referenceImageUrl`, when given, locks the generated subject's face/
-   * identity to that photo via nano-banana's image-to-image conditioning
-   * — the exact mechanism the proven legacy video pipelines used to keep
-   * one consistent character across every scene of a video, instead of
-   * each scene's text-to-image call improvising its own person.
+   * `referenceImageUrl` conditions the generation on a reference photo via
+   * nano-banana's image-to-image support. `mode` controls how:
+   * - "identity" (default): locks the generated subject's face/identity to
+   *   the reference — the mechanism the video pipelines use to keep one
+   *   consistent character across every scene.
+   * - "reference": passes the photo through with no identity-lock phrasing,
+   *   for callers whose own prompt text already says how to use it (e.g. as
+   *   a general visual ingredient, or as "the exact starting point, edit
+   *   only X").
    */
-  static async createImageTask(prompt: string, imageSize: "9:16" | "4:5" | "16:9" | "1:1" = "4:5", referenceImageUrl?: string) {
-    const finalPrompt = referenceImageUrl
+  static async createImageTask(
+    prompt: string,
+    imageSize: "9:16" | "4:5" | "16:9" | "1:1" = "4:5",
+    referenceImageUrl?: string,
+    mode: "identity" | "reference" = "identity"
+  ) {
+    const finalPrompt = referenceImageUrl && mode === "identity"
       ? `${prompt} The subject face and identity must match the reference image exactly. Facial expression is critical and must match the emotion described in the prompt precisely.`
       : prompt;
 
