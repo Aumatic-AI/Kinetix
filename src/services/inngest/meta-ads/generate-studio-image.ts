@@ -112,7 +112,12 @@ export const generateStudioImage = inngest.createFunction(
           .from("meta_ad_creatives")
           .update({
             status: "review",
-            ad_script: { headline: scriptJson.headline, primary_text: scriptJson.primary_text, overlay_text: scriptJson.overlay_text },
+            ad_script: {
+              headline: scriptJson.headline,
+              primary_text: scriptJson.primary_text,
+              overlay_text: scriptJson.overlay_text,
+              strategy: scriptJson.strategy,
+            },
             media_urls: [finalImageUrl],
           })
           .eq("id", creativeId);

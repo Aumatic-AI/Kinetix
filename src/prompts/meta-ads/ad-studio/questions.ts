@@ -30,6 +30,7 @@ HOW TO WRITE THE QUESTIONS
 2. Write every question in plain, everyday words a small business owner would use — NEVER use any term from your private analysis above (never say "sophistication," "angle," "desire type," "hook," "mechanism," "self-performance," or similar). Ask about the real thing directly instead: say "What's the one feeling you want people to walk away with?" not "What desire type should we target?"
 3. Usually 4-7 questions; fewer if the idea is already detailed, more only if it's very vague.
 4. For EVERY question, give 3-4 short, concrete, realistic answer options they could plausibly pick for THIS specific business and idea — never generic placeholders like "Option A". They can still type their own answer instead, so these are helpful suggestions, not the only allowed values.
+5. If nothing above already tells you the business's preferred photo style, include one plain-language question about it — e.g. "Do you want the photo to feel more like a real moment (candid, natural) or more like a magazine-style shot (polished, styled)?" — so the same business can set this once and get a consistent look across ads.
 
 OUTPUT FORMAT
 Return ONLY valid JSON. No markdown, no commentary.
