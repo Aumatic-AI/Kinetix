@@ -1,6 +1,4 @@
 import { env } from "@/config";
-import fs from "fs";
-import path from "path";
 
 export class KieService {
   /**
@@ -76,11 +74,6 @@ export class KieService {
     };
     if (referenceImageUrls.length > 0) input.image_input = referenceImageUrls;
 
-    // console.log truncates/scrolls away a prompt this long before you can
-    // select it — write the full text to disk so it's copy-pasteable.
-    const debugPath = path.join(process.cwd(), "kie-last-prompt.txt");
-    fs.writeFileSync(debugPath, finalPrompt, "utf-8");
-    console.log(`[KIE_PROMPT] full prompt written to ${debugPath}`);
     console.log("[KIE_REQUEST] POST createTask (image)", { model: "nano-banana-2", input });
 
     const response = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
