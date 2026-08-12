@@ -20,13 +20,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: "This session doesn't have a generated image yet" }, { status: 400 });
     }
 
-    const { data: creative } = await supabase
-      .from("meta_ad_creatives")
-      .select("ad_script")
-      .eq("id", session.creative_id)
-      .single();
-    const overlayText = (creative?.ad_script as { overlay_text?: string } | null)?.overlay_text || null;
-
     await supabase.from("studio_messages").insert({
       session_id: id,
       role: "user",
@@ -42,7 +35,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           businessId: session.business_id,
           creativeId: session.creative_id,
           rawImageUrl: session.raw_image_url,
-          overlayText,
           aspectRatio: session.aspect_ratio,
           editInstruction: body.instruction,
         },

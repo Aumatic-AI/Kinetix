@@ -46,3 +46,17 @@ export function useUploadVideoReference() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: settingsKeys.all }),
   });
 }
+
+/** Uploads the business logo — same upload-on-pick pattern as the video
+ * reference photos above. */
+export function useUploadLogo() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      return fetchJson<{ success: true; url: string }>("/api/settings/logo", { method: "POST", body: formData });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: settingsKeys.all }),
+  });
+}

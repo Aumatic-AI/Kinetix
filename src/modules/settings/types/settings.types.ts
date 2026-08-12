@@ -32,6 +32,8 @@ export interface BusinessSettings {
   industry: string;
   description: string;
   websiteUrl: string;
+  logoUrl: string | null;
+  contactPhone: string;
   toneOfVoice: string;
   businessVoice: string;
   coreOfferings: string;

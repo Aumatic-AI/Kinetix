@@ -1,7 +1,7 @@
-/** Short, single-purpose instruction for a targeted photo edit. Sent
- * together with the current RAW photo (pre-compositing) as the reference
- * image — never the already-composited final image, so the edit never has
- * to fight with baked-in text.
+/** Short, single-purpose instruction for a targeted image edit. Sent
+ * together with the current ad image as the reference — that image already
+ * is the whole ad (scene, headline, branding all baked in by generation),
+ * so an edit just re-runs generation against it with the instruction applied.
  *
  * The rule is simple: do exactly what the instruction says, fully — a
  * small tweak or a big one, whatever it genuinely calls for — and don't do

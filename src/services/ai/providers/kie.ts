@@ -1,15 +1,19 @@
 import { env } from "@/config";
+import fs from "fs";
+import path from "path";
 
 export class KieService {
   /**
    * Pings the API once for task status (Useful for Inngest step.sleep polling)
    */
   static async checkSingleTaskStatus(jobId: string): Promise<any> {
+    console.log("[KIE_REQUEST] GET recordInfo", { jobId });
     const res = await fetch(`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${jobId}`, {
       headers: { Authorization: `Bearer ${env.KIE_API_KEY}` }
     });
-    
+
     const response = await res.json();
+    console.log("[KIE_RESPONSE] GET recordInfo", res.status, response);
     return response.data || {};
   }
 
@@ -34,32 +38,50 @@ export class KieService {
   /**
    * Triggers an Image Generation Task and returns the raw jobId.
    *
-   * `referenceImageUrl` conditions the generation on a reference photo via
-   * nano-banana's image-to-image support. `mode` controls how:
+   * Uses Nano Banana 2 (model "nano-banana-2") — its input schema differs
+   * from the original nano-banana: `aspect_ratio` instead of `image_size`,
+   * and `image_input` instead of `image_urls`. It doesn't support "4:5"
+   * directly, so that maps to "2:3", the closest supported portrait ratio.
+   *
+   * `referenceImages` conditions the generation on one or more reference
+   * images (nano-banana-2 accepts up to 14 via `image_input`) — pass a
+   * single URL or an array (e.g. a user reference photo plus a business
+   * logo together). `mode` controls how a single reference is phrased:
    * - "identity" (default): locks the generated subject's face/identity to
    *   the reference — the mechanism the video pipelines use to keep one
    *   consistent character across every scene.
-   * - "reference": passes the photo through with no identity-lock phrasing,
-   *   for callers whose own prompt text already says how to use it (e.g. as
-   *   a general visual ingredient, or as "the exact starting point, edit
-   *   only X").
+   * - "reference": passes the photo(s) through with no identity-lock
+   *   phrasing, for callers whose own prompt text already says how to use
+   *   them (e.g. as general visual ingredients, or "the exact starting
+   *   point, edit only X").
    */
   static async createImageTask(
     prompt: string,
     imageSize: "9:16" | "4:5" | "16:9" | "1:1" = "4:5",
-    referenceImageUrl?: string,
+    referenceImages?: string | string[],
     mode: "identity" | "reference" = "identity"
   ) {
-    const finalPrompt = referenceImageUrl && mode === "identity"
+    const referenceImageUrls = (Array.isArray(referenceImages) ? referenceImages : referenceImages ? [referenceImages] : []).filter(Boolean);
+
+    const finalPrompt = referenceImageUrls.length > 0 && mode === "identity"
       ? `${prompt} The subject face and identity must match the reference image exactly. Facial expression is critical and must match the emotion described in the prompt precisely.`
       : prompt;
 
-    const input: Record<string, any> = {
+    const aspectRatio = imageSize === "4:5" ? "2:3" : imageSize;
+
+    const input: Record<string, unknown> = {
       prompt: finalPrompt,
       output_format: "png",
-      image_size: imageSize,
+      aspect_ratio: aspectRatio,
     };
-    if (referenceImageUrl) input.image_urls = [referenceImageUrl];
+    if (referenceImageUrls.length > 0) input.image_input = referenceImageUrls;
+
+    // console.log truncates/scrolls away a prompt this long before you can
+    // select it — write the full text to disk so it's copy-pasteable.
+    const debugPath = path.join(process.cwd(), "kie-last-prompt.txt");
+    fs.writeFileSync(debugPath, finalPrompt, "utf-8");
+    console.log(`[KIE_PROMPT] full prompt written to ${debugPath}`);
+    console.log("[KIE_REQUEST] POST createTask (image)", { model: "nano-banana-2", input });
 
     const response = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
       method: "POST",
@@ -68,18 +90,21 @@ export class KieService {
         Authorization: `Bearer ${env.KIE_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "google/nano-banana",
+        model: "nano-banana-2",
         input,
       }),
     });
 
     if (!response.ok) {
-      throw new Error(`Kie API Error: ${await response.text()}`);
+      const errorText = await response.text();
+      console.log("[KIE_RESPONSE] POST createTask (image)", response.status, errorText);
+      throw new Error(`Kie API Error: ${errorText}`);
     }
 
     const data = await response.json();
+    console.log("[KIE_RESPONSE] POST createTask (image)", response.status, data);
     const jobId = data.taskId || data.jobId || data.id || data.data?.taskId || data.data?.jobId || data.data?.id;
-    
+
     if (!jobId) throw new Error(`No jobId returned from Kie. Response data: ${JSON.stringify(data)}`);
     return jobId;
   }
@@ -88,28 +113,34 @@ export class KieService {
    * Triggers a Video Generation Task and returns the raw jobId
    */
   static async createVideoTask(prompt: string, imageUrls: string[], aspectRatio: string = "9:16", duration: string = "4") {
+    const requestBody = {
+      model: "bytedance/seedance-1.5-pro",
+      input: {
+        prompt,
+        input_urls: imageUrls,
+        aspect_ratio: aspectRatio,
+        duration: duration,
+      }
+    };
+    console.log("[KIE_REQUEST] POST createTask (video)", requestBody);
+
     const response = await fetch("https://api.kie.ai/api/v1/jobs/createTask", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${env.KIE_API_KEY}`,
       },
-      body: JSON.stringify({
-        model: "bytedance/seedance-1.5-pro",
-        input: {
-          prompt,
-          input_urls: imageUrls,
-          aspect_ratio: aspectRatio,
-          duration: duration,
-        }
-      }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
-      throw new Error(`Kie API Error: ${await response.text()}`);
+      const errorText = await response.text();
+      console.log("[KIE_RESPONSE] POST createTask (video)", response.status, errorText);
+      throw new Error(`Kie API Error: ${errorText}`);
     }
 
     const data = await response.json();
+    console.log("[KIE_RESPONSE] POST createTask (video)", response.status, data);
     const jobId = data.taskId || data.jobId || data.id || data.data?.taskId || data.data?.jobId || data.data?.id;
 
     if (!jobId) throw new Error(`No jobId returned from Kie. Response data: ${JSON.stringify(data)}`);

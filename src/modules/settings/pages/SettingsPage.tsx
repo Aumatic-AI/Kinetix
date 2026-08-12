@@ -9,7 +9,7 @@ import { UnsavedChangesBar } from "@/components/ui/UnsavedChangesBar";
 import { Switch } from "@/components/ui/Switch";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
 import { BusinessSettings } from "../types/settings.types";
-import { Field, TagInput, ServicesEditor, AdScriptTopicsEditor, WeekdayToggle, TimezoneSelect, VideoReferenceUploader, ScheduleEditor } from "../components/shared";
+import { Field, TagInput, ServicesEditor, AdScriptTopicsEditor, WeekdayToggle, TimezoneSelect, VideoReferenceUploader, LogoUploader, ScheduleEditor } from "../components/shared";
 
 const SETTINGS_TABS = [
   { value: "general", label: "General" },
@@ -110,6 +110,10 @@ export function SettingsPage() {
               <div className="sm:col-span-2">
                 <Field label="Website URL"><Input value={form.websiteUrl} onChange={(e) => patch({ websiteUrl: e.target.value })} placeholder="https://" /></Field>
               </div>
+              <Field label="Contact Phone" hint="Optional — shown on AI Ad Studio poster-style ads when it fits the design.">
+                <Input value={form.contactPhone} onChange={(e) => patch({ contactPhone: e.target.value })} placeholder="e.g. +1 555 123 4567" />
+              </Field>
+              <LogoUploader url={data?.logoUrl ?? null} />
               <div className="sm:col-span-2">
                 <Field label="Description"><Textarea value={form.description} onChange={(e) => patch({ description: e.target.value })} rows={3} /></Field>
               </div>

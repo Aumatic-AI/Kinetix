@@ -2,7 +2,6 @@ import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
 import { getAdEditPrompt } from "../../../prompts/meta-ads/ad-studio/edit";
-import { composeCreativeImage } from "../../creative-render/composeCreativeImage";
 import { env } from "@/config";
 
 const supabase = createClient(
@@ -16,24 +15,32 @@ export const editStudioImage = inngest.createFunction(
     triggers: [{ event: "meta-ads/edit-studio-image" }]
   },
   async ({ event, step }) => {
-    const { sessionId, businessId, creativeId, rawImageUrl, overlayText, aspectRatio, editInstruction } = event.data;
+    const { sessionId, creativeId, rawImageUrl, aspectRatio, editInstruction } = event.data;
 
     if (!sessionId || !creativeId || !rawImageUrl) {
       throw new Error("sessionId, creativeId and rawImageUrl are required");
     }
 
     try {
+      // The current image IS the whole ad now (no separate poster state to
+      // preserve) — an edit just re-runs generation against it with the
+      // instruction applied.
+      const creative = await step.run("fetch-creative", async () => {
+        const { data } = await supabase.from("meta_ad_creatives").select("media_urls, revision_history").eq("id", creativeId).single();
+        return data;
+      });
+
       const editPrompt = getAdEditPrompt(editInstruction);
 
       const jobId = await step.run("trigger-edit", async () => {
         return await aiOrchestrator.createImageTask(editPrompt, aspectRatio, rawImageUrl, "reference");
       });
 
-      let newRawImageUrl: string | null = null;
+      let newImageUrl: string | null = null;
       let attempts = 0;
       const MAX_ATTEMPTS = 24;
 
-      while (!newRawImageUrl && attempts < MAX_ATTEMPTS) {
+      while (!newImageUrl && attempts < MAX_ATTEMPTS) {
         await step.sleep(`wait-edit-${attempts}`, attempts === 0 ? "8s" : "6s");
 
         const status = await step.run(`check-edit-status-${attempts}`, async () => {
@@ -43,10 +50,10 @@ export const editStudioImage = inngest.createFunction(
         if (status.state === "success") {
           try {
             const resultJson = JSON.parse(status.resultJson);
-            newRawImageUrl = resultJson.resultUrls?.[0] || resultJson.urls?.[0] || null;
+            newImageUrl = resultJson.resultUrls?.[0] || resultJson.urls?.[0] || null;
           } catch {
             console.error("Failed to parse Kie AI resultJson:", status.resultJson);
-            newRawImageUrl = null;
+            newImageUrl = null;
           }
         } else if (status.state === "fail") {
           throw new Error(`Kie AI Edit Failed: ${status.failMsg || status.failCode || "no reason given"}`);
@@ -54,24 +61,9 @@ export const editStudioImage = inngest.createFunction(
         attempts++;
       }
 
-      if (!newRawImageUrl) throw new Error("Kie AI Edit Timed Out");
-
-      const finalImageUrl = await step.run("compose-final-image", async () => {
-        return await composeCreativeImage({
-          businessId,
-          photoUrl: newRawImageUrl as string,
-          overlayText,
-          aspectRatio,
-        });
-      });
+      if (!newImageUrl) throw new Error("Kie AI Edit Timed Out");
 
       await step.run("finalize", async () => {
-        const { data: creative } = await supabase
-          .from("meta_ad_creatives")
-          .select("media_urls, ad_script, revision_history")
-          .eq("id", creativeId)
-          .single();
-
         const priorHistory = Array.isArray(creative?.revision_history) ? creative.revision_history : [];
         const nextHistory = [
           ...priorHistory,
@@ -84,20 +76,19 @@ export const editStudioImage = inngest.createFunction(
 
         await supabase
           .from("meta_ad_creatives")
-          .update({ media_urls: [finalImageUrl], revision_history: nextHistory })
+          .update({ media_urls: [newImageUrl], revision_history: nextHistory })
           .eq("id", creativeId);
 
         await supabase
           .from("studio_sessions")
-          .update({ status: "reviewing", raw_image_url: newRawImageUrl })
+          .update({ status: "reviewing", raw_image_url: newImageUrl })
           .eq("id", sessionId);
 
-        const adScript = (creative?.ad_script as { headline?: string; primary_text?: string } | null) || {};
         await supabase.from("studio_messages").insert({
           session_id: sessionId,
           role: "assistant",
           kind: "image",
-          payload: { imageUrl: finalImageUrl, headline: adScript.headline, primary_text: adScript.primary_text },
+          payload: { imageUrl: newImageUrl },
         });
       });
 

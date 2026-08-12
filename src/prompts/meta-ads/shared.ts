@@ -7,6 +7,14 @@ export function serviceDescriptor(business: any, serviceName: any): string {
   return description ? `${serviceName} (${description})` : String(serviceName);
 }
 
+/** What to show in a poster's contact strip — the phone if set, else the
+ * website with its protocol stripped, else null if neither is on file. */
+export function contactDisplayText(business: any): string | null {
+  if (business?.contact_phone) return business.contact_phone;
+  if (business?.website_url) return String(business.website_url).replace(/^https?:\/\//, "");
+  return null;
+}
+
 /** The "YOUR BUSINESS: ..." persona block every Meta Ads prompt opens with. */
 export function businessContextBlock(business: any): string {
   const name = business?.name || "the business";

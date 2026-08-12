@@ -39,8 +39,6 @@ export interface StudioSession {
 
 export interface StudioImagePayload {
   imageUrl: string;
-  headline?: string;
-  primary_text?: string;
 }
 
 export interface StudioMessage {

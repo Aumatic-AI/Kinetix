@@ -264,12 +264,6 @@ function MessageRow({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={payload.imageUrl} alt="Generated ad" className="h-full w-auto max-w-full object-contain mx-auto" />
           </button>
-          {payload.headline && (
-            <div className="text-sm">
-              <p className="font-semibold text-text">{payload.headline}</p>
-              {payload.primary_text && <p className="text-muted mt-1">{payload.primary_text}</p>}
-            </div>
-          )}
           {isLatestImage && !isFinalized && (
             <div className="flex gap-2">
               <Button size="sm" onClick={onFinalize}>
