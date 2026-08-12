@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/Button";
 import { Loader } from "@/components/ui/Loader";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { BusinessServiceInput, AdScriptTopicInput } from "../types/settings.types";
-import { useUploadVideoReference } from "../hooks/useSettings";
+import { useUploadVideoReference, useUploadLogo } from "../hooks/useSettings";
 import { WEEKDAY_LABELS, hourLabel, computeNextRunDate } from "@/services/scheduling/business-schedule";
 import { formatDateTime, formatDate } from "@/utils/datetime";
 
@@ -270,6 +270,49 @@ export function VideoReferenceUploader({ gender, label, url }: { gender: "male" 
         </div>
         <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handlePick(e.target.files?.[0])} />
       </div>
+    </div>
+  );
+}
+
+/** Business logo upload — same upload-on-pick pattern as
+ * VideoReferenceUploader, but a single slot with no gender split. Used on
+ * AI Ad Studio poster-style ads when the business has one set. */
+export function LogoUploader({ url }: { url: string | null }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const uploadMutation = useUploadLogo();
+  const [error, setError] = useState("");
+
+  const handlePick = async (file: File | undefined) => {
+    if (!file) return;
+    setError("");
+    try {
+      await uploadMutation.mutateAsync(file);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed");
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-bold text-muted uppercase tracking-wide">Logo</label>
+      <div className="flex items-center gap-3">
+        <div className="w-16 h-16 rounded-lg border border-border bg-surface overflow-hidden shrink-0 flex items-center justify-center">
+          {url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={url} alt="" className="w-full h-full object-contain" />
+          ) : (
+            <Upload className="w-4 h-4 text-muted" />
+          )}
+        </div>
+        <div className="space-y-1">
+          <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()} disabled={uploadMutation.isPending}>
+            {uploadMutation.isPending ? <Loader size="sm" /> : url ? "Replace" : "Upload"}
+          </Button>
+          {error && <p className="text-xs text-danger">{error}</p>}
+        </div>
+        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handlePick(e.target.files?.[0])} />
+      </div>
+      <p className="text-[11px] text-muted">Optional — shown on AI Ad Studio poster-style ads when it fits the design.</p>
     </div>
   );
 }

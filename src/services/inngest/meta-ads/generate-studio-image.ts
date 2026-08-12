@@ -2,7 +2,6 @@ import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
 import { getStudioAdPrompt } from "../../../prompts/meta-ads/ad-studio/generate";
-import { composeCreativeImage } from "../../creative-render/composeCreativeImage";
 import { env } from "@/config";
 
 const supabase = createClient(
@@ -61,21 +60,22 @@ export const generateStudioImage = inngest.createFunction(
         aspectRatio,
       });
 
-      const scriptJson = await step.run("generate-script", async () => {
-        const response = await aiOrchestrator.executeTask("text", prompt, "openai");
-        const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
-        return JSON.parse(jsonStr);
-      });
+      // The giant prompt above goes straight to the image model — no
+      // OpenAI text pass in between distilling it down. Both the user's
+      // reference photo and the business's own logo (if it has one) go
+      // along as reference images; the prompt itself tells the model how
+      // to tell them apart and use each one.
+      const referenceImages = [referenceImageUrl, intelligence.business.logo_url].filter(Boolean);
 
       const jobId = await step.run("trigger-image", async () => {
-        return await aiOrchestrator.createImageTask(scriptJson.visual_prompt, aspectRatio, referenceImageUrl, "reference");
+        return await aiOrchestrator.createImageTask(prompt, aspectRatio, referenceImages, "reference");
       });
 
-      let rawImageUrl: string | null = null;
+      let finalImageUrl: string | null = null;
       let attempts = 0;
       const MAX_ATTEMPTS = 24;
 
-      while (!rawImageUrl && attempts < MAX_ATTEMPTS) {
+      while (!finalImageUrl && attempts < MAX_ATTEMPTS) {
         await step.sleep(`wait-image-${attempts}`, attempts === 0 ? "8s" : "6s");
 
         const status = await step.run(`check-image-status-${attempts}`, async () => {
@@ -85,10 +85,10 @@ export const generateStudioImage = inngest.createFunction(
         if (status.state === "success") {
           try {
             const resultJson = JSON.parse(status.resultJson);
-            rawImageUrl = resultJson.resultUrls?.[0] || resultJson.urls?.[0] || null;
+            finalImageUrl = resultJson.resultUrls?.[0] || resultJson.urls?.[0] || null;
           } catch {
             console.error("Failed to parse Kie AI resultJson:", status.resultJson);
-            rawImageUrl = null;
+            finalImageUrl = null;
           }
         } else if (status.state === "fail") {
           throw new Error(`Kie AI Image Generation Failed: ${status.failMsg || status.failCode || "no reason given"}`);
@@ -96,42 +96,27 @@ export const generateStudioImage = inngest.createFunction(
         attempts++;
       }
 
-      if (!rawImageUrl) throw new Error("Kie AI Image Generation Timed Out");
-
-      const finalImageUrl = await step.run("compose-final-image", async () => {
-        return await composeCreativeImage({
-          businessId,
-          photoUrl: rawImageUrl as string,
-          overlayText: scriptJson.overlay_text,
-          aspectRatio,
-        });
-      });
+      if (!finalImageUrl) throw new Error("Kie AI Image Generation Timed Out");
 
       await step.run("finalize", async () => {
         await supabase
           .from("meta_ad_creatives")
           .update({
             status: "review",
-            ad_script: {
-              headline: scriptJson.headline,
-              primary_text: scriptJson.primary_text,
-              overlay_text: scriptJson.overlay_text,
-              strategy: scriptJson.strategy,
-            },
             media_urls: [finalImageUrl],
           })
           .eq("id", creativeId);
 
         await supabase
           .from("studio_sessions")
-          .update({ status: "reviewing", raw_image_url: rawImageUrl })
+          .update({ status: "reviewing", raw_image_url: finalImageUrl })
           .eq("id", sessionId);
 
         await supabase.from("studio_messages").insert({
           session_id: sessionId,
           role: "assistant",
           kind: "image",
-          payload: { imageUrl: finalImageUrl, headline: scriptJson.headline, primary_text: scriptJson.primary_text },
+          payload: { imageUrl: finalImageUrl },
         });
       });
 

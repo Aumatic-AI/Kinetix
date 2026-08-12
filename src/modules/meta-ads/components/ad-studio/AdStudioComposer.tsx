@@ -30,12 +30,46 @@ export function AdStudioComposer() {
   const [aspectRatio, setAspectRatio] = useState<StudioAspectRatio>("4:5");
   const [idea, setIdea] = useState("");
   const [referenceFile, setReferenceFile] = useState<File | null>(null);
+  const [referencePreviewUrl, setReferencePreviewUrl] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Single reference photo max — always replaces whatever was there before,
+  // however it arrived (browse, drag-drop, or paste).
+  const setReference = (file: File | null) => {
+    setReferenceFile(file);
+    setReferencePreviewUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return file ? URL.createObjectURL(file) : null;
+    });
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) setReferenceFile(file);
+    if (file) setReference(file);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    const file = Array.from(e.dataTransfer.files).find((f) => f.type.startsWith("image/"));
+    if (file) setReference(file);
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          setReference(file);
+          e.preventDefault();
+        }
+        break;
+      }
+    }
   };
 
   const handleSend = async () => {
@@ -96,11 +130,20 @@ export function AdStudioComposer() {
 
       <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pointer-events-none">
         <div className="max-w-2xl mx-auto pointer-events-auto">
-          <div className="bg-background rounded-lg shadow-md border border-default overflow-hidden">
+          <div
+            className={`bg-background rounded-lg shadow-md border overflow-hidden transition-colors ${isDraggingOver ? "border-primary" : "border-default"}`}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setIsDraggingOver(true);
+            }}
+            onDragLeave={() => setIsDraggingOver(false)}
+            onDrop={handleDrop}
+          >
             <Textarea
               value={idea}
               onChange={(e) => setIdea(e.target.value)}
-              placeholder="Describe your ad idea..."
+              onPaste={handlePaste}
+              placeholder="Describe your ad idea... (you can also drag & drop or paste a reference photo)"
               className="!border-none !ring-0 !shadow-none !rounded-none !bg-transparent !px-3.5 !pt-3 !pb-1 min-h-[52px] max-h-60 resize-none"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -140,15 +183,15 @@ export function AdStudioComposer() {
                 </DropdownMenu>
 
                 <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleFileChange} />
-                {referenceFile ? (
-                  <button
-                    type="button"
-                    onClick={() => setReferenceFile(null)}
-                    className="flex items-center gap-1.5 h-7 px-2 rounded-md border border-primary-border bg-primary-subtle text-xs font-medium text-primary shrink-0"
-                  >
-                    <span className="truncate max-w-[100px]">Reference attached</span>
-                    <X className="w-3 h-3 shrink-0" />
-                  </button>
+                {referenceFile && referencePreviewUrl ? (
+                  <div className="flex items-center gap-1.5 h-7 pl-1 pr-1.5 rounded-md border border-primary-border bg-primary-subtle shrink-0">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={referencePreviewUrl} alt="Reference" className="h-5 w-5 rounded-sm object-cover shrink-0" />
+                    <span className="truncate max-w-[80px] text-xs font-medium text-primary">{referenceFile.name}</span>
+                    <button type="button" onClick={() => setReference(null)} aria-label="Remove reference photo" className="text-primary/70 hover:text-primary shrink-0">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
                 ) : (
                   <button
                     type="button"

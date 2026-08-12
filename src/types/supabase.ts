@@ -346,6 +346,7 @@ export type Database = {
           competitor_analysis_schedule_day: number
           competitor_analysis_schedule_hour: number
           competitor_keywords: Json | null
+          contact_phone: string | null
           core_offerings: string | null
           created_at: string
           description: string | null
@@ -354,6 +355,7 @@ export type Database = {
           industry: string | null
           keywords: string[]
           logo_asset_id: string | null
+          logo_url: string | null
           name: string
           outreach_settings: Json
           pain_points: string | null
@@ -379,6 +381,7 @@ export type Database = {
           competitor_analysis_schedule_day?: number
           competitor_analysis_schedule_hour?: number
           competitor_keywords?: Json | null
+          contact_phone?: string | null
           core_offerings?: string | null
           created_at?: string
           description?: string | null
@@ -387,6 +390,7 @@ export type Database = {
           industry?: string | null
           keywords?: string[]
           logo_asset_id?: string | null
+          logo_url?: string | null
           name: string
           outreach_settings?: Json
           pain_points?: string | null
@@ -412,6 +416,7 @@ export type Database = {
           competitor_analysis_schedule_day?: number
           competitor_analysis_schedule_hour?: number
           competitor_keywords?: Json | null
+          contact_phone?: string | null
           core_offerings?: string | null
           created_at?: string
           description?: string | null
@@ -420,6 +425,7 @@ export type Database = {
           industry?: string | null
           keywords?: string[]
           logo_asset_id?: string | null
+          logo_url?: string | null
           name?: string
           outreach_settings?: Json
           pain_points?: string | null
