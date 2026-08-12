@@ -45,6 +45,3 @@ projects/
 # editor / local tooling (not part of the repo)
 /.vscode/
 /.superpowers/
-
-# debug dump of the last prompt sent to Kie (see kie.ts) — local only
-/kie-last-prompt.txt
