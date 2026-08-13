@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
-import { Bot, Check, Send as SendIcon, Sparkles } from "lucide-react";
+import { ArrowLeft, Bot, Check, Send as SendIcon, Sparkles } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Loader } from "@/components/ui/Loader";
 import { Button } from "@/components/ui/Button";
@@ -25,7 +25,6 @@ const ASPECT_BOX: Record<StudioAspectRatio, string> = {
 const OTHER_OPTION = "__other__";
 
 export function AdStudioThread({ sessionId }: { sessionId: string }) {
-  const router = useRouter();
   const { data, isLoading } = useStudioSession(sessionId);
   const submitAnswers = useSubmitStudioAnswers(sessionId);
   const requestEdit = useRequestStudioEdit(sessionId);
@@ -33,7 +32,7 @@ export function AdStudioThread({ sessionId }: { sessionId: string }) {
   const [editText, setEditText] = useState("");
   const [pendingEdit, setPendingEdit] = useState<string | null>(null);
   const [pendingGenerate, setPendingGenerate] = useState(false);
-  const [showFinalizeConfirm, setShowFinalizeConfirm] = useState(false);
+  const [pendingFinalizeUrl, setPendingFinalizeUrl] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -54,12 +53,13 @@ export function AdStudioThread({ sessionId }: { sessionId: string }) {
     );
   }
 
-  const { session, messages } = data;
-  const lastImageIndex = messages.map((m) => m.kind).lastIndexOf("image");
-  const hasImageAlready = lastImageIndex !== -1;
+  const { session, messages, creative } = data;
+  const hasImageAlready = messages.some((m) => m.kind === "image");
   const isGenerating = session.status === "generating";
-  const canEdit = session.status === "reviewing";
-  const isFinalized = session.status === "finalized";
+  // Editing/chatting stays available for the life of the session, before or
+  // after finalizing — only actively generating blocks a new request.
+  const canEdit = hasImageAlready && !isGenerating;
+  const currentLibraryImageUrl = creative?.media_urls?.[0] || null;
 
   const handleSubmitAnswers = async (answers: StudioAnswer[]) => {
     // Same instant-feedback pattern as the edit box — show the generating
@@ -76,14 +76,14 @@ export function AdStudioThread({ sessionId }: { sessionId: string }) {
   };
 
   const handleFinalize = async () => {
+    if (!pendingFinalizeUrl) return;
     try {
-      await finalize.mutateAsync();
+      await finalize.mutateAsync(pendingFinalizeUrl);
       toast.success("Ad added to your library");
-      router.push(ROUTES.META_ADS.AD_LIBRARY);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to finalize");
     } finally {
-      setShowFinalizeConfirm(false);
+      setPendingFinalizeUrl(null);
     }
   };
 
@@ -106,21 +106,25 @@ export function AdStudioThread({ sessionId }: { sessionId: string }) {
   };
 
   return (
-    <div className="relative h-full">
-      <div className={`h-full overflow-y-auto px-6 py-6 space-y-5 ${canEdit ? "pb-28" : ""}`}>
+    <div className="relative h-full flex flex-col">
+      <div className="shrink-0 border-b border-default px-6 py-3">
+        <Link href={ROUTES.META_ADS.AD_LIBRARY} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-text transition-colors">
+          <ArrowLeft className="w-3.5 h-3.5" /> Ad Library
+        </Link>
+      </div>
+      <div className={`flex-1 overflow-y-auto px-6 py-6 space-y-5 ${canEdit ? "pb-28" : ""}`}>
         <div className="max-w-3xl mx-auto space-y-5">
-          {messages.map((message, index) => (
+          {messages.map((message) => (
             <MessageRow
               key={message.id}
               message={message}
-              isLatestImage={index === lastImageIndex}
-              isFinalized={isFinalized}
+              currentLibraryImageUrl={currentLibraryImageUrl}
               savedAnswers={session.qa_brief}
               onSubmitAnswers={handleSubmitAnswers}
               answersFailed={submitAnswers.isError}
               answersSubmitting={submitAnswers.isPending}
               onPreviewImage={setPreviewUrl}
-              onFinalize={() => setShowFinalizeConfirm(true)}
+              onFinalize={setPendingFinalizeUrl}
             />
           ))}
           {(isGenerating || pendingGenerate) && (
@@ -183,10 +187,10 @@ export function AdStudioThread({ sessionId }: { sessionId: string }) {
       )}
 
       <ConfirmModal
-        open={showFinalizeConfirm}
-        onOpenChange={setShowFinalizeConfirm}
+        open={!!pendingFinalizeUrl}
+        onOpenChange={(open) => { if (!open) setPendingFinalizeUrl(null); }}
         title="Add this ad to your library?"
-        description="This locks in the image and copy you see above and adds it to Ad Library."
+        description="This adds this image to your Ad Library. You can keep chatting here anytime to generate more versions or pick a different one later."
         confirmLabel="Finalize & Add to Library"
         loading={finalize.isPending}
         onConfirm={handleFinalize}
@@ -205,8 +209,7 @@ export function AdStudioThread({ sessionId }: { sessionId: string }) {
 
 function MessageRow({
   message,
-  isLatestImage,
-  isFinalized,
+  currentLibraryImageUrl,
   savedAnswers,
   onSubmitAnswers,
   answersFailed,
@@ -215,14 +218,13 @@ function MessageRow({
   onFinalize,
 }: {
   message: StudioMessage;
-  isLatestImage: boolean;
-  isFinalized: boolean;
+  currentLibraryImageUrl: string | null;
   savedAnswers: StudioAnswer[];
   onSubmitAnswers: (answers: StudioAnswer[]) => void;
   answersFailed: boolean;
   answersSubmitting: boolean;
   onPreviewImage: (url: string) => void;
-  onFinalize: () => void;
+  onFinalize: (imageUrl: string) => void;
 }) {
   if (message.role === "user") {
     return (
@@ -251,6 +253,7 @@ function MessageRow({
   if (message.kind === "image") {
     const payload = message.payload as StudioImagePayload | null;
     if (!payload) return null;
+    const isCurrentLibraryImage = !!currentLibraryImageUrl && payload.imageUrl === currentLibraryImageUrl;
     return (
       <div className="flex items-start gap-3">
         <Avatar icon={Bot} />
@@ -264,13 +267,17 @@ function MessageRow({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={payload.imageUrl} alt="Generated ad" className="h-full w-auto max-w-full object-contain mx-auto" />
           </button>
-          {isLatestImage && !isFinalized && (
-            <div className="flex gap-2">
-              <Button size="sm" onClick={onFinalize}>
+          <div className="flex gap-2">
+            {isCurrentLibraryImage ? (
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-success">
+                <Check className="w-3.5 h-3.5" /> Currently in Library
+              </span>
+            ) : (
+              <Button size="sm" onClick={() => onFinalize(payload.imageUrl)}>
                 Finalize &amp; Add to Library
               </Button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     );

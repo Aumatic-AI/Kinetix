@@ -39,5 +39,8 @@ To understand the system deeply without scanning source code, refer to the follo
 ### 3. Design
 - [`../DESIGN.md`](../DESIGN.md) — The UI design system: color/spacing/radius tokens, component specs, and rules for building consistent UI. Always loaded into Claude Code's context via `CLAUDE.md`'s `@DESIGN.md` import.
 
+### 4. Reusable Systems
+- [`ai-studio/README.md`](ai-studio/README.md) — The chat-based AI image-generation architecture behind Meta Ads' AI Ad Studio, written as a **portable, project-agnostic spec** (not a Kinetix-feature writeup) — the full generation/edit/questions prompts, the design-layer system, and the reasoning behind each decision, so it can be copied into a different project for a different kind of image-generation product.
+
 ---
 *Note for AI Agents: Read these documentation files to understand the Kinetix project state and design patterns instead of parsing massive codebase folders. If something here contradicts the actual code, trust the code and flag the doc as stale — these are meant to be kept current, not aspirational.*

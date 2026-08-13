@@ -699,6 +699,7 @@ export type Database = {
           revision_history: Json
           service: string | null
           status: string | null
+          studio_session_id: string | null
           type: string | null
           updated_at: string
           video_style: string | null
@@ -719,6 +720,7 @@ export type Database = {
           revision_history?: Json
           service?: string | null
           status?: string | null
+          studio_session_id?: string | null
           type?: string | null
           updated_at?: string
           video_style?: string | null
@@ -739,6 +741,7 @@ export type Database = {
           revision_history?: Json
           service?: string | null
           status?: string | null
+          studio_session_id?: string | null
           type?: string | null
           updated_at?: string
           video_style?: string | null
@@ -757,6 +760,13 @@ export type Database = {
             columns: ["media_asset_id"]
             isOneToOne: false
             referencedRelation: "media_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_ad_creatives_studio_session_id_fkey"
+            columns: ["studio_session_id"]
+            isOneToOne: false
+            referencedRelation: "studio_sessions"
             referencedColumns: ["id"]
           },
         ]

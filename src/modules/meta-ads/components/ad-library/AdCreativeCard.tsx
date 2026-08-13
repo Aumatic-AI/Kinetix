@@ -1,8 +1,11 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Play, Check, Clock, Video, Image as ImageIcon, Sparkles, AlertTriangle, RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Play, Check, Clock, Video, Image as ImageIcon, Sparkles, AlertTriangle, RefreshCw, MoreVertical, MessageSquare, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ROUTES } from "@/config/routes";
 import { MetaAdCreativeListItem } from "../../types/meta-ads.types";
 
 interface AdCreativeCardProps {
@@ -16,20 +19,21 @@ interface AdCreativeCardProps {
 }
 
 export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRetry, isRetrying }: AdCreativeCardProps) {
-  const [confirmingReject, setConfirmingReject] = useState(false);
-  const [rejecting, setRejecting] = useState(false);
-  const [rejectError, setRejectError] = useState("");
+  const router = useRouter();
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
-  const confirmReject = async () => {
-    setRejectError("");
-    setRejecting(true);
+  const confirmDelete = async () => {
+    setDeleteError("");
+    setDeleting(true);
     try {
       await onDelete(ad.id);
-      setConfirmingReject(false);
+      setConfirmingDelete(false);
     } catch (e) {
-      setRejectError(e instanceof Error ? e.message : "Failed to reject");
+      setDeleteError(e instanceof Error ? e.message : "Failed to delete");
     } finally {
-      setRejecting(false);
+      setDeleting(false);
     }
   };
 
@@ -124,29 +128,42 @@ export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRet
       {/* Content Section (Bottom) */}
       <div className="p-3 flex flex-col flex-1 bg-background">
         <div className="flex items-center justify-between text-[10px] text-muted font-medium mb-3">
-          {ad.duration ? <span>{ad.duration}</span> : <span />}
-          {ad.type === "video" ? <Video size={12} /> : <ImageIcon size={12} />}
+          <div className="flex items-center gap-1.5">
+            {ad.type === "video" ? <Video size={12} /> : <ImageIcon size={12} />}
+            {ad.duration && <span>{ad.duration}</span>}
+          </div>
+
+          {/* Overflow menu — always available regardless of status, unlike
+              the status-specific action row below */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label="More actions"
+              className="w-5 h-5 flex items-center justify-center rounded hover:bg-surface hover:text-text transition-colors"
+            >
+              <MoreVertical size={13} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {ad.studio_session_id && (
+                <DropdownMenuItem onClick={() => router.push(ROUTES.META_ADS.AD_STUDIO_SESSION(ad.studio_session_id as string))}>
+                  <MessageSquare className="w-4 h-4" /> Chat History
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem variant="destructive" onClick={() => setConfirmingDelete(true)}>
+                <Trash2 className="w-4 h-4" /> Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
         <div className="flex items-center gap-2 w-full">
           {ad.status === "review" ? (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setConfirmingReject(true)}
-                className="flex-1 text-danger hover:bg-danger-bg hover:text-danger border-danger/30 h-7 text-[11px]"
-              >
-                Reject
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => onApprove(ad.id)}
-                className="flex-1 bg-success text-white hover:opacity-90 h-7 text-[11px]"
-              >
-                Approve
-              </Button>
-            </>
+            <Button
+              size="sm"
+              onClick={() => onApprove(ad.id)}
+              className="flex-1 bg-success text-white hover:opacity-90 h-7 text-[11px]"
+            >
+              Approve
+            </Button>
           ) : ad.status === "failed" ? (
             <>
               <Button
@@ -182,15 +199,15 @@ export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRet
       </div>
 
       <ConfirmModal
-        open={confirmingReject}
-        onOpenChange={(open) => { if (!open && !rejecting) { setConfirmingReject(false); setRejectError(""); } }}
-        title="Reject this creative?"
-        description="This permanently deletes the creative. This can't be undone."
-        confirmLabel="Reject"
+        open={confirmingDelete}
+        onOpenChange={(open) => { if (!open && !deleting) { setConfirmingDelete(false); setDeleteError(""); } }}
+        title="Delete this creative?"
+        description="This permanently deletes the creative and its media. This can't be undone."
+        confirmLabel="Delete"
         variant="destructive"
-        loading={rejecting}
-        error={rejectError}
-        onConfirm={confirmReject}
+        loading={deleting}
+        error={deleteError}
+        onConfirm={confirmDelete}
       />
     </motion.div>
   );

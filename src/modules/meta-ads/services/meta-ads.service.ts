@@ -9,6 +9,17 @@ import {
 } from "../types/meta-ads.types";
 import { rangeFor } from "@/lib/pagination";
 
+/** Pulls the storage path back out of a `business_media` public URL (e.g.
+ * `.../storage/v1/object/public/business_media/<businessId>/...`), or null
+ * for anything else — an externally-hosted URL (Kie's CDN) has no path of
+ * ours to delete. */
+function extractBusinessMediaPath(url: string): string | null {
+  const marker = "/business_media/";
+  const index = url.indexOf(marker);
+  if (index === -1) return null;
+  return url.slice(index + marker.length);
+}
+
 export class MetaAdsService {
   // ==========================================
   // CREATIVES
@@ -28,7 +39,7 @@ export class MetaAdsService {
     filters?: CreativeFilters,
     pagination?: PaginationOptions
   ): Promise<{ data: MetaAdCreativeListItem[]; total: number }> {
-    let query = supabase.from("meta_ad_creatives").select("id, type, status, media_urls, duration, created_at", { count: "exact" });
+    let query = supabase.from("meta_ad_creatives").select("id, type, status, media_urls, duration, created_at, studio_session_id", { count: "exact" });
 
     if (filters?.status) {
       query = query.eq("status", filters.status);
@@ -120,6 +131,20 @@ export class MetaAdsService {
   }
 
   static async deleteCreative(supabase: SupabaseClient, id: string): Promise<void> {
+    // Ad-generated images are hosted externally (Kie's own CDN) and have
+    // nothing of ours to clean up, but stitched videos and direct uploads
+    // land in our own `business_media` bucket — leaving those behind on
+    // delete would silently leak storage forever.
+    const { data: creative } = await supabase.from("meta_ad_creatives").select("media_urls").eq("id", id).single();
+    const ownStoragePaths = ((creative?.media_urls as string[] | null) || [])
+      .map(extractBusinessMediaPath)
+      .filter((p): p is string => !!p);
+
+    if (ownStoragePaths.length) {
+      const { error: storageError } = await supabase.storage.from("business_media").remove(ownStoragePaths);
+      if (storageError) console.error(`Error deleting creative media from storage: ${storageError.message}`);
+    }
+
     const { error } = await supabase
       .from("meta_ad_creatives")
       .delete()
