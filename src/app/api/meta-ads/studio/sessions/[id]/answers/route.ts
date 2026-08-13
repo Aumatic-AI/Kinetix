@@ -49,6 +49,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       idea_prompt: session.initial_idea,
       service: session.service,
       status: "pending",
+      studio_session_id: id,
     });
 
     const { data: updatedSession } = await supabase

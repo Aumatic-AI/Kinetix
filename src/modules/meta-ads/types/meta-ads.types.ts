@@ -33,6 +33,10 @@ export interface MetaAdCreativeListItem {
   media_urls?: string[];
   duration?: string;
   created_at: string;
+  /** Set only for creatives generated via AI Ad Studio — lets the Ad
+   * Library link back to that session's chat history. Null for creatives
+   * from the plain Create Ad flow. */
+  studio_session_id?: string | null;
 }
 
 /** What the campaign "pick a creative" dialog fetches — getCreativesForPicker()

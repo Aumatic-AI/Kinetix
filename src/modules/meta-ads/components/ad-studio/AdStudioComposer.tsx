@@ -1,8 +1,9 @@
 "use client";
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { toast } from "sonner";
-import { ChevronDown, Image as ImageIcon, Send, Sparkles, X } from "lucide-react";
+import { ArrowLeft, ChevronDown, Image as ImageIcon, Send, Sparkles, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/Button";
@@ -103,8 +104,13 @@ export function AdStudioComposer() {
   const currentAspectLabel = ASPECT_RATIOS.find((r) => r.value === aspectRatio)?.label;
 
   return (
-    <div className="relative h-full">
-      <div className="h-full overflow-y-auto flex items-center justify-center px-6 pb-40">
+    <div className="relative h-full flex flex-col">
+      <div className="shrink-0 border-b border-default px-6 py-3">
+        <Link href={ROUTES.META_ADS.AD_LIBRARY} className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-text transition-colors">
+          <ArrowLeft className="w-3.5 h-3.5" /> Ad Library
+        </Link>
+      </div>
+      <div className="flex-1 overflow-y-auto flex items-center justify-center px-6 pb-40">
         <div className="max-w-xl w-full text-center">
           <div className="w-12 h-12 rounded-lg bg-primary-subtle text-primary flex items-center justify-center mx-auto mb-4">
             <Sparkles className="w-6 h-6" />
