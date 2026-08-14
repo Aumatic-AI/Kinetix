@@ -702,6 +702,7 @@ export type Database = {
           studio_session_id: string | null
           type: string | null
           updated_at: string
+          video_mode: string
           video_style: string | null
           voice_id: string | null
         }
@@ -723,6 +724,7 @@ export type Database = {
           studio_session_id?: string | null
           type?: string | null
           updated_at?: string
+          video_mode?: string
           video_style?: string | null
           voice_id?: string | null
         }
@@ -744,6 +746,7 @@ export type Database = {
           studio_session_id?: string | null
           type?: string | null
           updated_at?: string
+          video_mode?: string
           video_style?: string | null
           voice_id?: string | null
         }

@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/Button";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/Switch";
 import { cn } from "@/lib/utils";
 import VoiceExplorerModal from "@/components/global/VoiceExplorerModal";
 import { createClient } from "@/lib/supabase/client";
@@ -16,6 +17,10 @@ const DURATION_OPTIONS = ["20 seconds", "28 seconds", "32 seconds", "36 seconds"
 const AUDIO_STYLE_OPTIONS = ["No Voice", "Voiceover"].map((v) => ({ value: v, label: v }));
 const CHARACTER_OPTIONS = [{ value: "male", label: "Male" }, { value: "female", label: "Female" }];
 const VIDEO_STYLE_OPTIONS = ["Bold & Colorful", "Cinematic", "Minimal & Clean", "Dark & Moody", "Neon / Glow", "Hand-drawn / Sketch"].map((v) => ({ value: v, label: v }));
+const VIDEO_MODE_OPTIONS = [
+  { value: "live_action", label: "Real-life video" },
+  { value: "animated_poster", label: "Animated design & text" },
+];
 const LANGUAGE_OPTIONS = ["English", "Spanish", "French", "Hebrew", "Turkish"].map((v) => ({ value: v, label: v }));
 
 const VOICE_OPTIONS = {
@@ -51,6 +56,8 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
   const [voiceId, setVoiceId] = useState(VOICE_OPTIONS.male[0].id);
   const [voiceLabel, setVoiceLabel] = useState(VOICE_OPTIONS.male[0].label);
   const [videoStyle, setVideoStyle] = useState("Bold & Colorful");
+  const [videoMode, setVideoMode] = useState<"live_action" | "animated_poster">("live_action");
+  const [useReferencePhoto, setUseReferencePhoto] = useState(false);
   const [language, setLanguage] = useState("English");
   const [idea, setIdea] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -91,7 +98,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
     try {
       const endpoint = type === "video" ? "/api/meta-ads/generate/video" : "/api/meta-ads/generate/image";
       const payload = type === "video"
-        ? { duration, audioStyle, character, voiceId, videoStyle, language, ideaPrompt: idea, service }
+        ? { duration, audioStyle, character, voiceId, videoStyle, videoMode, useReferencePhoto, language, ideaPrompt: idea, service }
         : { ideaPrompt: idea, service };
 
       const response = await fetch(endpoint, {
@@ -333,9 +340,29 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
                   </div>
 
                   <div>
+                    <Label className="mb-2 block text-sm font-semibold">Video type</Label>
+                    <Dropdown
+                      value={videoMode}
+                      onValueChange={(val) => setVideoMode(val as "live_action" | "animated_poster")}
+                      options={VIDEO_MODE_OPTIONS}
+                    />
+                    <p className="mt-1 text-xs text-muted">Real people and places, or an animated design with text.</p>
+                  </div>
+
+                  <div>
                     <Label className="mb-2 block text-sm font-semibold">Language</Label>
                     <Dropdown value={language} onValueChange={setLanguage} options={LANGUAGE_OPTIONS} />
                   </div>
+                </div>
+              )}
+
+              {type === "video" && (
+                <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-default bg-surface">
+                  <div>
+                    <p className="text-sm font-semibold text-text">Use my reference photo</p>
+                    <p className="text-xs text-muted">Only where it fits — off by default.</p>
+                  </div>
+                  <Switch checked={useReferencePhoto} onCheckedChange={setUseReferencePhoto} />
                 </div>
               )}
 

@@ -3,8 +3,12 @@
  * CreateAdModal. Ported from the legacy n8n workflow (toga Idea
  * Generation for ads.json), which took a short user-typed idea and
  * expanded it into 3 emotionally distinct first-person ad stories.
- * Genericized: business persona/offerings/voice/audience/pain points
- * come from the `businesses` row instead of being hardcoded.
+ * Genericized twice: first so business persona/offerings/voice/audience/
+ * pain points come from the `businesses` row instead of being hardcoded,
+ * then again so the 3 suggestions aren't all forced into the same
+ * personal-transformation shape — a real ad might be a promotion, a
+ * brand-awareness piece, a testimonial, or several other genuinely
+ * different shapes, and the suggestions should reflect that variety.
  */
 
 interface IdeaGenerationPromptInput {
@@ -23,6 +27,15 @@ interface IdeaGenerationPromptInput {
   service?: string;
 }
 
+const ANGLE_PALETTE = `- TRANSFORMATION: a personal before/after result, told first-person, as a real story.
+- PROMOTION_OFFER: a sale, discount, or limited-time deal — the offer itself is the point.
+- SERVICE_SPOTLIGHT: what one specific service actually is/does, explained simply.
+- BRAND_CREDIBILITY: why this business specifically — trust, expertise, what makes it different.
+- SOCIAL_PROOF: real social proof — reviews, ratings, the kind of outcomes people report.
+- EDUCATIONAL_TIP: a helpful, genuinely useful tip or common-question answer that builds trust.
+- ANNOUNCEMENT: something new — a new service, location, product, or feature.
+- EVENT_SEASONAL: tied to a specific season, holiday, or limited dates.`;
+
 export const generateIdeaPrompt = (input: IdeaGenerationPromptInput) => {
   const {
     businessName, industry, coreOfferings, businessVoice, targetAudience, painPoints,
@@ -36,52 +49,35 @@ YOUR BUSINESS
 - Target audience: ${targetAudience || "Not specified"}
 - Customer pain points: ${painPoints || "Not specified"}
 - Brand voice: ${businessVoice || "Professional, trustworthy, and clear"}
-${service ? `\nTHIS IDEA IS SPECIFICALLY FOR: ${service}. All 3 stories must be about ${service} — never blend in another service.\n` : ""}
+${service ? `\nTHIS IDEA IS SPECIFICALLY FOR: ${service}. All 3 ideas must be about ${service} — never blend in another service.\n` : ""}
 YOUR JOB
-Take the short user input describing a problem or offering, then dynamically craft 3 emotional, first-person ad story variations — each from a different angle. The story must follow one of these narrative arcs:
+Take the short user input and expand it into 3 genuinely different ad idea starting points — not full scripts, just a short (2-4 sentence) description of what the ad would show/say, the kind of thing the user can read, tweak, and use directly as their own idea.
 
-ARC A (5 beats): happy → pain → ${businessName} → solution → happy
-ARC B (3 beats): pain stated → ${businessName} → happy
+STEP 1 — PICK 3 DIFFERENT ANGLES (do this first, silently)
+Pick the 3 angles from the palette below that most plausibly and compellingly fit THIS business and THIS user input — never default to the same 3 every time, and never force an angle that doesn't genuinely fit. If the user's input already implies a clear angle (e.g. it mentions a sale, or a specific transformation), one of your 3 must be exactly that angle, developed further.
 
-The arc you pick must fit naturally inside the duration. Use ARC A when duration allows 5+ short sentences. Use ARC B for tighter durations or punchier hooks.
+${ANGLE_PALETTE}
 
-PROBLEM IDENTIFICATION (do this first, silently)
-Read the idea field carefully. Infer:
-- What specifically is affected, based on the business's own offerings above
-- What the emotional pain is (embarrassment, low confidence, discomfort, hiding, social withdrawal)
-- What the "before" happy memory could realistically be
-- What the "after" transformation looks like in daily life (confidence, freedom, normalcy)
+STEP 2 — WRITE EACH IDEA IN THE VOICE THAT FITS ITS OWN ANGLE
+- TRANSFORMATION and SOCIAL_PROOF ideas that follow one person's experience: write in FIRST PERSON ("I", "my", "me"), matching the gender from the character field (male / female / neutral pronouns if unspecified). Sound like a real person telling a friend their story — warm, raw, conversational, short punchy sentences (6-14 words each), sensory and specific, never vague claims.
+- PROMOTION_OFFER, SERVICE_SPOTLIGHT, BRAND_CREDIBILITY, EDUCATIONAL_TIP, ANNOUNCEMENT, and EVENT_SEASONAL ideas: write directly about the business/offer/service in second person or as a plain description of what the ad shows and says — there's no need to invent a first-person story where one wouldn't naturally exist.
+- Whichever voice fits: mention "${businessName}" by name at most once per idea, at whatever point is most natural.
+- End on a clear, concrete beat — a feeling, a specific offer detail, or an invitation — never a vague summary line.
 
-Then build the story around THAT specific problem — never generic.
-
-CHARACTER & VOICE
-- Write in FIRST PERSON ("I", "my", "me")
-- Match the gender from the character field (male / female / neutral pronouns if unspecified)
-- Sound like a real person telling a friend their story — warm, raw, conversational
-- Short punchy sentences (6-14 words each)
-- Use sensory, specific details, not vague claims
-- Mention "${businessName}" by name exactly once per story, at the turning point
-- End on a clear emotional "after" beat — confidence, joy, freedom, normalcy
-
-LENGTH RULES (based on duration field)
-- 15s → 3-4 sentences (ARC B)
-- 20-25s → 4-5 sentences (ARC A or B)
-- 28-35s → 5-6 sentences (ARC A)
-- 40s+ → 6 sentences max (ARC A, slightly longer beats)
-
-THREE ANGLES (one per idea)
-1. ANGLE "result": Focus on the dramatic transformation and the new life. Lean heavily on the "after" — what they can now do, feel, or show that they couldn't before. The pain is short, the result is the hero.
-2. ANGLE "value": Focus on what they got for the price/effort — the completeness of the offering, the ease, the lack of stress. The story shows surprise at how complete and easy it was.
-3. ANGLE "${businessName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_difference": Focus on why ${businessName} specifically — expertise, trust, end-to-end care, trusted where others failed. Often framed as "I tried elsewhere / I was scared / friends warned me, but ${businessName}..."
+LENGTH RULES (based on duration field, video only — for image, keep every idea to 2-3 sentences regardless)
+- 15s → 3-4 sentences
+- 20-25s → 4-5 sentences
+- 28-35s → 5-6 sentences
+- 40s+ → 6 sentences max
 
 STYLE RULES
 - videoStyle "Bold & Colorful" → energetic, upbeat language, optimistic verbs
 - videoStyle "Cinematic" → slower, more reflective sentences
 - videoStyle "Documentary" → grounded, real, testimonial tone
 - audioStyle "No Voice" → assume voiceover narration; write spoken-aloud lines
-- Never use medical jargon. Never promise specific outcomes not implied by the business's own offerings. Never name competitors.
+- Never use medical jargon. Never invent a specific number, price, or date — only use one if the business context or user input actually states it. Never promise specific outcomes not implied by the business's own offerings. Never name competitors.
 - Never use emojis, hashtags, or ALL CAPS.
-- No markdown, no quotes around the story, no labels inside the idea text.
+- No markdown, no quotes around the idea, no labels inside the idea text.
 
 OUTPUT FORMAT
 Return ONLY valid JSON. No markdown fences. No commentary. No backticks.
@@ -89,18 +85,19 @@ Exactly this structure:
 
 {
   "ideas": [
-    { "id": 1, "type": "${type}", "angle": "result", "idea": "<4-6 sentence story>" },
-    { "id": 2, "type": "${type}", "angle": "value", "idea": "<4-6 sentence story>" },
-    { "id": 3, "type": "${type}", "angle": "${businessName.toLowerCase().replace(/[^a-z0-9]+/g, "_")}_difference", "idea": "<4-6 sentence story>" }
+    { "id": 1, "type": "${type}", "angle": "<the angle name from the palette above, e.g. transformation, promotion_offer>", "idea": "<2-6 sentence idea, length per the rules above>" },
+    { "id": 2, "type": "${type}", "angle": "<a different angle>", "idea": "<2-6 sentence idea>" },
+    { "id": 3, "type": "${type}", "angle": "<a third different angle>", "idea": "<2-6 sentence idea>" }
   ]
 }
 
 QUALITY CHECK BEFORE RESPONDING
-- Did I actually identify the SPECIFIC problem, grounded in this business's real offerings?
-- Is each story emotionally distinct, not three rewrites of the same lines?
-- Does each angle clearly lead with its focus (result vs value vs difference)?
-- Is the gender consistent with the character field?
-- Sentence count within range for the duration?
+- Are all 3 angles genuinely different from each other, not three rewrites of the same idea?
+- Does each angle actually fit this business's real context, not forced?
+- Is the voice (first-person vs. direct) correct for each angle chosen?
+- Is the gender consistent with the character field, for any first-person idea?
+- Sentence count within range for the duration (video) or 2-3 sentences (image)?
+- No invented numbers, prices, or dates?
 - Is the JSON strictly valid? No trailing commas, no extra keys, no prose outside the JSON.`;
 
   const user = `INPUT

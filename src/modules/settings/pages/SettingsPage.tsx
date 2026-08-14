@@ -113,6 +113,9 @@ export function SettingsPage() {
               <Field label="Contact Phone" hint="Optional — shown on AI Ad Studio poster-style ads when it fits the design.">
                 <Input value={form.contactPhone} onChange={(e) => patch({ contactPhone: e.target.value })} placeholder="e.g. +1 555 123 4567" />
               </Field>
+              <Field label="Brand Color" hint="Optional — your real brand color. Used instead of a guessed color for any branding/signage AI Ad Studio actually depicts.">
+                <Input value={form.brandColor ?? ""} onChange={(e) => patch({ brandColor: e.target.value || null })} placeholder="e.g. #C41E3A or 'deep red'" />
+              </Field>
               <LogoUploader url={data?.logoUrl ?? null} />
               <div className="sm:col-span-2">
                 <Field label="Description"><Textarea value={form.description} onChange={(e) => patch({ description: e.target.value })} rows={3} /></Field>
