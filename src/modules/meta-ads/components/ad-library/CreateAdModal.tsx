@@ -63,6 +63,11 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
 
+  // Video only: script-review step, between the form and actually kicking
+  // off generation — see handleGenerateSubmit/handleConfirmScript below.
+  const [step, setStep] = useState<"form" | "script">("form");
+  const [scriptDraft, setScriptDraft] = useState<{ ad_mode: string; visual_mood: string; script: string[] } | null>(null);
+
   // Pre-fill from an external source (e.g. a ready-to-launch script handed
   // in via a retry/duplicate action) when the modal opens with initialValues set.
   useEffect(() => {
@@ -92,28 +97,77 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
   const serviceOptions = (business?.services ?? []).map((s) => s.name);
 
   // Handlers
+  const resetAndClose = () => {
+    setIdea("");
+    setService("");
+    setGeneratedIdeas(null);
+    setIdeaError("");
+    setStep("form");
+    setScriptDraft(null);
+    onClose();
+  };
+
+  // Video: generates just the script and shows it for review — the modal
+  // stays open. Image: unchanged, submits directly (there's no script for
+  // a single still image).
   const handleGenerateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
-      const endpoint = type === "video" ? "/api/meta-ads/generate/video" : "/api/meta-ads/generate/image";
-      const payload = type === "video"
-        ? { duration, audioStyle, character, voiceId, videoStyle, videoMode, useReferencePhoto, language, ideaPrompt: idea, service }
-        : { ideaPrompt: idea, service };
+      if (type === "video") {
+        const response = await fetch("/api/meta-ads/generate/video/script", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ duration, audioStyle, videoStyle, character, service, language, ideaPrompt: idea }),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data.script) {
+          setScriptDraft(data.script);
+          setStep("script");
+        } else {
+          toast.error(data.error || "Failed to generate the script");
+        }
+        return;
+      }
 
-      const response = await fetch(endpoint, {
+      const response = await fetch("/api/meta-ads/generate/image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ideaPrompt: idea, service }),
       });
       const data = await response.json().catch(() => ({}));
       if (response.ok) {
         if (onSuccess) onSuccess();
-        onClose();
-        setIdea("");
-        setService("");
-        setGeneratedIdeas(null);
-        setIdeaError("");
+        resetAndClose();
+      } else {
+        toast.error(data.error || "Failed to start generation");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to start generation");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // The user has reviewed (and possibly edited) the script — now actually
+  // start generation, passing that exact script through so the background
+  // job doesn't generate its own.
+  const handleConfirmScript = async () => {
+    if (!scriptDraft) return;
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/meta-ads/generate/video", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          duration, audioStyle, character, voiceId, videoStyle, videoMode, useReferencePhoto, language,
+          ideaPrompt: idea, service, script: scriptDraft,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        if (onSuccess) onSuccess();
+        resetAndClose();
       } else {
         toast.error(data.error || "Failed to start generation");
       }
@@ -217,7 +271,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
       <Dialog
         open={isOpen}
         onOpenChange={(open) => {
-          if (!open) { setIdea(""); setService(""); setGeneratedIdeas(null); setIdeaError(""); onClose(); }
+          if (!open) resetAndClose();
         }}
       >
         <DialogContent 
@@ -231,27 +285,58 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
               </div>
               <div>
                 <DialogTitle className="text-2xl font-bold text-text tracking-tight">
-                  {activeTab === "generate" ? "Create New Ad" : "Upload Media"}
+                  {activeTab === "generate" ? (step === "script" ? "Review the Script" : "Create New Ad") : "Upload Media"}
                 </DialogTitle>
                 <DialogDescription className="text-sm text-muted mt-1">
-                  {activeTab === "generate" ? "Generate highly engaging ads with AI." : "Upload your finalized video or image assets directly."}
+                  {activeTab === "generate"
+                    ? (step === "script" ? "Each line becomes one scene in the video. Edit anything, then confirm." : "Generate highly engaging ads with AI.")
+                    : "Upload your finalized video or image assets directly."}
                 </DialogDescription>
               </div>
             </div>
-            <Button 
-              variant="outline" 
-              onClick={() => setActiveTab(activeTab === "generate" ? "upload" : "generate")}
-              className="rounded-lg font-semibold bg-background shadow-sm hover:bg-surface shrink-0"
-              icon={activeTab === "generate" ? <UploadCloud className="w-4 h-4" /> : <Wand2 className="w-4 h-4" />}
-            >
-              {activeTab === "generate" ? "Direct Upload" : "AI Generation"}
-            </Button>
+            {step === "form" && (
+              <Button
+                variant="outline"
+                onClick={() => setActiveTab(activeTab === "generate" ? "upload" : "generate")}
+                className="rounded-lg font-semibold bg-background shadow-sm hover:bg-surface shrink-0"
+                icon={activeTab === "generate" ? <UploadCloud className="w-4 h-4" /> : <Wand2 className="w-4 h-4" />}
+              >
+                {activeTab === "generate" ? "Direct Upload" : "AI Generation"}
+              </Button>
+            )}
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto bg-background">
             {activeTab === "generate" ? (
+              step === "script" && scriptDraft ? (
+                <div className="p-8 space-y-5 outline-none">
+                  <button
+                    type="button"
+                    onClick={() => setStep("form")}
+                    className="text-sm font-semibold text-primary hover:underline"
+                  >
+                    ← Edit details
+                  </button>
+                  <div className="space-y-4">
+                    {scriptDraft.script.map((line, i) => (
+                      <div key={i}>
+                        <Label className="mb-1.5 block text-xs font-semibold text-muted">Scene {i + 1}</Label>
+                        <Textarea
+                          value={line}
+                          onChange={(e) => {
+                            const next = [...scriptDraft.script];
+                            next[i] = e.target.value;
+                            setScriptDraft({ ...scriptDraft, script: next });
+                          }}
+                          className="!p-3 min-h-[64px] text-sm"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
               <div className="p-8 space-y-6 outline-none">
-              
+
               {/* Format Selection */}
               <section>
                 <Label className="mb-2 block text-sm font-semibold">Format</Label>
@@ -411,6 +496,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
                 )}
               </section>
               </div>
+              )
             ) : (
               <div className="flex-1 p-8 m-0 bg-background flex flex-col justify-center min-h-full">
               <div className="max-w-2xl mx-auto w-full">
@@ -481,18 +567,29 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
           </div>
 
           <DialogFooter className="px-8 py-5 border-t border-border bg-surface flex flex-row justify-end gap-4 shrink-0">
-            <Button variant="outline" onClick={onClose} className="px-6 rounded-lg font-semibold">
+            <Button variant="outline" onClick={resetAndClose} className="px-6 rounded-lg font-semibold">
               Cancel
             </Button>
             {activeTab === "generate" ? (
-              <Button
-                onClick={handleGenerateSubmit}
-                disabled={isSubmitting || !idea.trim() || !service}
-                className="px-8 rounded-lg font-bold shadow-md"
-                icon={isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-5 h-5" />}
-              >
-                {isSubmitting ? "Generating..." : "Generate Creative"}
-              </Button>
+              step === "script" ? (
+                <Button
+                  onClick={handleConfirmScript}
+                  disabled={isSubmitting}
+                  className="px-8 rounded-lg font-bold shadow-md"
+                  icon={isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-5 h-5" />}
+                >
+                  {isSubmitting ? "Generating..." : "Confirm & Generate Video"}
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleGenerateSubmit}
+                  disabled={isSubmitting || !idea.trim() || !service}
+                  className="px-8 rounded-lg font-bold shadow-md"
+                  icon={isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-5 h-5" />}
+                >
+                  {isSubmitting ? (type === "video" ? "Generating script..." : "Generating...") : (type === "video" ? "Generate Script" : "Generate Creative")}
+                </Button>
+              )
             ) : (
               <Button
                 onClick={handleUploadSubmit}
