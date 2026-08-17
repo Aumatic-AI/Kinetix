@@ -22,24 +22,23 @@ export async function generateSocialVideoScript(business: any, input: SocialVide
   const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
   const parsed = JSON.parse(jsonStr);
 
-  // Truncate defensively if the model overshoots the requested line count —
-  // undershooting isn't trimmed, a shorter-but-complete video is a safer
-  // failure than a mid-sentence cutoff.
+  // Truncate defensively if the model overshoots the requested line count,
+  // so the number of scenes matches what was asked for — undershooting
+  // isn't trimmed here, that's just a shorter (still complete) script.
+  //
+  // There used to also be a word-budget trim here that dropped trailing
+  // lines whenever the estimated spoken length exceeded a fixed
+  // "scriptLines x 4 seconds" budget — a holdover from before each scene's
+  // clip was sized to its OWN measured narration length (see
+  // generate-social-video.ts step 4/7, clamped 4-12s per scene, not a
+  // uniform 4s). That stale check triggered often on Social's more
+  // conversational, unhurried phrasing, silently shrinking a well-formed
+  // script down toward its 3-line floor and producing a much shorter final
+  // video than requested. Removed for the same reason it was removed from
+  // Meta Ads' generateVideoScript (video-script.ts) — see that file's
+  // comment for the full rationale.
   if (Array.isArray(parsed.script) && parsed.script.length > sceneCount) {
     parsed.script = parsed.script.slice(0, sceneCount);
-  }
-
-  // The prompt's own word budget is a strong steer, not a guarantee — drop
-  // trailing lines (never mid-sentence) until the estimated spoken length
-  // fits a 4s/line video, re-checking against the shrinking target each time.
-  const WORDS_PER_SECOND = 2.2;
-  const countWords = (line: string) => line.trim().split(/\s+/).filter(Boolean).length;
-  while (Array.isArray(parsed.script) && parsed.script.length > 3) {
-    const totalWords = parsed.script.reduce((sum: number, line: string) => sum + countWords(line), 0);
-    const estimatedSeconds = totalWords / WORDS_PER_SECOND;
-    const videoSeconds = parsed.script.length * 4;
-    if (estimatedSeconds <= videoSeconds) break;
-    parsed.script.pop();
   }
 
   return parsed as SocialVideoScriptResult;

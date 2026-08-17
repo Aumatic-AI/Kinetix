@@ -32,32 +32,26 @@ export async function generateVideoScript(intelligence: any, creative: VideoScri
   const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
   const parsed = JSON.parse(jsonStr);
 
-  // Video length is scenes x 4s (hard constraint, see the cinematic prompt)
-  // — truncate defensively if the model overshoots the requested line
-  // count, so the video is never longer than intended. Undershooting isn't
-  // trimmed: a shorter-but-complete video is a safer failure than the
-  // mid-sentence audio cutoff a too-long script causes once it's laid over
-  // the fixed-length video.
+  // Truncate defensively if the model overshoots the requested line count,
+  // so the number of scenes matches what was asked for — undershooting
+  // isn't trimmed here, that's just a shorter (still complete) script.
+  //
+  // There used to also be a word-budget trim here that dropped trailing
+  // lines whenever the script's estimated spoken length exceeded a fixed
+  // "scriptLines x 4 seconds" budget. That assumption predates the
+  // per-scene measured-audio redesign (see generate-video-ad.ts step 4):
+  // each scene's clip is now sized to THAT scene's own real narration
+  // length (clamped 4-12s), not a uniform 4s, so a line running longer
+  // than 4 seconds of speech no longer risks a mid-word cutoff — it just
+  // gets a longer clip. Keeping that old trim was actively harmful: it
+  // silently shortened well-formed scripts (down toward its 3-line floor)
+  // any time natural, unhurried phrasing ran past the stale 4s/line
+  // estimate, producing a much shorter final video than requested. The
+  // real protection against a single scene's audio getting cut off is the
+  // per-line word cap already in the prompt (6-9 words, 10 max — comfortably
+  // under 12s of natural speech), not a whole-script word-count trim.
   if (Array.isArray(parsed.script) && parsed.script.length > sceneCount) {
     parsed.script = parsed.script.slice(0, sceneCount);
-  }
-
-  // The prompt's own word budget is a strong steer, not a guarantee — the
-  // model can still write a script whose natural spoken length runs past
-  // the fixed-length video underneath it, which cuts the narration off
-  // mid-word. This is a deterministic backstop: measure the actual result
-  // and drop trailing lines (never mid-sentence) until the estimated
-  // spoken length fits the video these lines will actually produce. Each
-  // dropped line shortens the video by 4s too, so this re-checks against
-  // the shrinking target every time.
-  const WORDS_PER_SECOND = 2.2;
-  const countWords = (line: string) => line.trim().split(/\s+/).filter(Boolean).length;
-  while (Array.isArray(parsed.script) && parsed.script.length > 3) {
-    const totalWords = parsed.script.reduce((sum: number, line: string) => sum + countWords(line), 0);
-    const estimatedSeconds = totalWords / WORDS_PER_SECOND;
-    const videoSeconds = parsed.script.length * 4;
-    if (estimatedSeconds <= videoSeconds) break;
-    parsed.script.pop();
   }
 
   return parsed as VideoScriptResult;
