@@ -18,8 +18,8 @@ export async function POST(request: Request) {
     if (body.format !== "image" && body.format !== "video") {
       return NextResponse.json({ error: "format must be 'image' or 'video'" }, { status: 400 });
     }
-    if (body.format === "video" && !body.voiceId) {
-      return NextResponse.json({ error: "voiceId is required for video posts" }, { status: 400 });
+    if (body.format === "video" && body.audioStyle === "Voiceover" && !body.voiceId) {
+      return NextResponse.json({ error: "voiceId is required when Audio Style is Voiceover" }, { status: 400 });
     }
 
     // Platforms are optional — content can be generated purely to sit in
@@ -61,7 +61,9 @@ export async function POST(request: Request) {
       service: body.service,
       language: body.language,
       videoStyle: body.videoStyle,
-      backgroundSong: body.backgroundSong,
+      videoMode: body.videoMode,
+      audioStyle: body.audioStyle,
+      useReferencePhoto: body.useReferencePhoto,
     };
 
     // Always create at least one tracking row so generation progress and
@@ -104,7 +106,9 @@ export async function POST(request: Request) {
         service: body.service,
         language: body.language,
         videoStyle: body.videoStyle,
-        backgroundSong: body.backgroundSong,
+        videoMode: body.videoMode,
+        audioStyle: body.audioStyle,
+        useReferencePhoto: !!body.useReferencePhoto,
         // If the user already reviewed/edited a script in the modal, the
         // background job skips generating its own and uses this one
         // directly — see generate-social-video.ts step 2.

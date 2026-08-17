@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Button } from "@/components/ui/Button";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/Switch";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/config/routes";
 import { PLATFORMS } from "../../lib/platforms";
@@ -26,17 +27,17 @@ const VOICE_OPTIONS = {
   ],
 };
 
-const VIDEO_STYLE_OPTIONS = ["Highly Realistic 4k, real life", "Cinematic Drone - Smooth", "Studio Professional - Clean"].map((v) => ({ value: v, label: v }));
+// Same option set as Meta Ads' CreateAdModal — kept identical on purpose so
+// the two video-generation flows behave the same way for the same input.
+const DURATION_OPTIONS = ["20 seconds", "28 seconds", "32 seconds", "36 seconds", "40 seconds"].map((v) => ({ value: v, label: v }));
+const AUDIO_STYLE_OPTIONS = ["No Voice", "Voiceover"].map((v) => ({ value: v, label: v }));
+const VIDEO_STYLE_OPTIONS = ["Bold & Colorful", "Cinematic", "Minimal & Clean", "Dark & Moody", "Neon / Glow", "Hand-drawn / Sketch"].map((v) => ({ value: v, label: v }));
+const VIDEO_MODE_OPTIONS = [
+  { value: "live_action", label: "Real-life video" },
+  { value: "animated_poster", label: "Animated design & text" },
+];
 const LANGUAGE_OPTIONS = ["English", "Spanish", "French", "Hebrew", "Turkish"].map((v) => ({ value: v, label: v }));
-const BACKGROUND_SONG_OPTIONS = [
-  "Inspirational - Sunrise Bloom",
-  "Warm - Gentle Piano",
-  "Uplifting - Soft Strings",
-  "Calm - Ambient Pads",
-  "Hopeful - Acoustic Guitar",
-].map((v) => ({ value: v, label: v }));
 const CHARACTER_OPTIONS = [{ value: "male", label: "Male" }, { value: "female", label: "Female" }];
-const DURATION_OPTIONS = [20, 32, 40, 60, 88].map((d) => ({ value: String(d), label: `${d} seconds` }));
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -57,9 +58,11 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
   const [serviceOverride, setServiceOverride] = useState("");
   const service = serviceOverride || serviceOptions[0] || "";
   const [videoStyle, setVideoStyle] = useState(VIDEO_STYLE_OPTIONS[0].value);
+  const [videoMode, setVideoMode] = useState<"live_action" | "animated_poster">("live_action");
+  const [useReferencePhoto, setUseReferencePhoto] = useState(false);
   const [language, setLanguage] = useState(LANGUAGE_OPTIONS[0].value);
-  const [backgroundSong, setBackgroundSong] = useState(BACKGROUND_SONG_OPTIONS[0].value);
-  const [duration, setDuration] = useState(32);
+  const [duration, setDuration] = useState(DURATION_OPTIONS[1].value);
+  const [audioStyle, setAudioStyle] = useState("Voiceover");
   const [character, setCharacter] = useState<"male" | "female">("male");
   const [voiceId, setVoiceId] = useState(VOICE_OPTIONS.male[0].id);
   const [voiceLabel, setVoiceLabel] = useState(VOICE_OPTIONS.male[0].label);
@@ -185,12 +188,14 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
           ideaPrompt: idea,
           platforms: [],
           duration,
+          audioStyle,
           character,
-          voiceId,
+          voiceId: audioStyle === "Voiceover" ? voiceId : undefined,
           service,
           videoStyle,
+          videoMode,
+          useReferencePhoto,
           language,
-          backgroundSong,
           script: scriptDraft,
         }),
       });
@@ -494,9 +499,26 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                       <Dropdown value={service} onValueChange={setServiceOverride} options={serviceOptions.map((s) => ({ value: s, label: s }))} />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-muted mb-2">Video Style</p>
-                      <Dropdown value={videoStyle} onValueChange={setVideoStyle} options={VIDEO_STYLE_OPTIONS} />
+                      <p className="text-xs font-semibold text-muted mb-2">Duration</p>
+                      <Dropdown value={duration} onValueChange={setDuration} options={DURATION_OPTIONS} />
                     </div>
+                    <div>
+                      <p className="text-xs font-semibold text-muted mb-2">Audio Style</p>
+                      <Dropdown value={audioStyle} onValueChange={setAudioStyle} options={AUDIO_STYLE_OPTIONS} />
+                    </div>
+                    {audioStyle === "Voiceover" && (
+                      <div>
+                        <p className="text-xs font-semibold text-muted mb-2">Voice</p>
+                        <button
+                          type="button"
+                          onClick={() => setIsVoiceModalOpen(true)}
+                          className="w-full h-9 px-3 flex items-center justify-center gap-2 bg-background border border-dashed border-primary/50 text-primary hover:bg-primary/5 rounded-lg text-xs font-semibold transition-all"
+                        >
+                          <Mic2 className="w-3.5 h-3.5 shrink-0" />
+                          <span className="truncate">{voiceLabel}</span>
+                        </button>
+                      </div>
+                    )}
                     <div>
                       <p className="text-xs font-semibold text-muted mb-2">Character</p>
                       <Dropdown
@@ -511,29 +533,32 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                       />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-muted mb-2">Voice</p>
-                      <button
-                        type="button"
-                        onClick={() => setIsVoiceModalOpen(true)}
-                        className="w-full h-9 px-3 flex items-center justify-center gap-2 bg-background border border-dashed border-primary/50 text-primary hover:bg-primary/5 rounded-lg text-xs font-semibold transition-all"
-                      >
-                        <Mic2 className="w-3.5 h-3.5 shrink-0" />
-                        <span className="truncate">{voiceLabel}</span>
-                      </button>
+                      <p className="text-xs font-semibold text-muted mb-2">Visual Style</p>
+                      <Dropdown value={videoStyle} onValueChange={setVideoStyle} options={VIDEO_STYLE_OPTIONS} />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-muted mb-2">Video type</p>
+                      <Dropdown
+                        value={videoMode}
+                        onValueChange={(val) => setVideoMode(val as "live_action" | "animated_poster")}
+                        options={VIDEO_MODE_OPTIONS}
+                      />
+                      <p className="mt-1 text-[11px] text-muted">Real people and places, or an animated design with text.</p>
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-muted mb-2">Language</p>
                       <Dropdown value={language} onValueChange={setLanguage} options={LANGUAGE_OPTIONS} />
                     </div>
+                  </div>
+                )}
+
+                {format === "video" && (
+                  <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-default bg-surface">
                     <div>
-                      <p className="text-xs font-semibold text-muted mb-2">Duration</p>
-                      <Dropdown value={String(duration)} onValueChange={(v) => setDuration(parseInt(v, 10))} options={DURATION_OPTIONS} />
+                      <p className="text-sm font-semibold text-text">Use my reference photo</p>
+                      <p className="text-xs text-muted">Only where it fits — off by default.</p>
                     </div>
-                    <div className="md:col-span-3">
-                      <p className="text-xs font-semibold text-muted mb-2">Background Song</p>
-                      <Dropdown value={backgroundSong} onValueChange={setBackgroundSong} options={BACKGROUND_SONG_OPTIONS} />
-                      <p className="text-[11px] text-muted mt-1.5">Saved with the post, but not mixed into the audio yet — we don't have a licensed music library wired up. Ask if you'd like this turned on.</p>
-                    </div>
+                    <Switch checked={useReferencePhoto} onCheckedChange={setUseReferencePhoto} />
                   </div>
                 )}
               </>
