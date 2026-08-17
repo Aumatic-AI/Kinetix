@@ -109,13 +109,21 @@ export const generateVideoAd = inngest.createFunction(
       // words-per-second estimate) is what step 7 requests for that
       // scene's video clip, so every scene's audio and video are the same
       // length by construction — no separate track to drift long/short
-      // against a uniformly fixed clip length.
+      // against a uniformly fixed clip length. Generated one scene at a
+      // time, not via Promise.all — this ElevenLabs account's plan caps
+      // concurrent requests at 6, and firing every scene at once was
+      // already enough on its own to blow past that (a 7-scene video =
+      // 7 concurrent requests), on top of whatever else might be running
+      // at the same time. Sequential costs a few extra seconds total, not
+      // meaningful next to the minutes the rest of this pipeline takes.
       const sceneAudio: { url: string | null; durationSeconds: number }[] = await step.run("generate-scene-audio", async () => {
         if (audioStyle !== "Voiceover" || !voiceId) {
           return scriptJson.script.map(() => ({ url: null, durationSeconds: DEFAULT_SCENE_SECONDS }));
         }
         const languageCode = elevenLabsLanguageCode(language);
-        return Promise.all(scriptJson.script.map(async (line: string, i: number) => {
+        const results: { url: string | null; durationSeconds: number }[] = [];
+        for (let i = 0; i < scriptJson.script.length; i++) {
+          const line = scriptJson.script[i];
           const audioBuffer = await aiOrchestrator.generateSpeech(line, voiceId, languageCode);
           const rawDuration = await getAudioDurationSeconds(audioBuffer);
           const durationSeconds = Math.min(MAX_SCENE_SECONDS, Math.max(MIN_SCENE_SECONDS, Math.round(rawDuration)));
@@ -125,8 +133,9 @@ export const generateVideoAd = inngest.createFunction(
           if (error) throw new Error(`Scene ${i + 1} audio upload failed: ${error.message}`);
 
           const { data } = supabase.storage.from("business_media").getPublicUrl(fileName);
-          return { url: data.publicUrl, durationSeconds };
-        }));
+          results.push({ url: data.publicUrl, durationSeconds });
+        }
+        return results;
       });
 
       // 5. Trigger Images. In poster mode, scene 1 is generated alone FIRST
