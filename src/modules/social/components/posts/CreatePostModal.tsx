@@ -67,6 +67,13 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  // Video only: script-review step, between the form and actually kicking
+  // off generation — see handleGenerate/handleConfirmScript below. Mirrors
+  // the same two-phase flow already proven in Meta Ads' CreateAdModal.
+  const [step, setStep] = useState<"form" | "script">("form");
+  const [scriptDraft, setScriptDraft] = useState<{ ad_mode: string; visual_mood: string; script: string[] } | null>(null);
+  const isScriptReview = format === "video" && step === "script";
+
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
   const [generatedIdeas, setGeneratedIdeas] = useState<{ id: number; angle: string; idea: string }[] | null>(null);
   const [ideaError, setIdeaError] = useState("");
@@ -81,6 +88,8 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
     setGeneratedIdeas(null);
     setIdeaError("");
     setTextPlatforms(new Set());
+    setStep("form");
+    setScriptDraft(null);
   };
 
   const toggleTextPlatform = (platform: string) => {
@@ -114,11 +123,30 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
     }
   };
 
+  // Video: generates just the script and shows it for review — the modal
+  // stays open. Image: unchanged, submits directly (there's no script for a
+  // single still image).
   const handleGenerate = async () => {
     if (!idea.trim()) return;
     setIsSubmitting(true);
     setError("");
     try {
+      if (format === "video") {
+        const res = await fetch("/api/social/posts/generate/video/script", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ideaPrompt: idea, duration, character, service, language }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data.script) {
+          setScriptDraft(data.script);
+          setStep("script");
+        } else {
+          setError(data.error || "Failed to generate the script");
+        }
+        return;
+      }
+
       const res = await fetch("/api/social/posts/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -127,13 +155,43 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
           ideaPrompt: idea,
           platforms: [],
           aspectRatio: format === "image" ? aspectRatio : undefined,
-          duration: format === "video" ? duration : undefined,
-          character: format === "video" ? character : undefined,
-          voiceId: format === "video" ? voiceId : undefined,
-          service: format === "video" ? service : undefined,
-          videoStyle: format === "video" ? videoStyle : undefined,
-          language: format === "video" ? language : undefined,
-          backgroundSong: format === "video" ? backgroundSong : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to start generation");
+      onSuccess?.();
+      onClose();
+      reset();
+    } catch (e: any) {
+      setError(e.message || "Something went wrong");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // The user has reviewed (and possibly edited) the script — now actually
+  // start generation, passing that exact script through so the background
+  // job doesn't generate its own.
+  const handleConfirmScript = async () => {
+    if (!scriptDraft) return;
+    setIsSubmitting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/social/posts/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          format: "video",
+          ideaPrompt: idea,
+          platforms: [],
+          duration,
+          character,
+          voiceId,
+          service,
+          videoStyle,
+          language,
+          backgroundSong,
+          script: scriptDraft,
         }),
       });
       const data = await res.json();
@@ -194,13 +252,29 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
     }
   };
 
-  const canSubmit = mode === "upload"
+  const canSubmit = isScriptReview
+    ? !!scriptDraft
+    : mode === "upload"
     ? !!uploadFile
     : format === "text"
     ? !!idea.trim() && textPlatforms.size > 0
     : !!idea.trim();
-  const submitLabel = mode === "upload" ? "Upload" : format === "text" ? "Publish" : "Generate";
-  const handleSubmit = mode === "upload" ? handleUpload : format === "text" ? handlePublishText : handleGenerate;
+  const submitLabel = isScriptReview
+    ? "Confirm & Generate"
+    : mode === "upload"
+    ? "Upload"
+    : format === "text"
+    ? "Publish"
+    : format === "video"
+    ? "Generate Script"
+    : "Generate";
+  const handleSubmit = isScriptReview
+    ? handleConfirmScript
+    : mode === "upload"
+    ? handleUpload
+    : format === "text"
+    ? handlePublishText
+    : handleGenerate;
 
   return (
     <>
@@ -212,22 +286,52 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
-                <DialogTitle className="text-xl font-bold text-text">Create Post</DialogTitle>
-                <DialogDescription className="text-xs text-muted mt-0.5">Create content first, decide where it goes whenever you're ready.</DialogDescription>
+                <DialogTitle className="text-xl font-bold text-text">{isScriptReview ? "Review the Script" : "Create Post"}</DialogTitle>
+                <DialogDescription className="text-xs text-muted mt-0.5">
+                  {isScriptReview ? "Each line becomes one scene in the video. Edit anything, then confirm." : "Create content first, decide where it goes whenever you're ready."}
+                </DialogDescription>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setMode(mode === "generate" ? "upload" : "generate")}
-              className="rounded-lg font-semibold bg-background"
-              icon={mode === "generate" ? <UploadCloud className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
-            >
-              {mode === "generate" ? "Upload instead" : "Generate with AI"}
-            </Button>
+            {!isScriptReview && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMode(mode === "generate" ? "upload" : "generate")}
+                className="rounded-lg font-semibold bg-background"
+                icon={mode === "generate" ? <UploadCloud className="w-3.5 h-3.5" /> : <Sparkles className="w-3.5 h-3.5" />}
+              >
+                {mode === "generate" ? "Upload instead" : "Generate with AI"}
+              </Button>
+            )}
           </DialogHeader>
 
           <div className="flex-1 overflow-y-auto p-7 space-y-6">
+            {isScriptReview && scriptDraft ? (
+              <div className="space-y-4">
+                <button
+                  type="button"
+                  onClick={() => setStep("form")}
+                  className="text-sm font-semibold text-primary hover:underline"
+                >
+                  ← Edit details
+                </button>
+                {scriptDraft.script.map((line, i) => (
+                  <div key={i}>
+                    <p className="text-xs font-semibold text-muted mb-1.5">Scene {i + 1}</p>
+                    <Textarea
+                      value={line}
+                      onChange={(e) => {
+                        const next = [...scriptDraft.script];
+                        next[i] = e.target.value;
+                        setScriptDraft({ ...scriptDraft, script: next });
+                      }}
+                      className="!p-3 min-h-[64px] text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+            <>
             {/* Format */}
             {mode === "generate" && (
               <div>
@@ -476,6 +580,8 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                 />
               </div>
             )}
+            </>
+            )}
 
             {error && (
               <div className="flex items-start gap-2 text-sm text-danger bg-danger-bg border border-danger-border rounded-lg px-4 py-3">
@@ -493,7 +599,7 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
               className="px-6 rounded-lg font-bold"
               icon={isSubmitting ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-4 h-4" />}
             >
-              {isSubmitting ? "Working..." : submitLabel}
+              {isSubmitting ? (isScriptReview ? "Generating..." : format === "video" ? "Generating script..." : "Working...") : submitLabel}
             </Button>
           </DialogFooter>
         </DialogContent>

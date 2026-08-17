@@ -16,7 +16,7 @@ export function sceneCountForDuration(duration: string | number | undefined): nu
  * picks exactly ONE per video, based on the idea + business context —
  * never defaulted to TRANSFORMATION just because that's the original
  * use case this was built for. */
-const AD_MODES = `- TRANSFORMATION: a specific person's before/after journey — genuine personal transformation stories only.
+export const AD_MODES = `- TRANSFORMATION: a specific person's before/after journey — genuine personal transformation stories only.
 - PROMOTION_OFFER: a sale, discount, or limited-time deal — the offer itself is the point.
 - SERVICE_SPOTLIGHT: introduces and explains one specific service or offering.
 - BRAND_INTRO: general awareness — who this business is, what makes it different, an invitation to visit.
@@ -29,7 +29,7 @@ const AD_MODES = `- TRANSFORMATION: a specific person's before/after journey —
  * (hook first, three beats, one throughline) — only WHAT each beat covers
  * changes per mode, never the underlying discipline that keeps a script
  * tight and scroll-stopping. */
-const AD_MODE_STRUCTURES: Record<string, string> = {
+export const AD_MODE_STRUCTURES: Record<string, string> = {
   TRANSFORMATION: `ACT 1 — PROBLEM (hook + escalation). Line 1 is the HOOK — the first 2 seconds decide if the listener stays. Each line must combine: character name + emotional state word, the SPECIFIC problem, and a recognisable everyday moment (family dinner, a friend's wedding, school pickup, a work meeting, a photo, a video call, date night).
   Format: "[Name] feels [emotion] about [problem] when [moment]." or "[Name] hides [problem] every time [moment]."
   GOOD: "James feels embarrassed by his receding hairline every time he meets new people at work."
@@ -68,6 +68,19 @@ ACT 3 — URGENCY + CTA. The real date window, then an inviting call to action b
  * entirely for modes that don't center one person — that lock should
  * never be forced onto every video regardless of what the ad is about. */
 export const MODES_WITH_PROTAGONIST = new Set(["TRANSFORMATION", "PROMOTION_OFFER", "TESTIMONIAL_PROOF"]);
+
+/** Cinematic color-grade phrase per brand archetype (the script-generation
+ * call picks one of these as `visual_mood`, the same way it picks
+ * `ad_mode`) — shared by the Meta Ads and Social video jobs so a fixed
+ * "medical tourism, golden 3200K" style sentence never goes out for every
+ * video regardless of business or story. */
+export const MOOD_CINEMATOGRAPHY: Record<string, string> = {
+  CLEAN_PRECISE: "a cool, crisp color grade with minimal contrast and clean, evidence-led lighting",
+  WARM_APPROACHABLE: "a warm, soft color grade with gentle, reassuring natural light",
+  PREMIUM_CONSIDERED: "a rich but restrained color grade, deep warm tones, unhurried and deliberate lighting",
+  BOLD_ENERGETIC: "a high-contrast, saturated color grade with confident, dynamic lighting",
+  PLAYFUL: "a bright, light color grade with a little unexpected energy",
+};
 
 export function getVideoAdScriptPrompt(intelligence: any, creative: any): string {
   const business = intelligence.business || {};

@@ -1,3 +1,3 @@
 export { FFmpegService } from "./client";
-export { submitSceneStitchJob, downloadAndStoreVideo } from "./stitch-scenes";
-export type { StitchScenesOptions, DownloadAndStoreVideoOptions, DownloadAndStoreVideoResult } from "./stitch-scenes";
+export { submitSceneStitchJob, submitPerSceneStitchJob, downloadAndStoreVideo } from "./stitch-scenes";
+export type { StitchScenesOptions, PerSceneClip, DownloadAndStoreVideoOptions, DownloadAndStoreVideoResult } from "./stitch-scenes";
