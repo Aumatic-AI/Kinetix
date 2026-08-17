@@ -1,13 +1,15 @@
 "use client";
 import { useState } from "react";
 import Image from "next/image";
-import { Loader2, Video, Image as ImageIcon, MessageSquareText, AlertCircle, Send, Info, RotateCcw, Clock, X, Sparkles } from "lucide-react";
+import { Loader2, Video, Image as ImageIcon, MessageSquareText, AlertCircle, Info, RotateCcw, Clock, X, Sparkles, MoreVertical, Pencil, Send } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PostGroup, groupState } from "../../lib/postGroups";
 import { Lightbox } from "./Lightbox";
 import { formatDateTime } from "@/utils/datetime";
 
 interface PostTileProps {
   group: PostGroup;
+  onEdit: (group: PostGroup) => void;
   onPublish: (group: PostGroup) => void;
   onViewDetails: (group: PostGroup) => void;
   onRetry: (group: PostGroup) => void;
@@ -21,12 +23,13 @@ const ASPECT_CLASS: Record<PostGroup["aspectRatio"], string> = {
   "1:1": "aspect-square",
 };
 
-export function PostTile({ group, onPublish, onViewDetails, onRetry, onCancelSchedule }: PostTileProps) {
+export function PostTile({ group, onEdit, onPublish, onViewDetails, onRetry, onCancelSchedule }: PostTileProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const state = groupState(group);
   const isVideo = group.mediaType === "video";
   const isText = group.format === "text";
   const scheduledAt = group.rows.find((r) => r.status === "scheduled")?.scheduled_at || null;
+  const hasMenu = state === "published" || state === "draft" || state === "failed" || state === "scheduled";
 
   return (
     <>
@@ -84,40 +87,43 @@ export function PostTile({ group, onPublish, onViewDetails, onRetry, onCancelSch
           </span>
         )}
 
-        {(state === "published" || state === "draft" || state === "failed" || state === "scheduled") && (
-          <div className="absolute inset-x-0 bottom-0 p-3 pt-10 bg-gradient-to-t from-black/75 via-black/25 to-transparent opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity flex items-center justify-center gap-2">
-            {state === "published" && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onViewDetails(group); }}
-                className="flex items-center gap-1.5 text-xs font-bold text-[#050505] bg-white hover:bg-white/90 rounded-lg px-4 py-2 transition-colors shadow-lg"
+        {hasMenu && (
+          <div className="absolute top-2.5 right-2.5" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                aria-label="More actions"
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/75 transition-colors"
               >
-                <Info className="w-3.5 h-3.5" /> View Details
-              </button>
-            )}
-            {state === "draft" && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onPublish(group); }}
-                className="flex items-center gap-1.5 text-xs font-bold text-white bg-primary hover:bg-primary-hover rounded-lg px-4 py-2 transition-colors shadow-lg"
-              >
-                <Send className="w-3.5 h-3.5" /> Publish
-              </button>
-            )}
-            {state === "failed" && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onRetry(group); }}
-                className="flex items-center gap-1.5 text-xs font-bold text-white bg-danger hover:opacity-90 rounded-lg px-4 py-2 transition-colors shadow-lg"
-              >
-                <RotateCcw className="w-3.5 h-3.5" /> Retry
-              </button>
-            )}
-            {state === "scheduled" && (
-              <button
-                onClick={(e) => { e.stopPropagation(); onCancelSchedule(group); }}
-                className="flex items-center gap-1.5 text-xs font-bold text-white bg-white/15 hover:bg-white/25 rounded-lg px-4 py-2 transition-colors shadow-lg"
-              >
-                <X className="w-3.5 h-3.5" /> Cancel Schedule
-              </button>
-            )}
+                <MoreVertical className="w-4 h-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {state === "draft" && (
+                  <>
+                    <DropdownMenuItem onClick={() => onEdit(group)}>
+                      <Pencil className="w-4 h-4" /> Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onPublish(group)}>
+                      <Send className="w-4 h-4" /> Publish
+                    </DropdownMenuItem>
+                  </>
+                )}
+                {state === "published" && (
+                  <DropdownMenuItem onClick={() => onViewDetails(group)}>
+                    <Info className="w-4 h-4" /> View Details
+                  </DropdownMenuItem>
+                )}
+                {state === "failed" && (
+                  <DropdownMenuItem onClick={() => onRetry(group)}>
+                    <RotateCcw className="w-4 h-4" /> Retry
+                  </DropdownMenuItem>
+                )}
+                {state === "scheduled" && (
+                  <DropdownMenuItem onClick={() => onCancelSchedule(group)}>
+                    <X className="w-4 h-4" /> Cancel Schedule
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         )}
       </div>

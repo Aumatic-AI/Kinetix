@@ -368,6 +368,51 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
                 </div>
               </section>
 
+              {/* Story Description */}
+              <section>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="mb-0 block text-sm font-semibold">SCRIPT<span className="text-red-500">*</span></Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleGenerateIdeas}
+                    disabled={!idea.trim() || isGeneratingIdea}
+                    className="h-7 px-3 rounded-md text-xs"
+                    icon={isGeneratingIdea ? <div className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                  >
+                    {isGeneratingIdea ? "Generating..." : "Generate Ideas"}
+                  </Button>
+                </div>
+                <Textarea
+                  value={idea}
+                  onChange={(e) => { setIdea(e.target.value); if (generatedIdeas) setGeneratedIdeas(null); }}
+                  placeholder={type === "video" ? "Describe your video concept, offer, or story angle..." : "Describe your image concept, offer, or visual angle..."}
+                  className="!p-4 min-h-[120px]"
+                />
+                {ideaError && (
+                  <p className="text-xs font-medium text-danger mt-2">{ideaError}</p>
+                )}
+                {generatedIdeas && generatedIdeas.length > 0 && (
+                  <div className="mt-4 flex flex-col gap-2.5 p-4 rounded-xl border border-primary/20 bg-primary-subtle/40">
+                    <div className="text-xs font-bold text-primary uppercase tracking-wide">✨ AI Generated Ideas — Click to use</div>
+                    <div className="flex flex-col gap-2">
+                      {generatedIdeas.map((ideaObj, i) => (
+                        <button
+                          type="button"
+                          key={`${ideaObj.id}-${i}`}
+                          onClick={() => { setIdea(ideaObj.idea); setGeneratedIdeas(null); }}
+                          className="text-left p-3 rounded-lg border border-default bg-background hover:border-primary hover:bg-primary-subtle/60 transition-all text-sm text-text leading-relaxed"
+                        >
+                          <span className="block text-[10px] font-bold uppercase tracking-wide text-muted mb-1">{ideaObj.angle.replace(/_/g, " ")}</span>
+                          {ideaObj.idea}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </section>
+
               {/* Service Selection */}
               <section>
                 <Label className="mb-2 block text-sm font-semibold">SERVICE<span className="text-red-500">*</span></Label>
@@ -450,51 +495,6 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
                   <Switch checked={useReferencePhoto} onCheckedChange={setUseReferencePhoto} />
                 </div>
               )}
-
-              {/* Story Description */}
-              <section>
-                <div className="flex items-center justify-between mb-2">
-                  <Label className="mb-0 block text-sm font-semibold">SCRIPT<span className="text-red-500">*</span></Label>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={handleGenerateIdeas}
-                    disabled={!idea.trim() || isGeneratingIdea}
-                    className="h-7 px-3 rounded-md text-xs"
-                    icon={isGeneratingIdea ? <div className="w-3.5 h-3.5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                  >
-                    {isGeneratingIdea ? "Generating..." : "Generate Ideas"}
-                  </Button>
-                </div>
-                <Textarea
-                  value={idea}
-                  onChange={(e) => { setIdea(e.target.value); if (generatedIdeas) setGeneratedIdeas(null); }}
-                  placeholder={type === "video" ? "Describe your video concept, offer, or story angle..." : "Describe your image concept, offer, or visual angle..."}
-                  className="!p-4 min-h-[120px]"
-                />
-                {ideaError && (
-                  <p className="text-xs font-medium text-danger mt-2">{ideaError}</p>
-                )}
-                {generatedIdeas && generatedIdeas.length > 0 && (
-                  <div className="mt-4 flex flex-col gap-2.5 p-4 rounded-xl border border-primary/20 bg-primary-subtle/40">
-                    <div className="text-xs font-bold text-primary uppercase tracking-wide">✨ AI Generated Ideas — Click to use</div>
-                    <div className="flex flex-col gap-2">
-                      {generatedIdeas.map((ideaObj, i) => (
-                        <button
-                          type="button"
-                          key={`${ideaObj.id}-${i}`}
-                          onClick={() => { setIdea(ideaObj.idea); setGeneratedIdeas(null); }}
-                          className="text-left p-3 rounded-lg border border-default bg-background hover:border-primary hover:bg-primary-subtle/60 transition-all text-sm text-text leading-relaxed"
-                        >
-                          <span className="block text-[10px] font-bold uppercase tracking-wide text-muted mb-1">{ideaObj.angle.replace(/_/g, " ")}</span>
-                          {ideaObj.idea}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </section>
               </div>
               )
             ) : (

@@ -49,11 +49,18 @@ export async function POST(request: Request) {
       data: {
         businessId: posts[0].business_id,
         ideaPrompt: inputs.ideaPrompt,
+        aspectRatio: inputs.aspectRatio,
         platforms,
         socialPostIds: body.socialPostIds,
         duration: inputs.duration || 30,
         character: inputs.character || "male",
         voiceId: inputs.voiceId,
+        service: inputs.service,
+        language: inputs.language,
+        videoStyle: inputs.videoStyle,
+        videoMode: inputs.videoMode,
+        audioStyle: inputs.audioStyle,
+        useReferencePhoto: !!inputs.useReferencePhoto,
       },
     });
 

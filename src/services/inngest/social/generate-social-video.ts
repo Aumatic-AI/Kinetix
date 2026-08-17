@@ -2,7 +2,7 @@ import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
 import { getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../../prompts/social-media";
-import { getVisualPromptsPrompt, MODES_WITH_PROTAGONIST, MOOD_CINEMATOGRAPHY } from "../../../prompts/meta-ads/video";
+import { getVisualPromptsPrompt, MOOD_CINEMATOGRAPHY } from "../../../prompts/meta-ads/video";
 import { generateSocialVideoScript, SocialVideoScriptResult } from "../../ai/social-video-script";
 import { getAudioDurationSeconds } from "../../ai/audio-duration";
 import { FFmpegService } from "../../ffmpeg";
@@ -21,6 +21,9 @@ const supabase = createClient(
 // that scene's real narration measured. Matches the Meta Ads video job.
 const MIN_SCENE_SECONDS = 4;
 const MAX_SCENE_SECONDS = 12;
+// Used only when there's no narration to size a scene against (audioStyle
+// isn't "Voiceover") — matches the old fixed-clip-length default.
+const DEFAULT_SCENE_SECONDS = 4;
 
 /**
  * Generates one narrated video + per-platform captions for an organic
@@ -38,22 +41,25 @@ export const generateSocialVideo = inngest.createFunction(
   async ({ event, step }) => {
     const {
       businessId, ideaPrompt, duration, character, voiceId,
-      service, language, videoStyle, backgroundSong,
+      service, language, videoStyle, videoMode, audioStyle, useReferencePhoto,
       platforms = [], socialPostIds = [],
     } = event.data as {
       businessId: string;
       ideaPrompt: string;
       duration: number;
       character: "male" | "female";
-      voiceId: string;
+      voiceId?: string;
       service?: string;
       language?: string;
       videoStyle?: string;
-      backgroundSong?: string;
+      videoMode?: "live_action" | "animated_poster";
+      audioStyle?: string;
+      useReferencePhoto?: boolean;
       platforms?: SocialPlatform[];
       socialPostIds?: string[];
       script?: SocialVideoScriptResult;
     };
+    const isPosterMode = videoMode === "animated_poster";
 
     try {
       const business = await step.run("fetch-business", async () => {
@@ -92,16 +98,18 @@ export const generateSocialVideo = inngest.createFunction(
       // already proven for Meta Ads video (no ad-specific assumptions in it).
       // referenceUrl resolved here (not just before image generation below)
       // so the prompt itself can be told whether a reference photo will be
-      // conditioning every scene's face. Only resolved for modes that
-      // actually center one person's story — a BRAND_INTRO/ANNOUNCEMENT/etc.
-      // video has no protagonist to lock a face to.
-      const referenceUrl = MODES_WITH_PROTAGONIST.has(scriptJson.ad_mode) ? resolveVideoReferenceUrl(business, character) : undefined;
+      // conditioning every scene's face. The reference face-lock is a plain
+      // user toggle (default off, see CreatePostModal), not something
+      // derived from the video's mode — matches the Meta Ads video job
+      // exactly. Poster mode never applies it either way (a graphic
+      // composition doesn't need a locked face).
+      const referenceUrl = (isPosterMode || !useReferencePhoto) ? undefined : resolveVideoReferenceUrl(business, character);
       const logoUrl: string | undefined = business.logo_url || undefined;
       const brandColor: string | undefined = business.business_colors?.primary || undefined;
       const visualPromptsJson = await step.run("generate-visual-prompts", async () => {
         const vpPrompt = getVisualPromptsPrompt(
           scriptJson.script,
-          { character, videoStyle: videoStyle || "Cinematic", duration, service, hasReferenceImage: !!referenceUrl, adMode: scriptJson.ad_mode, hasLogo: !!logoUrl, brandColor },
+          { character, videoStyle: videoStyle || "Cinematic", duration, service, hasReferenceImage: !!referenceUrl, adMode: scriptJson.ad_mode, videoMode, hasLogo: !!logoUrl, brandColor },
           business
         );
         const response = await aiOrchestrator.executeTask("text", vpPrompt, "openai");
@@ -117,7 +125,12 @@ export const generateSocialVideo = inngest.createFunction(
       // matches the audio/video sync fix already proven in the Meta Ads
       // video pipeline (generate-video-ad.ts), replacing the old approach
       // of one bulk narration track laid under N uniform fixed-length clips.
+      // No voice at all (audioStyle "No Voice") falls back to one fixed
+      // default duration per scene, same as Meta Ads.
       const sceneAudio: { url: string | null; durationSeconds: number }[] = await step.run("generate-scene-audio", async () => {
+        if (audioStyle !== "Voiceover" || !voiceId) {
+          return scriptJson.script.map(() => ({ url: null, durationSeconds: DEFAULT_SCENE_SECONDS }));
+        }
         const languageCode = elevenLabsLanguageCode(language);
         return Promise.all(scriptJson.script.map(async (line: string, i: number) => {
           const audioBuffer = await aiOrchestrator.generateSpeech(line, voiceId, languageCode);
@@ -133,15 +146,57 @@ export const generateSocialVideo = inngest.createFunction(
         }));
       });
 
-      // 5. Trigger per-scene images (referenceUrl resolved above, step 3).
+      // 5. Trigger Images. In poster mode, scene 1 is generated alone FIRST
+      // and then used as a shared visual anchor for every other scene —
+      // each image-generation call is otherwise independent with no memory
+      // of what a previous call actually rendered, so without a real image
+      // to copy from, the model reinterprets the "design system" (colors,
+      // font style, layout) differently every time even when the prompt
+      // wording is consistent. Matches the Meta Ads video job exactly.
+      let posterAnchorUrl: string | undefined;
+      if (isPosterMode && visualPromptsJson.visual_prompts.length > 0) {
+        const anchorJobId = await step.run("trigger-poster-anchor-image", async () => {
+          const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
+          return aiOrchestrator.createImageTask(visualPromptsJson.visual_prompts[0].prompt, "9:16", referenceImages, "reference");
+        });
+
+        let anchorAttempts = 0;
+        const MAX_ANCHOR_ATTEMPTS = 12;
+        while (!posterAnchorUrl && anchorAttempts < MAX_ANCHOR_ATTEMPTS) {
+          await step.sleep(`wait-poster-anchor-${anchorAttempts}`, anchorAttempts === 0 ? "20s" : "15s");
+          const status = await step.run(`check-poster-anchor-status-${anchorAttempts}`, async () => aiOrchestrator.checkTaskStatus(anchorJobId));
+          if (status.state === "success") {
+            try {
+              const r = JSON.parse(status.resultJson);
+              posterAnchorUrl = r.resultUrls?.[0] || r.urls?.[0] || undefined;
+            } catch { /* malformed result — treated as still-pending below */ }
+          } else if (status.state === "fail") {
+            throw new Error(`Kie poster anchor image failed: ${status.failMsg || status.failCode || "no reason given"}`);
+          }
+          anchorAttempts++;
+        }
+        if (!posterAnchorUrl) throw new Error("Poster anchor image generation timed out");
+      }
+
       // The business's real logo (if on file) is passed as a second
       // reference image so branded-signage scenes reproduce it faithfully
       // instead of the model inventing a different mark per scene.
       const imageJobIds = await step.run("trigger-images", async () => {
         const ids = [];
-        for (const vp of visualPromptsJson.visual_prompts) {
-          const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
-          const jobId = await aiOrchestrator.createImageTask(vp.prompt, "9:16", referenceImages, "identity");
+        for (let i = 0; i < visualPromptsJson.visual_prompts.length; i++) {
+          const vp = visualPromptsJson.visual_prompts[i];
+          if (isPosterMode && i === 0) {
+            // Already generated above as the anchor — reuse it, no new job.
+            ids.push({ id: "", url: posterAnchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null });
+            continue;
+          }
+          const scenePrompt = isPosterMode
+            ? `${vp.prompt} Match the exact background color, typography style, and overall design treatment of the attached reference image (scene 1 of this same post) precisely — same color palette, same font style, same layout approach; only the on-scene text quoted above (and any specific photo/element this scene calls for) differs from it.`
+            : vp.prompt;
+          const referenceImages = isPosterMode
+            ? ([posterAnchorUrl, logoUrl].filter(Boolean) as string[])
+            : ([referenceUrl, logoUrl].filter(Boolean) as string[]);
+          const jobId = await aiOrchestrator.createImageTask(scenePrompt, "9:16", referenceImages, isPosterMode ? "reference" : "identity");
           ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
         }
         return ids;
@@ -204,14 +259,18 @@ export const generateSocialVideo = inngest.createFunction(
       // "4" — and the motion prompt's color-grade phrase is driven by the
       // brand archetype the script step already chose (visual_mood),
       // instead of one hardcoded "natural color grade" sentence for every
-      // video regardless of business.
+      // video regardless of business. Poster mode gets an entirely
+      // different, honestly-scoped motion instruction (camera movement over
+      // a static design, never "text animates in"), same as Meta Ads.
       const moodPhrase = MOOD_CINEMATOGRAPHY[scriptJson.visual_mood] || MOOD_CINEMATOGRAPHY.WARM_APPROACHABLE;
       const videoJobIds = await step.run("trigger-videos", async () => {
         const ids = [];
         for (let i = 0; i < imageJobIds.length; i++) {
           const imgJob = imageJobIds[i];
-          const clipDuration = sceneAudio[i]?.durationSeconds ?? MIN_SCENE_SECONDS;
-          const cinematicPrompt = `${imgJob.videoScenario} Cinematic social content, ${moodPhrase}, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image, same color grade and lighting as the input image. The person's face, identity, body, and wardrobe must not change or drift at any point in the clip. Facial expression from the input image must be preserved exactly throughout the entire clip — do not alter or relax it.`;
+          const clipDuration = sceneAudio[i]?.durationSeconds ?? DEFAULT_SCENE_SECONDS;
+          const cinematicPrompt = isPosterMode
+            ? `${imgJob.videoScenario} Smooth, slow camera movement over this static designed composition only — a gentle zoom or pan, like a camera drifting across a printed poster. Do not animate, warp, distort, or attempt to regenerate any text or graphic element — every piece of text and design must stay perfectly crisp, legible, and unchanged throughout the clip, exactly as it appears in the source image. No new elements appear that weren't already in the original image.`
+            : `${imgJob.videoScenario} Cinematic social content, ${moodPhrase}, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image, same color grade and lighting as the input image. The person's face, identity, body, and wardrobe must not change or drift at any point in the clip. Facial expression from the input image must be preserved exactly throughout the entire clip — do not alter or relax it.`;
           const jobId = await aiOrchestrator.createVideoTask(cinematicPrompt, [imgJob.url as string], "9:16", String(clipDuration));
           ids.push({ id: jobId, url: null as string | null, scene: imgJob.scene, cinematicPrompt, sourceImageUrl: imgJob.url as string, durationSeconds: clipDuration, resubmitted: false, state: null as string | null });
         }
@@ -313,7 +372,7 @@ export const generateSocialVideo = inngest.createFunction(
             mime_type: "video/mp4",
             size_bytes: sizeBytes,
             duration_seconds: totalDurationSeconds,
-            metadata: { publicUrl, script: scriptJson.script, ad_mode: scriptJson.ad_mode, visual_mood: scriptJson.visual_mood, ideaPrompt, videoStyle, language, service, backgroundSong },
+            metadata: { publicUrl, script: scriptJson.script, ad_mode: scriptJson.ad_mode, visual_mood: scriptJson.visual_mood, ideaPrompt, videoStyle, videoMode, language, service },
           })
           .select()
           .single();
