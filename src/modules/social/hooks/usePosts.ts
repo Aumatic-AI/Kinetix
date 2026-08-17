@@ -174,6 +174,22 @@ export function useCancelSchedule() {
   });
 }
 
+/** Deletes post rows from our own DB only — this never calls Upload-Post
+ * or any platform API, so a post already live on a platform stays live;
+ * this just removes our tracking record of it (matches Meta Ads' Ad
+ * Library delete, which only ever touches meta_ad_creatives + our own
+ * storage, never Meta itself). */
+export function useDeletePosts() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (socialPostIds: string[]) => {
+      const { error } = await supabase.from("social_posts").delete().in("id", socialPostIds);
+      if (error) throw error;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: socialKeys.posts() }),
+  });
+}
+
 export function useRetryPosts() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -1,19 +1,20 @@
 "use client";
 import { useState } from "react";
 import Image from "next/image";
-import { Loader2, Video, Image as ImageIcon, MessageSquareText, AlertCircle, Info, RotateCcw, Clock, X, Sparkles, MoreVertical, Pencil, Send } from "lucide-react";
+import { Loader2, Video, Image as ImageIcon, MessageSquareText, AlertCircle, Info, RotateCcw, Clock, X, Sparkles, MoreVertical, Trash2, Send } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { PostGroup, groupState } from "../../lib/postGroups";
 import { Lightbox } from "./Lightbox";
 import { formatDateTime } from "@/utils/datetime";
 
 interface PostTileProps {
   group: PostGroup;
-  onEdit: (group: PostGroup) => void;
   onPublish: (group: PostGroup) => void;
   onViewDetails: (group: PostGroup) => void;
   onRetry: (group: PostGroup) => void;
   onCancelSchedule: (group: PostGroup) => void;
+  onDelete: (group: PostGroup) => Promise<void>;
 }
 
 const ASPECT_CLASS: Record<PostGroup["aspectRatio"], string> = {
@@ -23,13 +24,29 @@ const ASPECT_CLASS: Record<PostGroup["aspectRatio"], string> = {
   "1:1": "aspect-square",
 };
 
-export function PostTile({ group, onEdit, onPublish, onViewDetails, onRetry, onCancelSchedule }: PostTileProps) {
+export function PostTile({ group, onPublish, onViewDetails, onRetry, onCancelSchedule, onDelete }: PostTileProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const state = groupState(group);
   const isVideo = group.mediaType === "video";
   const isText = group.format === "text";
   const scheduledAt = group.rows.find((r) => r.status === "scheduled")?.scheduled_at || null;
   const hasMenu = state === "published" || state === "draft" || state === "failed" || state === "scheduled";
+
+  const confirmDelete = async () => {
+    setDeleteError("");
+    setDeleting(true);
+    try {
+      await onDelete(group);
+      setConfirmingDelete(false);
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Failed to delete");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <>
@@ -98,14 +115,9 @@ export function PostTile({ group, onEdit, onPublish, onViewDetails, onRetry, onC
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {state === "draft" && (
-                  <>
-                    <DropdownMenuItem onClick={() => onEdit(group)}>
-                      <Pencil className="w-4 h-4" /> Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => onPublish(group)}>
-                      <Send className="w-4 h-4" /> Publish
-                    </DropdownMenuItem>
-                  </>
+                  <DropdownMenuItem onClick={() => onPublish(group)}>
+                    <Send className="w-4 h-4" /> Publish
+                  </DropdownMenuItem>
                 )}
                 {state === "published" && (
                   <DropdownMenuItem onClick={() => onViewDetails(group)}>
@@ -122,6 +134,9 @@ export function PostTile({ group, onEdit, onPublish, onViewDetails, onRetry, onC
                     <X className="w-4 h-4" /> Cancel Schedule
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem variant="destructive" onClick={() => setConfirmingDelete(true)}>
+                  <Trash2 className="w-4 h-4" /> Delete
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -131,6 +146,18 @@ export function PostTile({ group, onEdit, onPublish, onViewDetails, onRetry, onC
       {lightboxOpen && group.thumbnailUrl && (
         <Lightbox mediaUrl={group.thumbnailUrl} mediaType={isVideo ? "video" : "image"} onClose={() => setLightboxOpen(false)} />
       )}
+
+      <ConfirmModal
+        open={confirmingDelete}
+        onOpenChange={(open) => { if (!open && !deleting) { setConfirmingDelete(false); setDeleteError(""); } }}
+        title="Delete this post?"
+        description="This only removes it from Kinetix — if it's already live on a platform, it stays posted there. This can't be undone here."
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleting}
+        error={deleteError}
+        onConfirm={confirmDelete}
+      />
     </>
   );
 }

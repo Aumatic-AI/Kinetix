@@ -10,8 +10,7 @@ import { ROUTES } from "@/config/routes";
 import { CreatePostModal } from "../components/posts/CreatePostModal";
 import { PostTile } from "../components/posts/PostTile";
 import { PostDetailsModal } from "../components/posts/PostDetailsModal";
-import { EditPostModal } from "../components/posts/EditPostModal";
-import { useSocialPosts, useRetryPosts, useCancelSchedule, socialKeys } from "../hooks/usePosts";
+import { useSocialPosts, useRetryPosts, useCancelSchedule, useDeletePosts, socialKeys } from "../hooks/usePosts";
 import { groupPosts, distributeIntoColumns, PostGroup, PostRow } from "../lib/postGroups";
 import { useQueryClient } from "@tanstack/react-query";
 
@@ -47,11 +46,11 @@ export function Posts() {
   const router = useRouter();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [detailsTarget, setDetailsTarget] = useState<PostGroup | null>(null);
-  const [editTarget, setEditTarget] = useState<PostGroup | null>(null);
   const [page, setPage] = useState(1);
   const queryClient = useQueryClient();
   const retryMutation = useRetryPosts();
   const cancelScheduleMutation = useCancelSchedule();
+  const deleteMutation = useDeletePosts();
   const columnCount = useColumnCount();
 
   const groups = useMemo(() => groupPosts(rows as PostRow[]), [rows]);
@@ -92,7 +91,6 @@ export function Posts() {
                   <PostTile
                     key={g.key}
                     group={g}
-                    onEdit={setEditTarget}
                     onPublish={(group) => {
                       // Text posts have no media_asset_id to key off of —
                       // route by socialPostIds instead. Still starts at step 1
@@ -107,6 +105,7 @@ export function Posts() {
                     onViewDetails={setDetailsTarget}
                     onRetry={(group) => retryMutation.mutate(group.rows.filter((r) => r.status === "failed").map((r) => r.id))}
                     onCancelSchedule={(group) => cancelScheduleMutation.mutate(group.rows.filter((r) => r.status === "scheduled").map((r) => r.id))}
+                    onDelete={(group) => deleteMutation.mutateAsync(group.rows.map((r) => r.id))}
                   />
                 ))}
               </div>
@@ -124,8 +123,6 @@ export function Posts() {
       />
 
       <PostDetailsModal group={detailsTarget} onClose={() => setDetailsTarget(null)} />
-
-      <EditPostModal group={editTarget} onClose={() => setEditTarget(null)} onSaved={invalidate} />
     </div>
   );
 }
