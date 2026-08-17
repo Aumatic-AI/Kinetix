@@ -8,9 +8,6 @@ export interface MetaAdsDashboardData {
     spendCents: number;
     avgCtr: number;
     adsTracked: number;
-    competitorsFound: number | null;
-    avgLifespanDays: number | null;
-    gapCount: number | null;
   };
   spendTrend: { date: string; spendCents: number }[];
   scoreBuckets: {
@@ -28,9 +25,6 @@ export interface MetaAdsDashboardData {
       link: { campaignId: string; adSetId: string; adId: string } | null;
     }[];
   }[];
-  formatMix: { video: number; image: number; carousel: number; text: number } | null;
-  topAngles: { val: string; count: number }[];
-  gaps: { gap: string; opportunity: string; ad_format?: string; priority: string }[];
 }
 
 async function fetchDashboard(range: MetaAdsDashboardRange): Promise<MetaAdsDashboardData> {
@@ -40,9 +34,8 @@ async function fetchDashboard(range: MetaAdsDashboardRange): Promise<MetaAdsDash
   return data;
 }
 
-/** The one call the Meta Ads Dashboard tab makes — spend trend, self-ad
- * score distribution, and the latest competitor report's chartable fields,
- * all in one narrow response. Always fresh, never reused from cache
+/** The one call the Meta Ads Dashboard tab makes — spend trend and self-ad
+ * score distribution, in one narrow response. Always fresh, never reused from cache
  * (gcTime 0 — a stale-but-cached result surviving an unmount is exactly
  * what caused a hydration mismatch on revisit: server always SSRs the
  * loading state, but a warm client cache would otherwise skip straight to

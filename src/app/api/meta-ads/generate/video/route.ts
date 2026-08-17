@@ -46,7 +46,11 @@ export async function POST(request: Request) {
           ideaPrompt: body.ideaPrompt,
           service: body.service,
           creativeId,
-          businessId: business.id
+          businessId: business.id,
+          // If the user already reviewed/edited a script in the modal, the
+          // background job skips generating its own and uses this one
+          // directly — see generate-video-ad.ts step 2.
+          script: body.script || undefined,
         }
       });
     } catch (sendError) {

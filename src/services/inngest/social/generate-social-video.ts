@@ -2,10 +2,11 @@ import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
 import { getSocialCaptionPrompt, formatPlatformCaptions, SocialPlatform } from "../../../prompts/social-media";
-import { getSocialVideoScriptPrompt } from "../../../prompts/social-media/video";
-import { getVisualPromptsPrompt, sceneCountForDuration } from "../../../prompts/meta-ads/video";
+import { getVisualPromptsPrompt, MODES_WITH_PROTAGONIST, MOOD_CINEMATOGRAPHY } from "../../../prompts/meta-ads/video";
+import { generateSocialVideoScript, SocialVideoScriptResult } from "../../ai/social-video-script";
+import { getAudioDurationSeconds } from "../../ai/audio-duration";
 import { FFmpegService } from "../../ffmpeg";
-import { submitSceneStitchJob, downloadAndStoreVideo } from "../../ffmpeg/stitch-scenes";
+import { submitPerSceneStitchJob, downloadAndStoreVideo } from "../../ffmpeg/stitch-scenes";
 import { resolveVideoReferenceUrl } from "../../ai/video-reference";
 import { elevenLabsLanguageCode } from "../../ai/providers/elevenlabs";
 import { env } from "@/config";
@@ -15,15 +16,22 @@ const supabase = createClient(
   env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Kie's Seedance video model's own documented duration range — every
+// per-scene clip request is clamped into this range regardless of how long
+// that scene's real narration measured. Matches the Meta Ads video job.
+const MIN_SCENE_SECONDS = 4;
+const MAX_SCENE_SECONDS = 12;
+
 /**
  * Generates one narrated video + per-platform captions for an organic
  * social post. Mirrors the proven Meta Ads video pipeline
  * (`generate-video-ad.ts`) step for step — same script -> visual prompts
  * -> ElevenLabs -> Kie images -> Kie videos -> FFmpeg stitch chain, same
- * polling budgets — but with the 4-act organic-story prompt instead of
- * the ad's 3-act prompt, and writing into `media_assets` (reusable
- * library) + one `social_posts` row per selected platform instead of
- * `meta_ad_creatives`.
+ * polling budgets, same mode-aware script (8 narrative modes, not one fixed
+ * transformation arc), same per-scene measured-duration audio/video sync,
+ * same logo/brand-color consistency — but writing into `media_assets`
+ * (reusable library) + one `social_posts` row per selected platform instead
+ * of `meta_ad_creatives`.
  */
 export const generateSocialVideo = inngest.createFunction(
   { id: "generate-social-video", triggers: [{ event: "social/generate-video" }] },
@@ -44,6 +52,7 @@ export const generateSocialVideo = inngest.createFunction(
       backgroundSong?: string;
       platforms?: SocialPlatform[];
       socialPostIds?: string[];
+      script?: SocialVideoScriptResult;
     };
 
     try {
@@ -66,54 +75,73 @@ export const generateSocialVideo = inngest.createFunction(
         platformCaptions = formatPlatformCaptions(captionMeta, platforms);
       }
 
-      // 2. Script (4-act organic arc)
-      const sceneCount = sceneCountForDuration(duration);
-      const scriptJson = await step.run("generate-script", async () => {
-        const prompt = getSocialVideoScriptPrompt(business, { ideaPrompt, duration, character, service, language });
-        const response = await aiOrchestrator.executeTask("text", prompt, "openai");
-        const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
-        const parsed = JSON.parse(jsonStr);
-        // Video length is scenes x 4s (hard constraint, see the cinematic
-        // prompt below) — truncate defensively if the model overshoots the
-        // requested line count, so the video is never longer than intended.
-        // Undershooting isn't trimmed: a shorter-but-complete video is a
-        // safer failure than the mid-sentence audio cutoff a too-long
-        // script causes once it's laid over the fixed-length video.
-        if (Array.isArray(parsed.script) && parsed.script.length > sceneCount) {
-          parsed.script = parsed.script.slice(0, sceneCount);
-        }
-        return parsed;
-      });
+      // 2. Script — reuse whatever the user already reviewed/approved (or
+      // edited) in CreatePostModal's script-review step, if one was sent;
+      // only generate a fresh one here when none was supplied (e.g. a retry
+      // that skips the review step). Same prompt, same call, same trimming
+      // either way — see generateSocialVideoScript's own doc comment. Picks
+      // one of 8 narrative modes per idea (not a single fixed transformation
+      // arc), matching the Meta Ads video job.
+      const scriptJson: SocialVideoScriptResult = event.data.script
+        ? event.data.script
+        : await step.run("generate-script", () =>
+            generateSocialVideoScript(business, { ideaPrompt, duration, character, service, language })
+          );
 
       // 3. Visual prompts per scene — reuses the same condition/tier system
       // already proven for Meta Ads video (no ad-specific assumptions in it).
       // referenceUrl resolved here (not just before image generation below)
       // so the prompt itself can be told whether a reference photo will be
-      // conditioning every scene's face.
-      const referenceUrl = resolveVideoReferenceUrl(business, character);
+      // conditioning every scene's face. Only resolved for modes that
+      // actually center one person's story — a BRAND_INTRO/ANNOUNCEMENT/etc.
+      // video has no protagonist to lock a face to.
+      const referenceUrl = MODES_WITH_PROTAGONIST.has(scriptJson.ad_mode) ? resolveVideoReferenceUrl(business, character) : undefined;
+      const logoUrl: string | undefined = business.logo_url || undefined;
+      const brandColor: string | undefined = business.business_colors?.primary || undefined;
       const visualPromptsJson = await step.run("generate-visual-prompts", async () => {
-        const vpPrompt = getVisualPromptsPrompt(scriptJson.script, { character, videoStyle: videoStyle || "Cinematic", duration, service, hasReferenceImage: !!referenceUrl }, business);
+        const vpPrompt = getVisualPromptsPrompt(
+          scriptJson.script,
+          { character, videoStyle: videoStyle || "Cinematic", duration, service, hasReferenceImage: !!referenceUrl, adMode: scriptJson.ad_mode, hasLogo: !!logoUrl, brandColor },
+          business
+        );
         const response = await aiOrchestrator.executeTask("text", vpPrompt, "openai");
         const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
         return JSON.parse(jsonStr);
       });
 
-      // 4. ElevenLabs narration
-      const audioResult = await step.run("audio-generation", async () => {
-        const fullScript = scriptJson.script.join(" ");
-        const audioBuffer = await aiOrchestrator.generateSpeech(fullScript, voiceId, elevenLabsLanguageCode(language));
-        const fileName = `${businessId}/social/audio/${Date.now()}.mp3`;
-        const { error } = await supabase.storage.from("business_media").upload(fileName, audioBuffer, { contentType: "audio/mpeg" });
-        if (error) throw new Error("Audio upload failed: " + error.message);
-        const { data } = supabase.storage.from("business_media").getPublicUrl(fileName);
-        return { url: data.publicUrl };
+      // 4. ElevenLabs narration — one clip PER SCENE (not one continuous
+      // track for the whole script), each measured for its real spoken
+      // length. That real, measured duration (not a words-per-second
+      // estimate) is what step 7 requests for that scene's video clip, so
+      // every scene's audio and video are the same length by construction —
+      // matches the audio/video sync fix already proven in the Meta Ads
+      // video pipeline (generate-video-ad.ts), replacing the old approach
+      // of one bulk narration track laid under N uniform fixed-length clips.
+      const sceneAudio: { url: string | null; durationSeconds: number }[] = await step.run("generate-scene-audio", async () => {
+        const languageCode = elevenLabsLanguageCode(language);
+        return Promise.all(scriptJson.script.map(async (line: string, i: number) => {
+          const audioBuffer = await aiOrchestrator.generateSpeech(line, voiceId, languageCode);
+          const rawDuration = await getAudioDurationSeconds(audioBuffer);
+          const durationSeconds = Math.min(MAX_SCENE_SECONDS, Math.max(MIN_SCENE_SECONDS, Math.round(rawDuration)));
+
+          const fileName = `${businessId}/social/audio/${Date.now()}_scene${i}.mp3`;
+          const { error } = await supabase.storage.from("business_media").upload(fileName, audioBuffer, { contentType: "audio/mpeg" });
+          if (error) throw new Error(`Scene ${i + 1} audio upload failed: ${error.message}`);
+
+          const { data } = supabase.storage.from("business_media").getPublicUrl(fileName);
+          return { url: data.publicUrl, durationSeconds };
+        }));
       });
 
-      // 5. Trigger per-scene images (referenceUrl resolved above, step 3)
+      // 5. Trigger per-scene images (referenceUrl resolved above, step 3).
+      // The business's real logo (if on file) is passed as a second
+      // reference image so branded-signage scenes reproduce it faithfully
+      // instead of the model inventing a different mark per scene.
       const imageJobIds = await step.run("trigger-images", async () => {
         const ids = [];
         for (const vp of visualPromptsJson.visual_prompts) {
-          const jobId = await aiOrchestrator.createImageTask(vp.prompt, "9:16", referenceUrl);
+          const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
+          const jobId = await aiOrchestrator.createImageTask(vp.prompt, "9:16", referenceImages, "identity");
           ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
         }
         return ids;
@@ -171,13 +199,21 @@ export const generateSocialVideo = inngest.createFunction(
         throw new Error(`Image Generation Timed Out after ${MAX_IMAGE_ATTEMPTS} attempts. Still pending: ${stuck.join(", ")}`);
       }
 
-      // 7. Trigger per-scene videos (image-to-video)
+      // 7. Trigger per-scene videos (image-to-video). Each clip is requested
+      // at that scene's own measured narration length (step 4), not a fixed
+      // "4" — and the motion prompt's color-grade phrase is driven by the
+      // brand archetype the script step already chose (visual_mood),
+      // instead of one hardcoded "natural color grade" sentence for every
+      // video regardless of business.
+      const moodPhrase = MOOD_CINEMATOGRAPHY[scriptJson.visual_mood] || MOOD_CINEMATOGRAPHY.WARM_APPROACHABLE;
       const videoJobIds = await step.run("trigger-videos", async () => {
         const ids = [];
-        for (const imgJob of imageJobIds) {
-          const cinematicPrompt = `${imgJob.videoScenario} Cinematic social content, natural color grade, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image, same color grade and lighting as the input image. The person's face, identity, body, and wardrobe must not change or drift at any point in the clip. Facial expression from the input image must be preserved exactly throughout the entire clip — do not alter or relax it.`;
-          const jobId = await aiOrchestrator.createVideoTask(cinematicPrompt, [imgJob.url as string], "9:16", "4");
-          ids.push({ id: jobId, url: null as string | null, scene: imgJob.scene, cinematicPrompt, sourceImageUrl: imgJob.url as string, resubmitted: false, state: null as string | null });
+        for (let i = 0; i < imageJobIds.length; i++) {
+          const imgJob = imageJobIds[i];
+          const clipDuration = sceneAudio[i]?.durationSeconds ?? MIN_SCENE_SECONDS;
+          const cinematicPrompt = `${imgJob.videoScenario} Cinematic social content, ${moodPhrase}, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image, same color grade and lighting as the input image. The person's face, identity, body, and wardrobe must not change or drift at any point in the clip. Facial expression from the input image must be preserved exactly throughout the entire clip — do not alter or relax it.`;
+          const jobId = await aiOrchestrator.createVideoTask(cinematicPrompt, [imgJob.url as string], "9:16", String(clipDuration));
+          ids.push({ id: jobId, url: null as string | null, scene: imgJob.scene, cinematicPrompt, sourceImageUrl: imgJob.url as string, durationSeconds: clipDuration, resubmitted: false, state: null as string | null });
         }
         return ids;
       });
@@ -204,7 +240,7 @@ export const generateSocialVideo = inngest.createFunction(
             } else if (status.state === "fail") {
               console.error(`Kie video generation failed for scene ${job.scene} (job ${job.id}): ${status.failMsg || status.failCode || "no reason given"}`);
               if (!job.resubmitted) {
-                job.id = await aiOrchestrator.createVideoTask(job.cinematicPrompt, [job.sourceImageUrl], "9:16", "4");
+                job.id = await aiOrchestrator.createVideoTask(job.cinematicPrompt, [job.sourceImageUrl], "9:16", String(job.durationSeconds));
                 job.resubmitted = true;
               } else {
                 throw new Error(`Kie rejected video for scene ${job.scene} twice (job ${job.id}): ${status.failMsg || "no reason given"}`);
@@ -225,11 +261,18 @@ export const generateSocialVideo = inngest.createFunction(
         throw new Error(`Video Generation Timed Out after ${MAX_VIDEO_ATTEMPTS} attempts. Still pending: ${stuck.join(", ")}`);
       }
 
-      const clipUrls = videoJobIds.map((j) => j.url).filter(Boolean) as string[];
+      const totalDurationSeconds = videoJobIds.reduce((sum, j) => sum + j.durationSeconds, 0);
 
-      // 9. Stitch via FFmpeg
+      // 9. Stitch via FFmpeg — each scene's own video clip paired with its
+      // own narration clip (already the same length by construction from
+      // step 4/7), not one clip list plus one separate bulk audio track.
       const finalVideoUrl = await step.run("stitch-video", async () => {
-        return submitSceneStitchJob({ clipUrls, audioUrl: audioResult.url });
+        const clips = videoJobIds.map((job, i) => ({
+          videoUrl: job.url as string,
+          audioUrl: sceneAudio[i]?.url ?? null,
+          durationSeconds: job.durationSeconds,
+        }));
+        return submitPerSceneStitchJob(clips);
       });
 
       // 10. Poll stitching
@@ -269,8 +312,8 @@ export const generateSocialVideo = inngest.createFunction(
             storage_path: fileName,
             mime_type: "video/mp4",
             size_bytes: sizeBytes,
-            duration_seconds: clipUrls.length * 4,
-            metadata: { publicUrl, script: scriptJson.script, ideaPrompt, videoStyle, language, service, backgroundSong },
+            duration_seconds: totalDurationSeconds,
+            metadata: { publicUrl, script: scriptJson.script, ad_mode: scriptJson.ad_mode, visual_mood: scriptJson.visual_mood, ideaPrompt, videoStyle, language, service, backgroundSong },
           })
           .select()
           .single();
@@ -294,7 +337,7 @@ export const generateSocialVideo = inngest.createFunction(
                 media_asset_id: stored.assetId,
                 caption: platformCaption?.text || captionMeta?.caption || "",
                 title: platformCaption?.title || null,
-                generation_inputs: { ideaPrompt, captionMeta, script: scriptJson.script },
+                generation_inputs: { ideaPrompt, captionMeta, script: scriptJson.script, ad_mode: scriptJson.ad_mode, visual_mood: scriptJson.visual_mood },
               })
               .eq("id", socialPostIds[i]);
           }

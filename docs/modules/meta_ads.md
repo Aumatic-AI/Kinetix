@@ -4,7 +4,7 @@
 
 ## 1. What It Is
 
-Meta Ads automates the whole lifecycle of a Meta (Facebook/Instagram) advertising campaign: an AI generates the video or image creative, a wizard launches it as a real (paused) Campaign → Ad Set → Ad on the Meta Graph API, and two weekly intelligence jobs keep feeding the AI real competitor and self-performance data so each new creative is better informed than the last.
+Meta Ads automates the whole lifecycle of a Meta (Facebook/Instagram) advertising campaign: an AI generates the video or image creative, a wizard launches it as a real (paused) Campaign → Ad Set → Ad on the Meta Graph API, and a weekly self-performance intelligence job keeps feeding the AI real self-performance data so each new creative is better informed than the last. (A competitor-analysis job used to run alongside it — scraping the Facebook Ads Library and feeding a Dashboard display — but both the job and its Dashboard display were removed; ad-generation prompts still read any `ad_analysis_reports` rows with `report_type = 'competitor'` left over from before removal, but nothing generates new ones.)
 
 ## 2. Features
 
@@ -16,7 +16,6 @@ Meta Ads automates the whole lifecycle of a Meta (Facebook/Instagram) advertisin
 | **Add Creative (Ad)** | Adds another Ad under an *existing* Ad Set, inheriting its targeting/budget/optimization goal. |
 | **Quick Edit / Undo** | Ad copy can be edited after generation; every prior version is kept (`meta_ad_creatives.revision_history`) so a bad edit isn't a dead end. |
 | **Performance Polling** | Daily sync of every ad's live spend/impressions/clicks into `ad_performance_daily` — the input to self-ad analysis. |
-| **Competitor Analysis** | Scrapes the Facebook Ads Library for a business's own target countries/keywords, scores relevance in memory, and writes an executive-summary report — no persisted ad gallery. |
 | **Self-Ad Analysis** | Scores "seasoned" (7+ day) ads on a CTR-curve formula and writes next-cycle creative directives. |
 | **Lead Capture** | No webhook, and no live Meta call on page load either — a background job syncs into our own `leads` table every 5 minutes (Meta itself purges leads after 90 days, so this is the permanent copy). A manual "Sync now" button forces an immediate check. |
 | **Instant Forms management** | Create/view/archive Meta Lead Gen forms directly from Kinetix. |
@@ -25,7 +24,7 @@ Meta Ads automates the whole lifecycle of a Meta (Facebook/Instagram) advertisin
 
 | Page | Route | What you can do there |
 |---|---|---|
-| Dashboard | `/meta-ads` | KPIs (spend, CTR, ads tracked, competitors found, ad lifespan, gap opportunities), spend trend, self-ad score distribution, competitor angle/format breakdown, gap opportunities — date-range selector (7d/14d/30d/90d/All). |
+| Dashboard | `/meta-ads` | KPIs (spend, CTR, ads tracked), spend trend, self-ad score distribution — date-range selector (7d/14d/30d/90d/All). |
 | Campaigns | `/meta-ads/campaigns` | Every campaign as a card (ad set/ad counts, age), paginated; "New Campaign" launches the wizard. |
 | Campaign Detail | `/meta-ads/campaigns/:campaignId` | Every Meta field for the campaign, lifetime performance, its Ad Sets, and "+ Add Ad Set". |
 | Ad Set Detail | `/meta-ads/campaigns/:campaignId/:adSetId` | Targeting/placements/budget/optimization detail, lifetime performance, its Ads, and "+ Add Creative". |
@@ -62,7 +61,7 @@ Campaigns, Reports, Ad Library, and Leads all paginate server-side through the s
 ## 5. Database Relationships
 
 - `meta_ad_creatives`: the AI-generated copy (`ad_script`) and a link to the final video/image via `media_asset_id` (`media_assets`), plus `revision_history` for Quick-Edit/undo.
-- `ad_analysis_reports`: competitor and self-performance intelligence, read back in at generation time. There's no separate competitor-ad gallery table — see `../architecture/database_schema.md` §5.
+- `ad_analysis_reports`: self-performance intelligence (plus any pre-removal competitor rows), read back in at generation time. There's no separate competitor-ad gallery table — see `../architecture/database_schema.md` §5.
 - `ad_performance_daily`: real Meta ad performance, synced daily.
 - `campaigns`, `ad_sets`, `ads`: mirror Meta's own object structure, each a pointer (`external_*_id`) to the real Meta object — see §3.1 above. **Fully built**, not schema-only.
 - `leads`: permanent lead storage, synced from Meta on Leads-page open.
@@ -73,7 +72,7 @@ See `../architecture/database_schema.md` for the full table list — this doc on
 
 - **Reports never touches `ad_performance_daily`.** That table exists purely for the nightly sync job / Dashboard trend charts. Reports needs "today" to never be stale, so it always calls the Graph API live for whatever range is selected — trading a slightly slower request for a guarantee that the numbers are never a snapshot.
 - **Everything Launch creates starts `PAUSED`.** Going live is always a separate, explicit action (Smart Run / Resume) — never a side effect of creating something, so a half-configured campaign can never accidentally start spending.
-- **Competitor/self-ad analysis run on an hourly cron, not weekly.** Each business now picks its own day/hour via Settings' Analysis Schedule; since Inngest cron triggers can't read a per-business DB value at schedule-definition time, the job runs hourly and checks per business whether *this* is the hour it's actually due — see `../architecture/system_design.md` §2.D.
+- **Self-ad analysis runs on an hourly cron, not weekly.** Each business picks its own day/hour via Settings' Analysis Schedule; since Inngest cron triggers can't read a per-business DB value at schedule-definition time, the job runs hourly and checks per business whether *this* is the hour it's actually due — see `../architecture/system_design.md` §2.D.
 
 ## 7. Known Limitations
 
@@ -91,7 +90,7 @@ See `../architecture/database_schema.md` for the full table list — this doc on
 | Campaign/Ad Set/Ad launch logic | `src/modules/meta-ads/services/launch.service.ts` |
 | Meta Graph API client | `src/services/meta/graph-client.ts` |
 | Ad creative generation jobs | `src/services/inngest/meta-ads/*.ts` |
-| Competitor/self-ad analysis jobs | `src/jobs/competitor-ad-scraper.job.ts`, `src/jobs/business-ad-analysis.job.ts` |
+| Self-ad analysis job | `src/jobs/business-ad-analysis.job.ts` |
 | API routes | `src/app/api/meta-ads/**` |
 | Lead sync logic | `src/modules/meta-ads/services/leads.service.ts` |
 | Lead sync background job | `src/jobs/meta-ads-leads-sync.job.ts` |

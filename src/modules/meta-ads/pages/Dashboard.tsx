@@ -4,10 +4,7 @@ import { useMetaAdsDashboard, MetaAdsDashboardRange } from "../hooks/useDashboar
 import { KpiRow } from "../components/dashboard/KpiRow";
 import { SpendTrend } from "../components/dashboard/SpendTrend";
 import { ScoreDistribution } from "../components/dashboard/ScoreDistribution";
-import { FormatBreakdown } from "../components/dashboard/FormatBreakdown";
-import { MarketPulse } from "../components/dashboard/MarketPulse";
-import { GapOpportunities } from "../components/dashboard/GapOpportunities";
-import { Card, KpiRowSkeleton, SectionTitleSkeleton, AreaChartSkeleton, BarRowsSkeleton, PieChartSkeleton, GapListSkeleton } from "@/components/global/DashboardKit";
+import { Card, KpiRowSkeleton, SectionTitleSkeleton, AreaChartSkeleton, BarRowsSkeleton } from "@/components/global/DashboardKit";
 
 const RANGES: { value: MetaAdsDashboardRange; label: string }[] = [
   { value: "7d", label: "7 days" },
@@ -39,7 +36,7 @@ export function Dashboard() {
 
       {isLoading || !data ? (
         <>
-          <KpiRowSkeleton count={6} cols="grid-cols-3 lg:grid-cols-6" compact />
+          <KpiRowSkeleton count={3} cols="grid-cols-3" compact />
 
           <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-5">
             <Card>
@@ -51,22 +48,6 @@ export function Dashboard() {
               <BarRowsSkeleton rows={5} height={190} />
             </Card>
           </div>
-
-          <div className="grid sm:grid-cols-1 md:grid-cols-[7fr_3fr] gap-5">
-            <Card>
-              <SectionTitleSkeleton titleWidth="w-36" />
-              <BarRowsSkeleton rows={5} height={190} labelWidth="w-24" />
-            </Card>
-            <Card>
-              <SectionTitleSkeleton titleWidth="w-32" />
-              <PieChartSkeleton legendRows={4} />
-            </Card>
-          </div>
-
-          <Card>
-            <SectionTitleSkeleton titleWidth="w-36" trailing />
-            <GapListSkeleton rows={5} />
-          </Card>
         </>
       ) : (
         <>
@@ -76,13 +57,6 @@ export function Dashboard() {
             <SpendTrend data={data.spendTrend} rangeDays={data.rangeDays} />
             <ScoreDistribution buckets={data.scoreBuckets} />
           </div>
-
-          <div className="grid sm:grid-cols-1 md:grid-cols-[7fr_3fr] gap-5">
-            <MarketPulse topAngles={data.topAngles} />
-            <FormatBreakdown formats={data.formatMix ?? undefined} />
-          </div>
-
-          <GapOpportunities gaps={data.gaps} />
         </>
       )}
     </div>

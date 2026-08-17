@@ -30,7 +30,7 @@ Inngest dev server runs at `http://localhost:8288` (`INNGEST_DEV=1` in `.env.loc
 
 `src/jobs/*.job.ts`, registered in `src/services/inngest/functions.ts`:
 - `meta-ads-performance-sync.job.ts` — nightly, populates `ad_performance_daily`.
-- `competitor-ad-scraper.job.ts` / `business-ad-analysis.job.ts` — hourly cron that checks each business's own configured day/hour (Settings → Automation Defaults → Analysis Schedule) before actually doing the weekly competitor/self-ad analysis work.
+- `business-ad-analysis.job.ts` — hourly cron that checks each business's own configured day/hour (Settings → Automation Defaults → Analysis Schedule) before actually doing the weekly self-ad analysis work. (The competitor-ad-scraper job and its Dashboard display were removed — `ad_analysis_reports` rows with `report_type = 'competitor'` from before removal may still exist and are still read by ad-generation prompts for market context, but nothing generates new ones anymore.)
 - `social-scheduled-post-check.job.ts` — publishes scheduled social posts when due.
 - `social-analytics-cache-refresh.job.ts` — every 5 minutes, refreshes `upload_post_analytics_cache` (see the Social/Root Dashboard note below) so those dashboards never call Upload-Post live.
 - `meta-ads-leads-sync.job.ts` — every 5 minutes, syncs `leads` from the Meta Graph API in the background (see the Meta Ads Leads note above) so the Leads page never calls Meta live.

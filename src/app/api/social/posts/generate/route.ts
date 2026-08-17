@@ -105,6 +105,10 @@ export async function POST(request: Request) {
         language: body.language,
         videoStyle: body.videoStyle,
         backgroundSong: body.backgroundSong,
+        // If the user already reviewed/edited a script in the modal, the
+        // background job skips generating its own and uses this one
+        // directly — see generate-social-video.ts step 2.
+        script: body.format === "video" ? body.script || undefined : undefined,
       },
     });
 

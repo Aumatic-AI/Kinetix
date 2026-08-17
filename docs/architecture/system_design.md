@@ -42,8 +42,6 @@ graph TD
 
 | Job | Trigger | Event name / cron |
 |---|---|---|
-| Competitor scrape + analyze (per business) | cron, hourly — see note below | `0 * * * *` |
-| Competitor scrape + analyze worker | event (fanned out by the job above) | `jobs/competitor-ad-scraper` |
 | Self-ad performance analysis | cron, hourly — see note below | `0 * * * *` |
 | Meta Ads performance sync (writes `ad_performance_daily`) | cron, daily | `0 4 * * *` |
 | Meta ad creative generation (image) | event | `meta-ads/generate-image` |
@@ -56,7 +54,7 @@ graph TD
 | Outreach lead scraping | event (triggered from Find Leads) | `outreach/scrape-contacts` |
 | Outreach campaign send | event (triggered from the Campaigns list, not a cron) | `outreach/send-campaign` |
 
-**Why the competitor-scrape and self-ad-analysis jobs run hourly, not weekly:** each business now picks its own day/hour for these two reports via Settings' "Analysis Schedule" (`businesses.competitor_analysis_schedule_day/hour` and `self_ad_analysis_schedule_day/hour` — see `modules/settings.md`). Inngest's own cron trigger can't read a per-business DB value at schedule-definition time, so instead the job runs on a fixed hourly cron and, on every tick, calls `shouldRunScheduledJob()` (`src/services/scheduling/business-schedule.ts`) per business to decide whether *this* is the hour it's actually due to run. An earlier version of this doc described these as fixed weekly crons (`0 0 * * 0` / `0 2 * * 0`) with no per-business schedule — that was true before the Settings schedule editor existed and is no longer accurate.
+**Why the self-ad-analysis job runs hourly, not weekly:** each business picks its own day/hour for this report via Settings' "Analysis Schedule" (`businesses.self_ad_analysis_schedule_day/hour` — see `modules/settings.md`). Inngest's own cron trigger can't read a per-business DB value at schedule-definition time, so instead the job runs on a fixed hourly cron and, on every tick, calls `shouldRunScheduledJob()` (`src/services/scheduling/business-schedule.ts`) per business to decide whether *this* is the hour it's actually due to run. (The competitor-scrape job used to follow this same pattern via `competitor_analysis_schedule_day/hour` before it was removed — those columns may still exist on `businesses` but are no longer read by anything.)
 
 Every event payload carries `business_id` explicitly. Inngest functions run with the Supabase service-role key, which bypasses RLS entirely — scoping for background writes comes from the payload, never inferred from a session (there is no user session inside a background worker).
 
