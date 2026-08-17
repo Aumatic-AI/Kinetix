@@ -39,56 +39,35 @@ interface MetaAdsDashboardResponse {
     spendCents: number;
     avgCtr: number;
     adsTracked: number;
-    competitorsFound: number | null;
-    avgLifespanDays: number | null;
-    gapCount: number | null;
   };
   spendTrend: { date: string; spendCents: number }[];
   scoreBuckets: { label: AggregatedAd["scoreLabel"]; count: number; ads: ScoredAdEntry[] }[];
-  formatMix: { video: number; image: number; carousel: number; text: number } | null;
-  topAngles: { val: string; count: number }[];
-  gaps: { gap: string; opportunity: string; ad_format?: string; priority: string }[];
-}
-
-interface CompetitorInsights {
-  meta?: {
-    total_competitors?: number;
-    market_stats?: {
-      formats?: { video: number; image: number; carousel: number; text: number };
-      top_angles?: { val: string; count: number }[];
-      longevity?: { avg_days_running: number | null; longest_running_days: number | null };
-    };
-  };
-  gap_opportunities?: { gap: string; opportunity: string; ad_format?: string; priority: string }[];
 }
 
 function emptyResponse(rangeDays: number): MetaAdsDashboardResponse {
   return {
     rangeDays,
-    kpis: { spendCents: 0, avgCtr: 0, adsTracked: 0, competitorsFound: null, avgLifespanDays: null, gapCount: null },
+    kpis: { spendCents: 0, avgCtr: 0, adsTracked: 0 },
     spendTrend: [],
     scoreBuckets: SCORE_LABELS.map((label) => ({ label, count: 0, ads: [] })),
-    formatMix: null,
-    topAngles: [],
-    gaps: [],
   };
 }
 
 /** Everything the Meta Ads dashboard renders, in one call: a spend trend +
  * self-ad score distribution computed fresh from ad_performance_daily (same
  * scoring/pattern logic as business-ad-analysis.job.ts, just run here
- * instead of waiting on that weekly job), plus the latest persisted
- * competitor-intelligence report's chartable fields. Deliberately excludes
- * every prose field (executive_summary, ai_overview, key_insights, etc.) —
- * this page shows metrics/charts only.
+ * instead of waiting on that weekly job). Deliberately excludes every prose
+ * field (executive_summary, ai_overview, key_insights, etc.) — this page
+ * shows metrics/charts only. Competitor-intelligence display was removed
+ * from this dashboard (and the scraper job that fed it) — `ad_analysis_reports`
+ * rows with report_type 'competitor' may still exist and are still read by
+ * ad-generation prompts for market context, just not shown here anymore.
  *
  * `?range=7d|14d|30d|90d|all` (default 30d) only rescopes the spend/CTR KPIs and
  * the spend trend chart — the only genuinely "last N days" data here. The
  * self-ad score distribution is a lifetime/seasoning computation (needs 7+
  * days of an ad's own tracked history to score it at all, unrelated to the
- * viewer's chosen window), and the competitor KPIs/charts/gaps reflect the
- * latest weekly report snapshot, not a rolling window — neither has a
- * meaningful "last N days" version, so both stay constant across ranges. */
+ * viewer's chosen window), so it stays constant across ranges. */
 export async function GET(request: NextRequest) {
   const rangeParam = (request.nextUrl.searchParams.get("range") || "30d") as MetaAdsDashboardRange;
   const isAllTime = rangeParam === "all";
@@ -117,7 +96,7 @@ export async function GET(request: NextRequest) {
 
     const since = new Date(Date.now() - rangeDays * 86_400_000).toISOString().slice(0, 10);
 
-    const [{ data: recentRows }, { data: allRows }, { data: competitorReport }] = await Promise.all([
+    const [{ data: recentRows }, { data: allRows }] = await Promise.all([
       supabase
         .from("ad_performance_daily")
         .select("metric_date, spend_cents, impressions, clicks")
@@ -127,14 +106,6 @@ export async function GET(request: NextRequest) {
         .from("ad_performance_daily")
         .select("meta_ad_id, metric_date, spend_cents, impressions, clicks, conversions, ctr, cpc_cents, cpm_cents, ad_text, media_url, format")
         .eq("business_id", businessId),
-      supabase
-        .from("ad_analysis_reports")
-        .select("insights")
-        .eq("business_id", businessId)
-        .eq("report_type", "competitor")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
     ]);
 
     // Spend trend — zero-filled for every day in the window so the line
@@ -197,25 +168,15 @@ export async function GET(request: NextRequest) {
       return { label, count: adsInBucket.length, ads: adsInBucket };
     });
 
-    const insights = (competitorReport?.insights as CompetitorInsights | null) || null;
-    const meta = insights?.meta || {};
-    const marketStats = meta.market_stats || {};
-
     const response: MetaAdsDashboardResponse = {
       rangeDays,
       kpis: {
         spendCents,
         avgCtr: Math.round(avgCtr * 100) / 100,
         adsTracked: aggregated.length,
-        competitorsFound: typeof meta.total_competitors === "number" ? meta.total_competitors : null,
-        avgLifespanDays: marketStats.longevity?.avg_days_running ?? null,
-        gapCount: Array.isArray(insights?.gap_opportunities) ? insights.gap_opportunities.length : null,
       },
       spendTrend,
       scoreBuckets,
-      formatMix: marketStats.formats || null,
-      topAngles: marketStats.top_angles || [],
-      gaps: Array.isArray(insights?.gap_opportunities) ? insights.gap_opportunities.slice(0, 5) : [],
     };
 
     return NextResponse.json(response);

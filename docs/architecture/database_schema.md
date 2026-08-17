@@ -282,16 +282,13 @@ erDiagram
 
 `ad_performance_daily` inherited its `bigint` identity PK from the original 2024 migration (`ad_metrics_daily`) — it was never a UUID, and there's no reason to change it. `ad_id`/`ctr`/`cpc_cents`/`cpm_cents`/`raw_data`/`reach` are original columns; `meta_ad_id`, `roas`, `cpa`, `hook_rate`, `hold_rate`, `ad_text`, `media_url`, `format` were added when this table absorbed what used to be a separate `meta_self_ad_metrics` table (see §10 for that history).
 
-**Competitor analysis — weekly, fully automatic, no persisted gallery** (ported from the legacy n8n workflow's actual depth):
-1. Weekly cron fans out `jobs/competitor-ad-scraper` per business, building one Facebook Ads Library URL per `target_countries` × `competitor_keywords` combination and sending them to Apify's `curious_coder~facebook-ads-library-scraper` actor.
-2. Apify's raw results are filtered for relevance, deduplicated, and run through a full processing pipeline **in memory** — nothing here is written to the database.
-3. The top-scored ads and market stats are assembled into a prompt (no RAG) requesting a report, written to `ad_analysis_reports` (`report_type = 'competitor'`) — the only row this workflow ever persists.
+**Competitor analysis — removed.** The weekly Apify-scrape-and-analyze job (`competitor-ad-scraper.job.ts`) and its Dashboard display were both removed from the app. `ad_analysis_reports` still allows `report_type = 'competitor'` and any rows written before removal may still exist (still read by the Ad Creative Generation pipeline for market context, see below), but nothing generates new ones anymore.
 
 **Performance sync — daily** (`meta-ads-performance-sync.job.ts`, cron `0 4 * * *`): fetches each business's own ads, campaigns, and insights directly from the Meta Graph API, and upserts one `ad_performance_daily` row per ad per day.
 
 **Self-ad analysis — weekly, conditional** (`business-ad-analysis.job.ts`): aggregates `ad_performance_daily` per ad (skipping businesses with 10 or fewer distinct ads), scores "seasoned" (7+ day) ads on a CTR-curve formula, and writes a report to `ad_analysis_reports` (`report_type = 'self'`).
 
-Both reports are read back in every time the Ad Creative Generation pipeline runs (business context + latest `competitor`/`self` reports feed the AI script-generation prompt).
+Both the self report and any pre-existing competitor report are read back in every time the Ad Creative Generation pipeline runs (business context + latest `competitor`/`self` reports feed the AI script-generation prompt).
 
 ## 6. Leads — built (Meta Ads Instant Forms)
 

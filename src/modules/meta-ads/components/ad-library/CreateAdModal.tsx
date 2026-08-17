@@ -63,8 +63,8 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
 
-  // Pre-fill from an external source (e.g. "Create Ad" from a Competitors
-  // page ready-to-launch script) when the modal opens with initialValues set.
+  // Pre-fill from an external source (e.g. a ready-to-launch script handed
+  // in via a retry/duplicate action) when the modal opens with initialValues set.
   useEffect(() => {
     if (isOpen && initialValues) {
       if (initialValues.type) setType(initialValues.type);

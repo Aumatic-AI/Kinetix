@@ -1,7 +1,8 @@
 import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
-import { getVideoAdScriptPrompt, getVisualPromptsPrompt, sceneCountForDuration } from "../../../prompts/meta-ads/video";
+import { getVisualPromptsPrompt } from "../../../prompts/meta-ads/video";
+import { generateVideoScript, VideoScriptResult } from "../../ai/video-script";
 import { FFmpegService } from "../../ffmpeg";
 import { submitSceneStitchJob, downloadAndStoreVideo } from "../../ffmpeg/stitch-scenes";
 import { resolveVideoReferenceUrl } from "../../ai/video-reference";
@@ -71,41 +72,16 @@ export const generateVideoAd = inngest.createFunction(
         };
       });
 
-      // 2. Generate script via LLM
-      const sceneCount = sceneCountForDuration(duration);
-      const prompt = getVideoAdScriptPrompt(intelligence, { ideaPrompt, duration, audioStyle, videoStyle, character, service, language });
-      const scriptJson = await step.run("generate-script", async () => {
-        const response = await aiOrchestrator.executeTask('text', prompt, 'openai');
-        const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
-        const parsed = JSON.parse(jsonStr);
-        // Video length is scenes x 4s (hard constraint, see the cinematic
-        // prompt below) — truncate defensively if the model overshoots the
-        // requested line count, so the video is never longer than intended.
-        // Undershooting isn't trimmed: a shorter-but-complete video is a
-        // safer failure than the mid-sentence audio cutoff a too-long
-        // script causes once it's laid over the fixed-length video.
-        if (Array.isArray(parsed.script) && parsed.script.length > sceneCount) {
-          parsed.script = parsed.script.slice(0, sceneCount);
-        }
-        // The prompt's own word budget is a strong steer, not a guarantee —
-        // the model can still write a script whose natural spoken length
-        // runs past the fixed-length video underneath it, which cuts the
-        // narration off mid-word. This is a deterministic backstop: measure
-        // the actual result and drop trailing lines (never mid-sentence)
-        // until the estimated spoken length fits the video these lines will
-        // actually produce. Each dropped line shortens the video by 4s too,
-        // so this re-checks against the shrinking target every time.
-        const WORDS_PER_SECOND = 2.2;
-        const countWords = (line: string) => line.trim().split(/\s+/).filter(Boolean).length;
-        while (Array.isArray(parsed.script) && parsed.script.length > 3) {
-          const totalWords = parsed.script.reduce((sum: number, line: string) => sum + countWords(line), 0);
-          const estimatedSeconds = totalWords / WORDS_PER_SECOND;
-          const videoSeconds = parsed.script.length * 4;
-          if (estimatedSeconds <= videoSeconds) break;
-          parsed.script.pop();
-        }
-        return parsed;
-      });
+      // 2. Script — reuse whatever the user already reviewed/approved (or
+      // edited) in the Create Ad modal's script-review step, if one was
+      // sent; only generate a fresh one here when none was supplied (e.g.
+      // a retry that skips the review step). Same prompt, same call, same
+      // trimming either way — see generateVideoScript's own doc comment.
+      const scriptJson: VideoScriptResult = event.data.script
+        ? event.data.script
+        : await step.run("generate-script", () =>
+            generateVideoScript(intelligence, { ideaPrompt, duration, audioStyle, videoStyle, character, service, language })
+          );
 
       // 3. Generate Visual Prompts via LLM — resolved ahead of this step (not
       // just before image generation below) so the prompt itself can be told
