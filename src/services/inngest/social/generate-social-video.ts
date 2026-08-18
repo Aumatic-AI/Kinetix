@@ -119,10 +119,17 @@ export const generateSocialVideo = inngest.createFunction(
       // Matches the Meta Ads video job exactly.
       const hasProtagonist = MODES_WITH_PROTAGONIST.has(scriptJson.ad_mode);
       const needsIdentityAnchor = !isPosterMode && hasProtagonist && !referenceUrl;
+      // Hardcoded, Social-only override: a hair transplant story gets an
+      // exact, non-negotiable "mostly bald before, full thick hair after"
+      // description instead of leaving the specific visual state up to the
+      // model's own diagnosis — the generic Tier-1 treatment wasn't
+      // reliably landing on a strong enough "before" bald look. Deliberately
+      // not applied in Meta Ads' video job — this is a Social-only ask.
+      const isHairTransplantService = /hair\s*transplant|hair\s*restoration/i.test(service || "");
       const visualPromptsJson = await step.run("generate-visual-prompts", async () => {
         const vpPrompt = getVisualPromptsPrompt(
           scriptJson.script,
-          { character, videoStyle: videoStyle || "Cinematic", duration, service, hasReferenceImage: !!referenceUrl || needsIdentityAnchor, adMode: scriptJson.ad_mode, videoMode, hasLogo: !!logoUrl, brandColor },
+          { character, videoStyle: videoStyle || "Cinematic", duration, service, hasReferenceImage: !!referenceUrl || needsIdentityAnchor, adMode: scriptJson.ad_mode, videoMode, hasLogo: !!logoUrl, brandColor, hairTransplantHardcode: isHairTransplantService },
           business
         );
         const response = await aiOrchestrator.executeTask("text", vpPrompt, "openai");
