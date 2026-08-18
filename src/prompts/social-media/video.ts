@@ -1,5 +1,5 @@
 import { serviceDescriptor } from "../meta-ads/shared";
-import { sceneCountForDuration, AD_MODE_STRUCTURES } from "../meta-ads/video";
+import { sceneCountForDuration, maxSceneCountForDuration, AD_MODE_STRUCTURES } from "../meta-ads/video";
 import { businessContextBlock } from "./index";
 
 /** Video post generation — the story ARC is a fixed, hardcoded shape again
@@ -29,12 +29,8 @@ export interface SocialVideoScriptInput {
 
 export function getSocialVideoScriptPrompt(business: any, input: SocialVideoScriptInput): string {
   const businessName = business?.name || "the business";
-  const sceneCount = sceneCountForDuration(input.duration);
-  // Conservative words-per-second estimate, same rationale as the Meta Ads
-  // video script prompt: audio running even slightly longer than the video
-  // underneath it cuts narration off mid-word, so undershooting this
-  // budget is the safe direction.
-  const targetWords = Math.round(sceneCount * 4 * 2.0);
+  const minSceneCount = sceneCountForDuration(input.duration);
+  const maxSceneCount = maxSceneCountForDuration(input.duration);
   const characterName = input.character === "male" ? "James" : "Sarah";
   const descriptor = serviceDescriptor(business, input.service);
   const language = input.language && input.language !== "English" ? input.language : null;
@@ -57,10 +53,10 @@ The ACT STRUCTURE above is fixed — every script follows this same shape. What 
 
 Before writing Act 1, silently work out: what specific real-world condition or dissatisfaction is this idea actually about${descriptor ? ` — this is for "${descriptor}", so ground your answer in what that service actually treats` : ""}? Then write 2-3 concrete, natural ways a real person would describe that exact condition (specific and sensory, never a vague "something is wrong"). Use that grounding for every relevant line below.
 
-ASSIGN ONE NAME, use it throughout — use "${characterName}" (or another common name matching the ${input.character} character) in line 1 at minimum; other lines use he / she. Never switch the name or pronoun — check every line before returning.
+ASSIGN ONE NAME, use it throughout — use "${characterName}" (or another common name matching the ${input.character} character) in line 1 at minimum. PRONOUN IS NOT A FREE CHOICE: the character is ${input.character}, so every other line uses ${input.character === "male" ? `"he"/"him"/"his" — NEVER "she"/"her" anywhere in the script` : `"she"/"her"/"hers" — NEVER "he"/"him" anywhere in the script`}. This matters beyond the words themselves — the video's visuals are generated separately and will show a ${input.character} person, so a mismatched pronoun in the audio makes the finished video look wrong even though each half was made correctly on its own. Check every single line before returning; one wrong pronoun anywhere is a failure.
 
-LENGTH — EXACT, NOT A GUIDELINE: each script line becomes one video scene downstream, so the script array MUST have EXACTLY ${sceneCount} lines — no more, no fewer. Target about ${targetWords} words total across all ${sceneCount} lines so the spoken narration's natural length fits comfortably within the video — a script that runs noticeably longer risks getting cut off once the audio is laid over the video.
-Each line = ONE complete sentence, 6-9 words. Hard cap at 10 words.
+LENGTH — ${minSceneCount} SCENES IS THE FLOOR, NOT AN EXACT TARGET: each script line becomes one video scene downstream. The script array MUST have AT LEAST ${minSceneCount} lines (matching the requested duration) — but if the story above is rich enough that telling it properly, without rushing a beat or cutting the ending short, genuinely needs more room, use more lines, up to ${maxSceneCount}. Never fewer than ${minSceneCount}, never more than ${maxSceneCount}. A complete, well-paced story that runs a bit longer than the requested duration is always better than a rushed or truncated one that hits the number exactly — don't pad a simple idea with filler lines just to reach the max, either; use exactly as many as this specific story earns.
+Each line = ONE complete sentence, 6-9 words. Hard cap at 10 words — this is what actually keeps each scene's spoken audio comfortably short, not the total line count.
 
 HARD RULES
 - Mention "${businessName}" by name AT MOST ONCE across the whole script, at the point where it's most natural (Act 2, the discovery).
@@ -91,6 +87,6 @@ Return ONLY valid JSON. No markdown fences. No commentary.
 }
 Rules:
 - "visual_mood" is the ONE visual archetype that best matches this business's own voice/description above — pick deliberately, never the same one every time just because it's safe.
-- "script" must be a JSON array of EXACTLY ${sceneCount} strings, one sentence per element, in order.
+- "script" must be a JSON array of between ${minSceneCount} and ${maxSceneCount} strings (inclusive), one sentence per element, in order — see LENGTH above for how to choose the actual count.
 - No extra fields, no trailing commas.`;
 }

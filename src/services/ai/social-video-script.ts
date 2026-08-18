@@ -1,6 +1,6 @@
 import { aiOrchestrator } from "./orchestrator";
 import { getSocialVideoScriptPrompt, SocialVideoScriptInput } from "@/prompts/social-media/video";
-import { sceneCountForDuration } from "@/prompts/meta-ads/video";
+import { maxSceneCountForDuration } from "@/prompts/meta-ads/video";
 
 export interface SocialVideoScriptResult {
   ad_mode: string;
@@ -15,16 +15,19 @@ export interface SocialVideoScriptResult {
  * (Meta Ads' equivalent) — same defensive trimming, same rationale. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateSocialVideoScript(business: any, input: SocialVideoScriptInput): Promise<SocialVideoScriptResult> {
-  const sceneCount = sceneCountForDuration(input.duration);
+  const maxSceneCount = maxSceneCountForDuration(input.duration);
   const prompt = getSocialVideoScriptPrompt(business, input);
 
   const response = await aiOrchestrator.executeTask("text", prompt, "openai");
   const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
   const parsed = JSON.parse(jsonStr);
 
-  // Truncate defensively if the model overshoots the requested line count,
-  // so the number of scenes matches what was asked for — undershooting
-  // isn't trimmed here, that's just a shorter (still complete) script.
+  // The selected duration is a floor, not an exact target (see the
+  // prompt's own LENGTH section) — a richer story is allowed to use more
+  // scenes, up to maxSceneCount, rather than being rushed or cut short to
+  // fit an exact number. This only trims a genuine runaway past that
+  // ceiling (a real safety net, since each extra scene is a real
+  // image+video+narration generation), never the normal case.
   //
   // There used to also be a word-budget trim here that dropped trailing
   // lines whenever the estimated spoken length exceeded a fixed
@@ -37,8 +40,8 @@ export async function generateSocialVideoScript(business: any, input: SocialVide
   // video than requested. Removed for the same reason it was removed from
   // Meta Ads' generateVideoScript (video-script.ts) — see that file's
   // comment for the full rationale.
-  if (Array.isArray(parsed.script) && parsed.script.length > sceneCount) {
-    parsed.script = parsed.script.slice(0, sceneCount);
+  if (Array.isArray(parsed.script) && parsed.script.length > maxSceneCount) {
+    parsed.script = parsed.script.slice(0, maxSceneCount);
   }
 
   // The narrative arc is hardcoded again (problem -> discovers the business

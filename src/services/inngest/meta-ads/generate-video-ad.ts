@@ -1,7 +1,7 @@
 import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
-import { getVisualPromptsPrompt, MOOD_CINEMATOGRAPHY } from "../../../prompts/meta-ads/video";
+import { getVisualPromptsPrompt, MOOD_CINEMATOGRAPHY, MODES_WITH_PROTAGONIST } from "../../../prompts/meta-ads/video";
 import { generateVideoScript, VideoScriptResult } from "../../ai/video-script";
 import { getAudioDurationSeconds } from "../../ai/audio-duration";
 import { FFmpegService } from "../../ffmpeg";
@@ -92,10 +92,22 @@ export const generateVideoAd = inngest.createFunction(
       const referenceUrl = (isPosterMode || !useReferencePhoto) ? undefined : resolveVideoReferenceUrl(intelligence.business, character);
       const logoUrl: string | undefined = intelligence.business.logo_url || undefined;
       const brandColor: string | undefined = intelligence.business.business_colors?.primary || undefined;
+      // Live-action scenes with a protagonist need SOME cross-scene face/
+      // body lock or the person's appearance drifts scene to scene (older,
+      // younger, different skin tone) purely by chance — each scene's image
+      // generation call is otherwise independent, with no memory of what a
+      // previous call actually rendered. If no real reference photo is
+      // configured (the default), an auto-anchor fills that role instead:
+      // scene 1 is generated alone, then reused as the identity lock for
+      // every other scene — see the anchor-generation step below. Computed
+      // here, before visual prompts, so that prompt can be told a face-lock
+      // is coming even though the actual anchor image doesn't exist yet.
+      const hasProtagonist = MODES_WITH_PROTAGONIST.has(scriptJson.ad_mode);
+      const needsIdentityAnchor = !isPosterMode && hasProtagonist && !referenceUrl;
       const visualPromptsJson = await step.run("generate-visual-prompts", async () => {
         const vpPrompt = getVisualPromptsPrompt(
           scriptJson.script,
-          { character, videoStyle, duration, service, hasReferenceImage: !!referenceUrl, adMode: scriptJson.ad_mode, videoMode, hasLogo: !!logoUrl, brandColor },
+          { character, videoStyle, duration, service, hasReferenceImage: !!referenceUrl || needsIdentityAnchor, adMode: scriptJson.ad_mode, videoMode, hasLogo: !!logoUrl, brandColor },
           intelligence.business
         );
         const response = await aiOrchestrator.executeTask('text', vpPrompt, 'openai');
@@ -138,55 +150,65 @@ export const generateVideoAd = inngest.createFunction(
         return results;
       });
 
-      // 5. Trigger Images. In poster mode, scene 1 is generated alone FIRST
-      // and then used as a shared visual anchor for every other scene —
-      // each image-generation call is otherwise independent with no memory
-      // of what a previous call actually rendered, so without a real image
-      // to copy from, the model reinterprets the "design system" (colors,
-      // font style, layout) differently every time even when the prompt
-      // wording is consistent. Anchoring the rest to a real result image
-      // costs one extra generation round-trip before the remaining scenes
-      // fire in parallel, in exchange for genuinely consistent design.
-      let posterAnchorUrl: string | undefined;
-      if (isPosterMode && visualPromptsJson.visual_prompts.length > 0) {
-        const anchorJobId = await step.run("trigger-poster-anchor-image", async () => {
+      // 5. Trigger Images. In poster mode, or in live-action with a
+      // protagonist and no real reference photo configured, scene 1 is
+      // generated alone FIRST and then used as a shared anchor for every
+      // other scene — each image-generation call is otherwise independent
+      // with no memory of what a previous call actually rendered, so
+      // without a real image to copy from, the model reinterprets either
+      // the "design system" (poster mode: colors, font style, layout) or
+      // the protagonist's actual face/body/skin tone (live-action) a little
+      // differently every time, even when the prompt wording is consistent.
+      // Anchoring the rest to a real result image costs one extra
+      // generation round-trip before the remaining scenes fire in
+      // parallel, in exchange for genuine consistency. Poster mode treats a
+      // failed anchor as fatal (the whole design system depends on it);
+      // live-action's identity anchor is a best-effort consistency
+      // improvement, not a hard requirement — a failure there falls back
+      // to independent per-scene generation instead of failing the video.
+      let anchorUrl: string | undefined;
+      if ((isPosterMode || needsIdentityAnchor) && visualPromptsJson.visual_prompts.length > 0) {
+        const anchorMode = isPosterMode ? "reference" : "identity";
+        const anchorJobId = await step.run("trigger-scene-anchor-image", async () => {
           const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
-          return aiOrchestrator.createImageTask(visualPromptsJson.visual_prompts[0].prompt, "9:16", referenceImages, "reference");
+          return aiOrchestrator.createImageTask(visualPromptsJson.visual_prompts[0].prompt, "9:16", referenceImages, anchorMode);
         });
 
         let anchorAttempts = 0;
         const MAX_ANCHOR_ATTEMPTS = 12;
-        while (!posterAnchorUrl && anchorAttempts < MAX_ANCHOR_ATTEMPTS) {
-          await step.sleep(`wait-poster-anchor-${anchorAttempts}`, anchorAttempts === 0 ? "20s" : "15s");
-          const status = await step.run(`check-poster-anchor-status-${anchorAttempts}`, async () => aiOrchestrator.checkTaskStatus(anchorJobId));
+        while (!anchorUrl && anchorAttempts < MAX_ANCHOR_ATTEMPTS) {
+          await step.sleep(`wait-scene-anchor-${anchorAttempts}`, anchorAttempts === 0 ? "20s" : "15s");
+          const status = await step.run(`check-scene-anchor-status-${anchorAttempts}`, async () => aiOrchestrator.checkTaskStatus(anchorJobId));
           if (status.state === "success") {
             try {
               const r = JSON.parse(status.resultJson);
-              posterAnchorUrl = r.resultUrls?.[0] || r.urls?.[0] || undefined;
+              anchorUrl = r.resultUrls?.[0] || r.urls?.[0] || undefined;
             } catch { /* malformed result — treated as still-pending below */ }
           } else if (status.state === "fail") {
-            throw new Error(`Kie poster anchor image failed: ${status.failMsg || status.failCode || "no reason given"}`);
+            if (isPosterMode) throw new Error(`Kie poster anchor image failed: ${status.failMsg || status.failCode || "no reason given"}`);
+            console.error(`Identity anchor image failed, continuing without it: ${status.failMsg || status.failCode || "no reason given"}`);
+            break;
           }
           anchorAttempts++;
         }
-        if (!posterAnchorUrl) throw new Error("Poster anchor image generation timed out");
+        if (isPosterMode && !anchorUrl) throw new Error("Poster anchor image generation timed out");
       }
 
       const imageJobIds = await step.run("trigger-images", async () => {
         const ids = [];
         for (let i = 0; i < visualPromptsJson.visual_prompts.length; i++) {
           const vp = visualPromptsJson.visual_prompts[i];
-          if (isPosterMode && i === 0) {
+          if (anchorUrl && i === 0) {
             // Already generated above as the anchor — reuse it, no new job.
-            ids.push({ id: "", url: posterAnchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null });
+            ids.push({ id: "", url: anchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null });
             continue;
           }
           const scenePrompt = isPosterMode
             ? `${vp.prompt} Match the exact background color, typography style, and overall design treatment of the attached reference image (scene 1 of this same ad) precisely — same color palette, same font style, same layout approach; only the on-scene text quoted above (and any specific photo/element this scene calls for) differs from it.`
             : vp.prompt;
           const referenceImages = isPosterMode
-            ? ([posterAnchorUrl, logoUrl].filter(Boolean) as string[])
-            : ([referenceUrl, logoUrl].filter(Boolean) as string[]);
+            ? ([anchorUrl, logoUrl].filter(Boolean) as string[])
+            : ([referenceUrl || anchorUrl, logoUrl].filter(Boolean) as string[]);
           const jobId = await aiOrchestrator.createImageTask(scenePrompt, "9:16", referenceImages, isPosterMode ? "reference" : "identity");
           ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
         }

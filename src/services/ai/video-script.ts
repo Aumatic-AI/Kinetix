@@ -1,5 +1,5 @@
 import { aiOrchestrator } from "./orchestrator";
-import { getVideoAdScriptPrompt, sceneCountForDuration } from "@/prompts/meta-ads/video";
+import { getVideoAdScriptPrompt, maxSceneCountForDuration } from "@/prompts/meta-ads/video";
 
 export interface VideoScriptCreativeInput {
   ideaPrompt: string;
@@ -25,16 +25,19 @@ export interface VideoScriptResult {
  * itself differs depending on which caller uses it. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateVideoScript(intelligence: any, creative: VideoScriptCreativeInput): Promise<VideoScriptResult> {
-  const sceneCount = sceneCountForDuration(creative.duration);
+  const maxSceneCount = maxSceneCountForDuration(creative.duration);
   const prompt = getVideoAdScriptPrompt(intelligence, creative);
 
   const response = await aiOrchestrator.executeTask("text", prompt, "openai");
   const jsonStr = (response as string).replace(/```json\n?|\n?```/g, "").trim();
   const parsed = JSON.parse(jsonStr);
 
-  // Truncate defensively if the model overshoots the requested line count,
-  // so the number of scenes matches what was asked for — undershooting
-  // isn't trimmed here, that's just a shorter (still complete) script.
+  // The selected duration is a floor, not an exact target (see the
+  // prompt's own LINE COUNT AND LENGTH section) — a richer idea is allowed
+  // to use more scenes, up to maxSceneCount, rather than being rushed or
+  // cut short to fit an exact number. This only trims a genuine runaway
+  // past that ceiling (a real safety net, since each extra scene is a real
+  // image+video+narration generation), never the normal case.
   //
   // There used to also be a word-budget trim here that dropped trailing
   // lines whenever the script's estimated spoken length exceeded a fixed
@@ -50,8 +53,8 @@ export async function generateVideoScript(intelligence: any, creative: VideoScri
   // real protection against a single scene's audio getting cut off is the
   // per-line word cap already in the prompt (6-9 words, 10 max — comfortably
   // under 12s of natural speech), not a whole-script word-count trim.
-  if (Array.isArray(parsed.script) && parsed.script.length > sceneCount) {
-    parsed.script = parsed.script.slice(0, sceneCount);
+  if (Array.isArray(parsed.script) && parsed.script.length > maxSceneCount) {
+    parsed.script = parsed.script.slice(0, maxSceneCount);
   }
 
   return parsed as VideoScriptResult;
