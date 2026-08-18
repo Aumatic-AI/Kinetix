@@ -21,6 +21,10 @@ const VIDEO_MODE_OPTIONS = [
   { value: "live_action", label: "Real-life video" },
   { value: "animated_poster", label: "Animated design & text" },
 ];
+const ASPECT_RATIO_OPTIONS = [
+  { value: "9:16", label: "Portrait (9:16)" },
+  { value: "16:9", label: "Landscape (16:9)" },
+];
 // Hebrew routes to a different ElevenLabs model under the hood
 // (eleven_flash_v2_5, used for every other language here, doesn't support
 // it at all — see src/services/ai/providers/elevenlabs.ts's modelIdFor).
@@ -60,6 +64,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
   const [voiceLabel, setVoiceLabel] = useState(VOICE_OPTIONS.male[0].label);
   const [videoStyle, setVideoStyle] = useState("Bold & Colorful");
   const [videoMode, setVideoMode] = useState<"live_action" | "animated_poster">("live_action");
+  const [aspectRatio, setAspectRatio] = useState<"9:16" | "16:9">("9:16");
   const [useReferencePhoto, setUseReferencePhoto] = useState(false);
   const [language, setLanguage] = useState("English");
   const [idea, setIdea] = useState("");
@@ -163,7 +168,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          duration, audioStyle, character, voiceId, videoStyle, videoMode, useReferencePhoto, language,
+          duration, audioStyle, character, voiceId, videoStyle, videoMode, useReferencePhoto, language, aspectRatio,
           ideaPrompt: idea, service, script: scriptDraft,
         }),
       });
@@ -485,6 +490,15 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
                   <div>
                     <Label className="mb-2 block text-sm font-semibold">Language</Label>
                     <Dropdown value={language} onValueChange={setLanguage} options={LANGUAGE_OPTIONS} />
+                  </div>
+
+                  <div>
+                    <Label className="mb-2 block text-sm font-semibold">Aspect Ratio</Label>
+                    <Dropdown
+                      value={aspectRatio}
+                      onValueChange={(val) => setAspectRatio(val as "9:16" | "16:9")}
+                      options={ASPECT_RATIO_OPTIONS}
+                    />
                   </div>
                 </div>
               )}

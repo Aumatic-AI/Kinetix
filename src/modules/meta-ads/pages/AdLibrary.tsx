@@ -158,6 +158,7 @@ export function AdLibrary() {
         mediaUrl={selectedAd?.media_urls?.[0] || null}
         type={selectedAd?.type === "video" ? "video" : "image"}
         duration={selectedAd?.duration}
+        aspectRatio={selectedAd?.aspect_ratio ? selectedAd.aspect_ratio.replace(":", "/") : undefined}
       />
     </div>
   );

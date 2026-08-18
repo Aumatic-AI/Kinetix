@@ -39,7 +39,7 @@ export class MetaAdsService {
     filters?: CreativeFilters,
     pagination?: PaginationOptions
   ): Promise<{ data: MetaAdCreativeListItem[]; total: number }> {
-    let query = supabase.from("meta_ad_creatives").select("id, type, status, media_urls, duration, created_at, studio_session_id", { count: "exact" });
+    let query = supabase.from("meta_ad_creatives").select("id, type, status, media_urls, duration, created_at, aspect_ratio, studio_session_id", { count: "exact" });
 
     if (filters?.status) {
       query = query.eq("status", filters.status);
@@ -83,7 +83,7 @@ export class MetaAdsService {
    * enough fields to pre-fill the ad-copy step (name/headline/primary
    * text) once a creative is picked, not just what's shown on the card. */
   static async getCreativesForPicker(supabase: SupabaseClient, filters?: CreativeFilters): Promise<MetaAdCreativePickerItem[]> {
-    let query = supabase.from("meta_ad_creatives").select("id, type, status, media_urls, duration, idea_prompt, ad_script, service");
+    let query = supabase.from("meta_ad_creatives").select("id, type, status, media_urls, duration, idea_prompt, ad_script, service, aspect_ratio");
 
     if (filters?.status) {
       query = query.eq("status", filters.status);

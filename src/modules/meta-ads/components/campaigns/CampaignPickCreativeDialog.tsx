@@ -71,6 +71,7 @@ export function CampaignPickCreativeDialog({ open, onClose, onPick }: { open: bo
         onClose={() => setPreviewing(null)}
         mediaUrl={previewing?.media_urls?.[0] || null}
         type={previewing?.type === "video" ? "video" : "image"}
+        aspectRatio={previewing?.aspect_ratio ? previewing.aspect_ratio.replace(":", "/") : undefined}
       />
     </>
   );

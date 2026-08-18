@@ -24,6 +24,22 @@ const MAX_SCENE_SECONDS = 12;
 // isn't "Voiceover") — matches the old fixed-clip-length default.
 const DEFAULT_SCENE_SECONDS = 4;
 
+// A live-action Seedance clip with real human motion never compresses down
+// to almost nothing — this floor exists purely to catch the suspiciously
+// tiny file size of a blank/near-black clip (see the content-moderation
+// note at the video poll step below), not to judge legitimate quality.
+const MIN_VIDEO_BYTES_PER_SECOND = 15000;
+
+async function getRemoteContentLength(url: string): Promise<number | null> {
+  try {
+    const res = await fetch(url, { method: "HEAD" });
+    const len = res.headers.get("content-length");
+    return len ? parseInt(len, 10) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const generateVideoAd = inngest.createFunction(
   {
     id: "generate-video-ad",
@@ -32,6 +48,11 @@ export const generateVideoAd = inngest.createFunction(
   async ({ event, step }) => {
     const { ideaPrompt, duration, audioStyle, character, voiceId, videoStyle, language, service, creativeId, businessId, videoMode, useReferencePhoto } = event.data;
     const isPosterMode = videoMode === "animated_poster";
+    // Every source image and every video clip for this generation must share
+    // this one ratio (source images are what image-to-video is conditioned
+    // on) — defaults to the original portrait shape for any caller that
+    // doesn't send one yet.
+    const aspectRatio: "16:9" | "9:16" = event.data.aspectRatio === "16:9" ? "16:9" : "9:16";
 
     if (!creativeId) throw new Error("No creativeId provided");
 
@@ -188,7 +209,7 @@ export const generateVideoAd = inngest.createFunction(
         const anchorMode = isPosterMode ? "reference" : "identity";
         const anchorJobId = await step.run("trigger-scene-anchor-image", async () => {
           const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
-          return aiOrchestrator.createImageTask(visualPromptsJson.visual_prompts[0].prompt, "9:16", referenceImages, anchorMode);
+          return aiOrchestrator.createImageTask(visualPromptsJson.visual_prompts[0].prompt, aspectRatio, referenceImages, anchorMode);
         });
 
         let anchorAttempts = 0;
@@ -211,7 +232,7 @@ export const generateVideoAd = inngest.createFunction(
       } else if (needsTwoAnchors) {
         const beforeJobId = await step.run("trigger-before-anchor-image", async () => {
           const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
-          return aiOrchestrator.createImageTask(visualPromptsJson.visual_prompts[0].prompt, "9:16", referenceImages, "identity");
+          return aiOrchestrator.createImageTask(visualPromptsJson.visual_prompts[0].prompt, aspectRatio, referenceImages, "identity");
         });
 
         let beforeAttempts = 0;
@@ -237,7 +258,7 @@ export const generateVideoAd = inngest.createFunction(
           const afterPrompt = `${visualPromptsJson.visual_prompts[lastSceneIndex].prompt} This must be the exact same person as the attached reference image — identical face, bone structure, skin tone, and body type — but with the specific condition now fully resolved, exactly as this scene's own description states. Every other feature of their identity stays exactly as the reference shows; only that one resolved attribute differs.`;
           const afterJobId = await step.run("trigger-after-anchor-image", async () => {
             const referenceImages = [beforeAnchorUrl, logoUrl].filter(Boolean) as string[];
-            return aiOrchestrator.createImageTask(afterPrompt, "9:16", referenceImages, "identity");
+            return aiOrchestrator.createImageTask(afterPrompt, aspectRatio, referenceImages, "identity");
           });
 
           let afterAttempts = 0;
@@ -275,7 +296,7 @@ export const generateVideoAd = inngest.createFunction(
             const isPhase3 = i >= phase3StartIndex;
             const chosenAnchor = isPhase3 ? (afterAnchorUrl || beforeAnchorUrl) : beforeAnchorUrl;
             const referenceImages = [chosenAnchor, logoUrl].filter(Boolean) as string[];
-            const jobId = await aiOrchestrator.createImageTask(vp.prompt, "9:16", referenceImages, "identity");
+            const jobId = await aiOrchestrator.createImageTask(vp.prompt, aspectRatio, referenceImages, "identity");
             ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
             continue;
           }
@@ -291,7 +312,7 @@ export const generateVideoAd = inngest.createFunction(
           const referenceImages = isPosterMode
             ? ([anchorUrl, logoUrl].filter(Boolean) as string[])
             : ([referenceUrl || anchorUrl, logoUrl].filter(Boolean) as string[]);
-          const jobId = await aiOrchestrator.createImageTask(scenePrompt, "9:16", referenceImages, isPosterMode ? "reference" : "identity");
+          const jobId = await aiOrchestrator.createImageTask(scenePrompt, aspectRatio, referenceImages, isPosterMode ? "reference" : "identity");
           ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
         }
         return ids;
@@ -330,7 +351,7 @@ export const generateVideoAd = inngest.createFunction(
             } else if (status.state === "fail") {
               console.error(`Kie image generation failed for scene ${job.scene} (job ${job.id}): ${status.failMsg || status.failCode || "no reason given"}`);
               if (!job.fellBack) {
-                job.id = await aiOrchestrator.createImageTask(job.imagePrompt, "9:16");
+                job.id = await aiOrchestrator.createImageTask(job.imagePrompt, aspectRatio);
                 job.fellBack = true;
               } else {
                 throw new Error(`Kie rejected scene ${job.scene} twice (job ${job.id}): ${status.failMsg || "no reason given"}`);
@@ -368,7 +389,7 @@ export const generateVideoAd = inngest.createFunction(
            const cinematicPrompt = isPosterMode
              ? `${imgJob.videoScenario} Smooth, slow camera movement over this static designed composition only — a gentle zoom or pan, like a camera drifting across a printed poster. Do not animate, warp, distort, or attempt to regenerate any text or graphic element — every piece of text and design must stay perfectly crisp, legible, and unchanged throughout the clip, exactly as it appears in the source image. No new elements appear that weren't already in the original image.`
              : `${imgJob.videoScenario} Cinematic ${service || intelligence.business.industry || "brand"} ad, ${moodPhrase}, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image, same color grade and lighting as the input image. The person's face, identity, body, and wardrobe must not change or drift at any point in the clip. Facial expression from the input image must be preserved exactly throughout the entire clip — do not alter or relax it. Arms and legs must move only in natural, anatomically correct ways throughout the clip — no limb bending backward, twisting, or reversing direction at any point, even briefly.`;
-           const jobId = await aiOrchestrator.createVideoTask(cinematicPrompt, [imgJob.url as string], "9:16", String(clipDuration));
+           const jobId = await aiOrchestrator.createVideoTask(cinematicPrompt, [imgJob.url as string], aspectRatio, String(clipDuration));
            ids.push({ id: jobId, url: null as string | null, scene: imgJob.scene, cinematicPrompt, sourceImageUrl: imgJob.url as string, durationSeconds: clipDuration, resubmitted: false, state: null as string | null });
         }
         return ids;
@@ -397,12 +418,44 @@ export const generateVideoAd = inngest.createFunction(
               try {
                 const r = JSON.parse(status.resultJson);
                 job.url = r.resultUrls?.[0] || r.urls?.[0] || null;
-              } catch { /* malformed result — treated as still-pending below */ }
-              if (!job.url) pending = true;
+              } catch { /* malformed result — handled as a fail below */ }
+              if (!job.url) {
+                // "success" with no usable URL won't resolve itself by
+                // re-polling the same finished task — treat it like an
+                // explicit fail so it actually gets resubmitted.
+                console.error(`Kie video "success" for scene ${job.scene} (job ${job.id}) had no parseable result URL`);
+                if (!job.resubmitted) {
+                  job.id = await aiOrchestrator.createVideoTask(job.cinematicPrompt, [job.sourceImageUrl], aspectRatio, String(job.durationSeconds));
+                  job.resubmitted = true;
+                } else {
+                  throw new Error(`Kie returned no usable video URL for scene ${job.scene} twice (job ${job.id})`);
+                }
+                pending = true;
+              } else if (!isPosterMode) {
+                // Kie/Bytedance's own content-safety pass can silently swap a
+                // flagged generation for a blank/near-black clip instead of
+                // failing the task outright (documented as aggressive,
+                // face-generation-prone moderation — exactly the kind of
+                // content this pipeline generates) — a suspiciously tiny file
+                // is the cheapest signal we have that this happened, without
+                // decoding frames ourselves.
+                const sizeBytes = await getRemoteContentLength(job.url);
+                if (sizeBytes !== null && sizeBytes < job.durationSeconds * MIN_VIDEO_BYTES_PER_SECOND) {
+                  console.error(`Kie video for scene ${job.scene} (job ${job.id}) is suspiciously small (${sizeBytes} bytes for ${job.durationSeconds}s) — likely a blank/moderated clip`);
+                  if (!job.resubmitted) {
+                    job.url = null;
+                    job.id = await aiOrchestrator.createVideoTask(job.cinematicPrompt, [job.sourceImageUrl], aspectRatio, String(job.durationSeconds));
+                    job.resubmitted = true;
+                    pending = true;
+                  } else {
+                    throw new Error(`Kie returned a suspiciously blank video for scene ${job.scene} twice (job ${job.id})`);
+                  }
+                }
+              }
             } else if (status.state === "fail") {
               console.error(`Kie video generation failed for scene ${job.scene} (job ${job.id}): ${status.failMsg || status.failCode || "no reason given"}`);
               if (!job.resubmitted) {
-                job.id = await aiOrchestrator.createVideoTask(job.cinematicPrompt, [job.sourceImageUrl], "9:16", String(job.durationSeconds));
+                job.id = await aiOrchestrator.createVideoTask(job.cinematicPrompt, [job.sourceImageUrl], aspectRatio, String(job.durationSeconds));
                 job.resubmitted = true;
               } else {
                 throw new Error(`Kie rejected video for scene ${job.scene} twice (job ${job.id}): ${status.failMsg || "no reason given"}`);
@@ -433,7 +486,7 @@ export const generateVideoAd = inngest.createFunction(
           audioUrl: sceneAudio[i]?.url ?? null,
           durationSeconds: job.durationSeconds,
         }));
-        return submitPerSceneStitchJob(clips);
+        return submitPerSceneStitchJob(clips, aspectRatio);
       });
 
       // 10. Poll for Stitching

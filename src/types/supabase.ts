@@ -686,6 +686,7 @@ export type Database = {
       meta_ad_creatives: {
         Row: {
           ad_script: Json | null
+          aspect_ratio: string
           audio_style: string | null
           business_id: string
           character_type: string | null
@@ -708,6 +709,7 @@ export type Database = {
         }
         Insert: {
           ad_script?: Json | null
+          aspect_ratio?: string
           audio_style?: string | null
           business_id: string
           character_type?: string | null
@@ -730,6 +732,7 @@ export type Database = {
         }
         Update: {
           ad_script?: Json | null
+          aspect_ratio?: string
           audio_style?: string | null
           business_id?: string
           character_type?: string | null

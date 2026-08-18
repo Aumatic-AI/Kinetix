@@ -1,5 +1,13 @@
 import { FFmpegService } from "./client";
 
+/** The two orientations Kie's Seedance video model accepts — resolved to
+ * the matching output pixel dimensions for the FFmpeg scale/pad filter.
+ * Defaults to the original portrait shape for any caller that doesn't pass
+ * one. */
+function resolutionForAspectRatio(aspectRatio?: "16:9" | "9:16"): { width: number; height: number } {
+  return aspectRatio === "16:9" ? { width: 1920, height: 1080 } : { width: 1080, height: 1920 };
+}
+
 export interface StitchScenesOptions {
   clipUrls: string[];
   /** Omit for a silent/music-bed video; when present, mixed in as the one audio track. */
@@ -109,8 +117,9 @@ export interface PerSceneClip {
  * durations, never a mismatch to paper over with silence-padding or a
  * trailing `-t` cutoff.
  */
-export async function submitPerSceneStitchJob(clips: PerSceneClip[]): Promise<string> {
+export async function submitPerSceneStitchJob(clips: PerSceneClip[], aspectRatio?: "16:9" | "9:16"): Promise<string> {
   const hasAudio = clips.some((c) => !!c.audioUrl);
+  const { width, height } = resolutionForAspectRatio(aspectRatio);
 
   const videoInputFlags = clips.map((_, i) => `-i {input${i}}`).join(" ");
   const audioInputFlags = hasAudio ? clips.map((_, i) => ` -i {input${clips.length + i}}`).join("") : "";
@@ -120,7 +129,7 @@ export async function submitPerSceneStitchJob(clips: PerSceneClip[]): Promise<st
   clips.forEach((clip, i) => {
     const d = clip.durationSeconds;
     filterParts.push(
-      `[${i}:v]scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24,tpad=stop_mode=clone:stop_duration=${d},trim=duration=${d},setpts=PTS-STARTPTS[v${i}]`
+      `[${i}:v]scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=24,tpad=stop_mode=clone:stop_duration=${d},trim=duration=${d},setpts=PTS-STARTPTS[v${i}]`
     );
     if (hasAudio) {
       const audioInputIndex = clips.length + i;
