@@ -109,7 +109,7 @@ export const generateSocialImage = inngest.createFunction(
             storage_path: fileName,
             mime_type: "image/png",
             size_bytes: buffer.byteLength,
-            metadata: { publicUrl: publicUrlData.publicUrl, prompt: jobId.promptText, ideaPrompt },
+            metadata: { publicUrl: publicUrlData.publicUrl, prompt: jobId.promptText, ideaPrompt, aspectRatio },
           })
           .select()
           .single();
@@ -133,7 +133,7 @@ export const generateSocialImage = inngest.createFunction(
                 media_asset_id: stored.assetId,
                 caption: platformCaption?.text || captionMeta?.caption || "",
                 title: platformCaption?.title || null,
-                generation_inputs: { ideaPrompt, captionMeta },
+                generation_inputs: { ideaPrompt, captionMeta, aspectRatio },
               })
               .eq("id", socialPostIds[i]);
           }

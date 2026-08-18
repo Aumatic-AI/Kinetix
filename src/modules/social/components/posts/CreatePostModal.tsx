@@ -190,6 +190,7 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
           format: "video",
           ideaPrompt: idea,
           platforms: [],
+          aspectRatio,
           duration,
           audioStyle,
           character,
@@ -467,7 +468,7 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                   )}
                 </div>
 
-                {format === "image" && (
+                {(format === "image" || format === "video") && (
                   <div>
                     <p className="text-xs font-semibold text-muted mb-2">Aspect Ratio</p>
                     <div className="flex items-center gap-2">

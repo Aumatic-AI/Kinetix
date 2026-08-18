@@ -19,6 +19,7 @@ export interface MetaAdCreative {
   character_type?: string;
   duration?: string;
   voice_id?: string;
+  aspect_ratio?: string;
 }
 
 /** What the Ad Library grid actually fetches — getCreatives() only selects
@@ -33,6 +34,7 @@ export interface MetaAdCreativeListItem {
   media_urls?: string[];
   duration?: string;
   created_at: string;
+  aspect_ratio?: string;
   /** Set only for creatives generated via AI Ad Studio — lets the Ad
    * Library link back to that session's chat history. Null for creatives
    * from the plain Create Ad flow. */
@@ -52,6 +54,7 @@ export interface MetaAdCreativePickerItem {
   ad_script?: any;
   media_urls?: string[];
   duration?: string;
+  aspect_ratio?: string;
 }
 
 export interface MetaAdIntelligence {
