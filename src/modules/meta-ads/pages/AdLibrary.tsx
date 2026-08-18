@@ -96,7 +96,7 @@ export function AdLibrary() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => router.push(ROUTES.META_ADS.AD_STUDIO)} icon={<Sparkles className="w-4 h-4" />}>
-            AI Ad Studio
+            Image Ad
           </Button>
           <Button onClick={() => setIsModalOpen(true)} icon={<Plus className="w-4 h-4" />}>
             Create Ad
