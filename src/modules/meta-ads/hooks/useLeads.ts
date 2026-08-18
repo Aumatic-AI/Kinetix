@@ -88,8 +88,9 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return data;
 }
 
-/** DB-only read, always fast — a background job (jobs/meta-ads-leads-sync.job.ts,
- * every 5 minutes) is what keeps `leads` synced from Meta, not this route. */
+/** Syncs live from Meta on every fetch (see the API route's own comment) —
+ * not DB-only, a real multi-second round trip on each load/page change, by
+ * deliberate choice: no background cron, no risk of stale data. */
 export function useLeadsList(page: number, limit: number) {
   return useQuery({
     queryKey: leadsKeys.list(page, limit),
@@ -98,8 +99,8 @@ export function useLeadsList(page: number, limit: number) {
   });
 }
 
-/** The "Sync now" button — the only way to force an immediate sync rather
- * than waiting for the next background tick (every 5 minutes). */
+/** The "Sync now" button — forces another live sync without navigating
+ * away or reloading the page (GET already syncs live on its own). */
 export function useSyncLeads() {
   const queryClient = useQueryClient();
   return useMutation({

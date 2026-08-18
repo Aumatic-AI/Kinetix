@@ -5,7 +5,7 @@ import { Database } from "@/types/supabase";
 import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
 import { OutreachCampaignsService } from "@/modules/outreach/services/outreach.service";
 import { env } from "@/config/env";
-import { UploadPostCacheService, SUPPORTED_UPLOAD_POST_PLATFORMS } from "@/services/upload-post";
+import { UploadPostService, SUPPORTED_UPLOAD_POST_PLATFORMS, type UploadPostProfileAnalytics } from "@/services/upload-post";
 
 export const dynamic = "force-dynamic";
 
@@ -164,9 +164,8 @@ export async function GET(request: NextRequest) {
     const outreachLeadsInRange = outreachLeadsByDay.reduce((s, d) => s + d.value, 0);
     const totalLeads = metaLeadsInRange + outreachLeadsInRange;
 
-    // Social — connection status always live; analytics read from
-    // upload_post_analytics_cache (never a live Upload-Post call — see
-    // cache.service.ts), best-effort beyond that.
+    // Social — connection status always live; analytics also called live
+    // (no cache) on every load, best-effort beyond that.
     const statusByPlatform = new Map<string, string>();
     for (const c of connectionRows || []) statusByPlatform.set(c.platform, c.status);
     const connectedPlatforms = SUPPORTED_UPLOAD_POST_PLATFORMS.filter((p) => statusByPlatform.get(p) === "connected");
@@ -178,11 +177,10 @@ export async function GET(request: NextRequest) {
     const username = env.UPLOAD_POST_PROFILE;
     if (username && connectedPlatforms.length > 0) {
       const periodByRange: Record<RootDashboardRange, string> = { "7d": "last_week", "14d": "last_week", "30d": "last_month", "90d": "last_3months", all: "last_3months" };
-      // Read-only from upload_post_analytics_cache — never calls Upload-Post
-      // live here (see cache.service.ts). A background job keeps it warm.
+      // Live Upload-Post calls, every load — no cache/background job behind this.
       const [profileAnalytics, totalImpressions] = await Promise.all([
-        UploadPostCacheService.readProfileAnalytics(supabase, businessId, username, connectedPlatforms),
-        UploadPostCacheService.readTotalImpressions(supabase, businessId, username, periodByRange[rangeParam] ?? "last_month"),
+        UploadPostService.getProfileAnalytics(username, connectedPlatforms).catch(() => ({} as Record<string, UploadPostProfileAnalytics>)),
+        UploadPostService.getTotalImpressions(username, { period: periodByRange[rangeParam] ?? "last_month", breakdown: true }).catch(() => null),
       ]);
       let followers = 0;
       let engagement = 0;

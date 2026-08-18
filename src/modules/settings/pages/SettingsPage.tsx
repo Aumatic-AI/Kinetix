@@ -9,13 +9,12 @@ import { UnsavedChangesBar } from "@/components/ui/UnsavedChangesBar";
 import { Switch } from "@/components/ui/Switch";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
 import { BusinessSettings } from "../types/settings.types";
-import { Field, TagInput, ServicesEditor, AdScriptTopicsEditor, WeekdayToggle, TimezoneSelect, VideoReferenceUploader, LogoUploader, ScheduleEditor } from "../components/shared";
+import { Field, ServicesEditor, WeekdayToggle, TimezoneSelect, VideoReferenceUploader, LogoUploader, ScheduleEditor } from "../components/shared";
 
 const SETTINGS_TABS = [
   { value: "general", label: "General" },
   { value: "voice", label: "Brand & Voice" },
   { value: "services", label: "Services" },
-  { value: "intelligence", label: "Competitor Intelligence" },
   { value: "automation", label: "Automation Defaults" },
 ];
 
@@ -23,8 +22,8 @@ const SETTINGS_TABS = [
  * The one Settings page, reached at /settings — no secondary sidebar and
  * no further route-level sub-pages, just this one page backed by the
  * businesses table. Every field here maps to a column that's actually read
- * somewhere else in the app (AI prompt context, the competitor scraper,
- * Outreach defaults, Meta Ads defaults). Columns with no real consumer yet
+ * somewhere else in the app (AI prompt context, Outreach defaults, Meta Ads
+ * defaults). Columns with no real consumer yet
  * (keywords, business_colors, guidelines) are deliberately left out rather
  * than guessed at. The "so many settings" problem is solved with in-page
  * Tabs instead, not a secondary sidebar or more routes.
@@ -52,7 +51,7 @@ export function SettingsPage() {
       <div className="max-w-4xl mx-auto space-y-6 pb-10">
         <div>
           <h1 className="text-2xl font-bold text-text">Settings</h1>
-          <p className="text-sm text-muted mt-1">Business context used across AI generation, competitor intelligence, and outreach.</p>
+          <p className="text-sm text-muted mt-1">Business context used across AI generation and outreach.</p>
         </div>
 
         <TabSwitch value="general" onValueChange={() => {}} items={SETTINGS_TABS} />
@@ -95,7 +94,7 @@ export function SettingsPage() {
     <div className="max-w-4xl mx-auto space-y-6 pb-24">
       <div>
         <h1 className="text-2xl font-bold text-text">Settings</h1>
-        <p className="text-sm text-muted mt-1">Business context used across AI generation, competitor intelligence, and outreach.</p>
+        <p className="text-sm text-muted mt-1">Business context used across AI generation and outreach.</p>
       </div>
 
       {error && <p className="text-sm text-danger font-medium">{error}</p>}
@@ -144,21 +143,6 @@ export function SettingsPage() {
           <Section title="Services" description="What this business actually offers — used so AI-facing features (e.g. Outreach drafts) know what each service means.">
             <ServicesEditor services={form.services} onChange={(services) => patch({ services })} />
           </Section>
-      )}
-
-      {activeTab === "intelligence" && (
-          <div className="space-y-4">
-            <Section title="Target Markets" description="Countries the competitor-ad scraper searches, and the keywords it uses to find competitor ads.">
-              <div className="space-y-4">
-                <Field label="Target Countries"><TagInput values={form.targetCountries} onChange={(targetCountries) => patch({ targetCountries })} placeholder="Add a country code, e.g. US" /></Field>
-                <Field label="Competitor Search Keywords"><TagInput values={form.competitorKeywords} onChange={(competitorKeywords) => patch({ competitorKeywords })} placeholder="Add a keyword" /></Field>
-              </div>
-            </Section>
-
-            <Section title="Ad Script Topics" description="The topic/format pairs the weekly competitor analysis looks for.">
-              <AdScriptTopicsEditor topics={form.adScriptTopics} onChange={(adScriptTopics) => patch({ adScriptTopics })} />
-            </Section>
-          </div>
       )}
 
       {activeTab === "automation" && (
@@ -232,28 +216,16 @@ export function SettingsPage() {
               )}
             </Section>
 
-            <Section title="Analysis Schedule" description="When the weekly Competitor Analysis and Self Ad Analysis reports run — pick any day and time, nothing is fixed in code.">
-              <div className="space-y-6">
-                <ScheduleEditor
-                  label="Competitor Analysis"
-                  description="Scrapes competitor ads and refreshes the Competitor Intelligence report."
-                  day={form.competitorAnalysisScheduleDay}
-                  hour={form.competitorAnalysisScheduleHour}
-                  lastRunAt={data?.competitorAnalysisLastRunAt ?? null}
-                  timezone={form.outreachSettings.timezone}
-                  onChange={(p) => patch({ competitorAnalysisScheduleDay: p.day ?? form.competitorAnalysisScheduleDay, competitorAnalysisScheduleHour: p.hour ?? form.competitorAnalysisScheduleHour })}
-                />
-                <div className="border-t border-border" />
-                <ScheduleEditor
-                  label="Self Ad Analysis"
-                  description="Analyzes this business's own live ad performance for next week's creative directives."
-                  day={form.selfAdAnalysisScheduleDay}
-                  hour={form.selfAdAnalysisScheduleHour}
-                  lastRunAt={data?.selfAdAnalysisLastRunAt ?? null}
-                  timezone={form.outreachSettings.timezone}
-                  onChange={(p) => patch({ selfAdAnalysisScheduleDay: p.day ?? form.selfAdAnalysisScheduleDay, selfAdAnalysisScheduleHour: p.hour ?? form.selfAdAnalysisScheduleHour })}
-                />
-              </div>
+            <Section title="Analysis Schedule" description="When the weekly Self Ad Analysis report runs — pick any day and time, nothing is fixed in code.">
+              <ScheduleEditor
+                label="Self Ad Analysis"
+                description="Analyzes this business's own live ad performance for next week's creative directives."
+                day={form.selfAdAnalysisScheduleDay}
+                hour={form.selfAdAnalysisScheduleHour}
+                lastRunAt={data?.selfAdAnalysisLastRunAt ?? null}
+                timezone={form.outreachSettings.timezone}
+                onChange={(p) => patch({ selfAdAnalysisScheduleDay: p.day ?? form.selfAdAnalysisScheduleDay, selfAdAnalysisScheduleHour: p.hour ?? form.selfAdAnalysisScheduleHour })}
+              />
             </Section>
           </div>
       )}
