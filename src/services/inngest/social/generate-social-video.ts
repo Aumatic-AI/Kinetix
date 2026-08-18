@@ -219,6 +219,19 @@ export const generateSocialVideo = inngest.createFunction(
       // anchor strategies are best-effort — a failure falls back to
       // independent per-scene generation instead of failing the video.
       const isTransformationMode = scriptJson.ad_mode === "TRANSFORMATION";
+      // The anchor image is what every other scene's face/identity gets
+      // locked to — if the anchor itself renders the wrong gender, every
+      // scene inherits it regardless of what each scene's own text says (a
+      // reference image dominates a contradicting text instruction, the same
+      // reason the before/after hair fix had to be architectural rather than
+      // just stronger wording). Appended in code, not left to the
+      // LLM-authored prompt alone, so it's never diluted by everything else
+      // in that prompt.
+      const anchorGenderClause = character === "female"
+        ? " The protagonist shown must be unambiguously and clearly a woman — feminine facial features, feminine build and styling. Never depict a man here."
+        : character === "male"
+        ? " The protagonist shown must be unambiguously and clearly a man — masculine facial features, masculine build and styling. Never depict a woman here."
+        : "";
       const totalScenes = visualPromptsJson.visual_prompts.length;
       const needsTwoAnchors = needsIdentityAnchor && isTransformationMode && totalScenes >= 3;
       const lastSceneIndex = totalScenes - 1;
@@ -233,7 +246,8 @@ export const generateSocialVideo = inngest.createFunction(
         const anchorMode = isPosterMode ? "reference" : "identity";
         const anchorJobId = await step.run("trigger-scene-anchor-image", async () => {
           const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
-          return aiOrchestrator.createImageTask(visualPromptsJson.visual_prompts[0].prompt, aspectRatio, referenceImages, anchorMode);
+          const anchorPrompt = isPosterMode ? visualPromptsJson.visual_prompts[0].prompt : `${visualPromptsJson.visual_prompts[0].prompt}${anchorGenderClause}`;
+          return aiOrchestrator.createImageTask(anchorPrompt, aspectRatio, referenceImages, anchorMode);
         });
 
         let anchorAttempts = 0;
@@ -256,7 +270,7 @@ export const generateSocialVideo = inngest.createFunction(
       } else if (needsTwoAnchors) {
         const beforeJobId = await step.run("trigger-before-anchor-image", async () => {
           const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
-          return aiOrchestrator.createImageTask(visualPromptsJson.visual_prompts[0].prompt, aspectRatio, referenceImages, "identity");
+          return aiOrchestrator.createImageTask(`${visualPromptsJson.visual_prompts[0].prompt}${anchorGenderClause}`, aspectRatio, referenceImages, "identity");
         });
 
         let beforeAttempts = 0;
@@ -279,7 +293,7 @@ export const generateSocialVideo = inngest.createFunction(
           // A dedicated, single-purpose edit — "same person, but this one
           // attribute is now resolved" — rather than asking every Phase 3
           // scene individually to override a strong visual reference.
-          const afterPrompt = `${visualPromptsJson.visual_prompts[lastSceneIndex].prompt} This must be the exact same person as the attached reference image — identical face, bone structure, skin tone, and body type — but with the specific condition now fully resolved, exactly as this scene's own description states. Every other feature of their identity stays exactly as the reference shows; only that one resolved attribute differs.`;
+          const afterPrompt = `${visualPromptsJson.visual_prompts[lastSceneIndex].prompt} This must be the exact same person as the attached reference image — identical face, bone structure, skin tone, and body type — but with the specific condition now fully resolved, exactly as this scene's own description states. Every other feature of their identity stays exactly as the reference shows; only that one resolved attribute differs.${anchorGenderClause}`;
           const afterJobId = await step.run("trigger-after-anchor-image", async () => {
             const referenceImages = [beforeAnchorUrl, logoUrl].filter(Boolean) as string[];
             return aiOrchestrator.createImageTask(afterPrompt, aspectRatio, referenceImages, "identity");
