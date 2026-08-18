@@ -1,12 +1,24 @@
 import { serviceDescriptor, businessContextBlock } from "./shared";
 
-/** Each script line becomes one fixed ~4-second video scene, so the number
- * of scenes is what actually determines the final stitched video's length.
- * Accepts either a plain number of seconds (Social's `duration`) or a
- * dropdown string like "40 seconds" (Meta Ads' `duration`). */
+/** Each script line becomes one video scene, so the number of scenes is
+ * what actually determines the final stitched video's length. Accepts
+ * either a plain number of seconds (Social's `duration`) or a dropdown
+ * string like "40 seconds" (Meta Ads' `duration`). This is the FLOOR on
+ * scene count, not an exact target — see maxSceneCountForDuration below. */
 export function sceneCountForDuration(duration: string | number | undefined): number {
   const seconds = typeof duration === "number" ? duration : parseInt(String(duration || "").match(/\d+/)?.[0] || "28", 10);
   return Math.max(4, Math.round(seconds / 4));
+}
+
+/** Upper bound on scene count when the actual story needs more room than
+ * the selected duration implies. The selected duration is a floor, not a
+ * ceiling — a script that would otherwise have to skip a beat or rush the
+ * ending to fit an exact scene count is worse than a slightly longer video,
+ * so the model is allowed to use more scenes for a genuinely rich idea.
+ * Capped (not unbounded) purely as a cost/time safety net: each extra scene
+ * is a real image + video + narration generation, not a free line of text. */
+export function maxSceneCountForDuration(duration: string | number | undefined): number {
+  return Math.min(sceneCountForDuration(duration) + 4, 12);
 }
 
 /** The 8 narrative shapes a video ad can take. Fixed-but-rich on purpose —
@@ -98,13 +110,8 @@ export function getVideoAdScriptPrompt(intelligence: any, creative: any): string
     .filter(Boolean);
   const descriptor = serviceDescriptor(business, creative.service);
   const language = creative.language && creative.language !== "English" ? creative.language : null;
-  const sceneCount = sceneCountForDuration(creative.duration);
-  // Conservative words-per-second estimate (natural pace, not a rushed
-  // reading) — deliberately lower than a raw speech-rate average, since
-  // the generated audio running even slightly longer than the fixed-length
-  // video underneath it cuts the narration off mid-word. Undershooting
-  // this budget is a safe outcome; overshooting it is not.
-  const targetWords = Math.round(sceneCount * 4 * 2.0);
+  const minSceneCount = sceneCountForDuration(creative.duration);
+  const maxSceneCount = maxSceneCountForDuration(creative.duration);
 
   return `${language ? `OUTPUT LANGUAGE: Write the ENTIRE script in ${language}. Every single line must be in ${language}, not English. Do not mix languages.\n\n` : ""}Generate the voiceover script from this input. Return only the JSON object — no other text.
 
@@ -153,15 +160,14 @@ ASSIGN ONE NAME, use it throughout:
 - Male:   James, David, Mark, Daniel, Thomas, Michael
 - Female: Sarah, Emma, Maria, Anna, Lisa, Sophia
 - Couple: Mark and Anna, David and Lisa, Thomas and Emma
-Use the character's name in line 1 at minimum; other lines use he / she / they. Never switch the name or pronoun — check every line before returning.
+Use the character's name in line 1 at minimum. PRONOUN IS NOT A FREE CHOICE — it's dictated entirely by the "character" field above, never picked independently: male -> he/him/his only, female -> she/her/hers only, couple -> they/them/theirs (or both names) only. Never use the other gender's pronoun anywhere, not even once. This matters beyond the words themselves — the video's visuals are generated separately from this script and will show a character matching that same field, so a mismatched pronoun in the audio makes the finished video look wrong even though each half was made correctly on its own. Check every single line before returning; one wrong pronoun anywhere is a failure.
 
 IF YOUR MODE IS NOT ABOUT ONE PERSON'S STORY (BRAND_INTRO, EDUCATIONAL_AUTHORITY, ANNOUNCEMENT, EVENT_SEASONAL)
 Write in second person ("you") or about the business directly — no named individual required.
 
-LINE COUNT AND LENGTH — EXACT, NOT A GUIDELINE
-Each script line becomes one fixed ~4-second video scene downstream — the final video's length is EXACTLY (number of lines x 4) seconds, a hard technical constraint, not a stylistic choice. The script array MUST have EXACTLY ${sceneCount} lines — no more, no fewer — to produce a ${sceneCount * 4}-second video for the requested ${creative.duration || "28 seconds"}.
-HARD CONSTRAINT: total word count across all ${sceneCount} lines must NOT exceed ${targetWords} words — stay at or under this, never noticeably over. This is not a soft guideline: if the spoken narration runs longer than the fixed-length video underneath it, the audio gets cut off mid-word when the video ends, which is a broken, unusable result. Aim for meaningfully under the limit, not right at the edge of it — a slightly shorter script that finishes speaking with room to spare is always the safer choice over one that risks running long.
-Each line = ONE complete sentence, 6-9 words. Hard cap at 10 words — a line at the cap is already a full scene's worth of natural spoken pace, so most lines should be shorter than that, not at it.
+LINE COUNT AND LENGTH — ${minSceneCount} SCENES IS THE FLOOR, NOT AN EXACT TARGET
+Each script line becomes one video scene downstream, and each scene's own clip is sized to that scene's own measured narration length (4-12s, not a uniform fixed length) — so the total video length is however long the story actually needs, not a fixed number, and the requested duration is a floor, not a ceiling. The script array MUST have AT LEAST ${minSceneCount} lines (matching the requested ${creative.duration || "28 seconds"}) — but if the idea is rich enough that telling it properly, without rushing a beat or cutting the ending short, genuinely needs more room, use more lines, up to ${maxSceneCount}. Never fewer than ${minSceneCount}, never more than ${maxSceneCount}. A complete, well-paced script that runs a bit longer than requested is always better than a rushed or truncated one that hits the number exactly — don't pad a simple idea with filler lines just to reach the max either; use exactly as many as this specific idea earns.
+Each line = ONE complete sentence, 6-9 words. Hard cap at 10 words — a line at the cap is already a full scene's worth of natural spoken pace, so most lines should be shorter than that, not at it. This per-line cap, not a total word count, is what actually keeps each scene's spoken audio comfortably short.
 
 TTS-FRIENDLY WRITING RULES
 - End every line with a period. One sentence per line. Use commas for natural breath pauses inside a line.
@@ -209,17 +215,16 @@ Return ONLY valid JSON. No markdown fences. No commentary. No preamble.
 Rules:
 - "ad_mode" must be exactly one of the 8 modes above, chosen genuinely, not defaulted.
 - "visual_mood" is the ONE visual archetype that best matches this business's own voice/description above — pick deliberately, never the same one every time just because it's safe.
-- "script" must be a JSON array of strings, one sentence per element, in order.
-- Array length must exactly match the line-count-by-duration rule above.
+- "script" must be a JSON array of between ${minSceneCount} and ${maxSceneCount} strings (inclusive), one sentence per element, in order — see LINE COUNT AND LENGTH above for how to choose the actual count.
 - No extra fields, no trailing commas.
 
 SELF-CHECK BEFORE RETURNING (silently confirm each):
 1. ad_mode genuinely fits the idea — not defaulted to TRANSFORMATION out of habit
 2. The chosen mode's ACT STRUCTURE was followed, not the wrong mode's
-3. If a protagonist mode: same name and pronouns in every line
+3. If a protagonist mode: same name and the ONE correct pronoun set (matching the character field) in every single line — no exceptions
 4. Line 1 is a scroll-stopping HOOK matching the chosen mode's Act 1
-5. Script array has EXACTLY ${sceneCount} elements — no more, no fewer
-6. Count the actual total words across every line — it must be AT OR UNDER ${targetWords}, not just "close." If it's over, shorten lines now, before returning, not after.
+5. Script array has between ${minSceneCount} and ${maxSceneCount} elements, and the count actually matches how much story there genuinely was to tell — not padded, not rushed
+6. Each line is independently under the 10-word cap
 7. "${businessName}" appears at most once
 8. No fabricated number, price, or date anywhere
 9. Medical-sensitivity list applied only if TRANSFORMATION + a genuinely health/medical/cosmetic business — never otherwise
@@ -322,8 +327,11 @@ GOOD: "Man pauses at the mirror, hand runs through his hair, slow push-in."
 BAD: "Man looks in mirror." (too vague, no specific action)
 
 `}
-${hasLogo ? `HARD CONSTRAINT — BRANDED SIGNAGE MUST USE THE REAL LOGO, NEVER AN INVENTED ONE
-A reference image of this business's real logo is attached alongside this prompt (in addition to any protagonist reference photo — a logo looks like a graphic or wordmark, not a photograph, so tell them apart by that). This is the ONLY logo that may ever appear: if — and only if — a script line genuinely calls for a scene showing this business's own signage, storefront, building sign, or an on-screen graphic bearing its name, that logo must be reproduced faithfully from the attached reference — same mark, same lettering, same colors${brandColor ? `, matching this business's real brand color, ${brandColor}` : ""} — never a different icon, symbol, font, or color scheme invented for that scene. If a scene has no genuine reason to show branding at all, don't insert a logo or signage into it just because the reference image is available. Getting this wrong is a real, visible brand-consistency failure, not a minor stylistic slip — treat it with the same seriousness as the anti-fabrication rules above.
+${hasLogo ? `HARD CONSTRAINT — BRANDED SIGNAGE MUST USE THE REAL LOGO, NEVER AN INVENTED ONE, AND ONLY WHERE A LOGO REALLY BELONGS
+A reference image of this business's real logo is attached alongside this prompt (in addition to any protagonist reference photo — a logo looks like a graphic or wordmark, not a photograph, so tell them apart by that). This is the ONLY logo that may ever appear: if — and only if — a script line genuinely calls for a scene showing this business's own signage, storefront, building sign, or an on-screen graphic bearing its name, that logo must be reproduced faithfully from the attached reference — same mark, same lettering, same colors${brandColor ? `, matching this business's real brand color, ${brandColor}` : ""} — never a different icon, symbol, font, or color scheme invented for that scene. If a scene has no genuine reason to show branding at all, don't insert a logo or signage into it just because the reference image is available.
+WHERE a logo may plausibly appear — real-world business signage and materials only: a wall-mounted sign or plaque, a front desk or reception area, a building exterior or entrance door, a storefront window, an official printed material (a folder, a form, a brochure) sitting on a desk or counter, or a staff uniform/name badge if that's realistic for this type of business.
+WHERE a logo must NEVER appear: anywhere on the protagonist's (or any customer's) own body, clothing, phone, phone case, bag, jewelry, or any other personal item — a patient or customer does not wear or carry the clinic's branding, and putting it there is exactly the kind of mistake to avoid. If a scene shows a personal item at all, it must stay generic/unbranded, even if the same scene also shows real signage elsewhere in frame.
+Getting either of these wrong (an invented logo, or the real logo in an implausible place) is a real, visible brand-consistency failure, not a minor stylistic slip — treat it with the same seriousness as the anti-fabrication rules above.
 
 ` : `This business has no logo on file — if a scene shows generic signage, it must be blank, abstract, or otherwise free of any specific brand mark or invented logo.
 
