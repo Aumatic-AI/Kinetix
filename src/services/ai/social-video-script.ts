@@ -41,5 +41,13 @@ export async function generateSocialVideoScript(business: any, input: SocialVide
     parsed.script = parsed.script.slice(0, sceneCount);
   }
 
+  // The narrative arc is hardcoded again (problem -> discovers the business
+  // -> treatment/journey -> resolved and happy) — getSocialVideoScriptPrompt
+  // no longer asks the model to choose a mode, so this is set here rather
+  // than trusted from the model's output. Still flows into the shared
+  // getVisualPromptsPrompt exactly like before, so the before/after
+  // visual-tier system and phase-based mood keep working correctly.
+  parsed.ad_mode = "TRANSFORMATION";
+
   return parsed as SocialVideoScriptResult;
 }
