@@ -150,24 +150,41 @@ export const generateVideoAd = inngest.createFunction(
         return results;
       });
 
-      // 5. Trigger Images. In poster mode, or in live-action with a
-      // protagonist and no real reference photo configured, scene 1 is
-      // generated alone FIRST and then used as a shared anchor for every
-      // other scene — each image-generation call is otherwise independent
-      // with no memory of what a previous call actually rendered, so
-      // without a real image to copy from, the model reinterprets either
-      // the "design system" (poster mode: colors, font style, layout) or
-      // the protagonist's actual face/body/skin tone (live-action) a little
-      // differently every time, even when the prompt wording is consistent.
-      // Anchoring the rest to a real result image costs one extra
-      // generation round-trip before the remaining scenes fire in
-      // parallel, in exchange for genuine consistency. Poster mode treats a
-      // failed anchor as fatal (the whole design system depends on it);
-      // live-action's identity anchor is a best-effort consistency
-      // improvement, not a hard requirement — a failure there falls back
-      // to independent per-scene generation instead of failing the video.
+      // 5. Trigger Images. Three anchor strategies:
+      // - POSTER MODE: one "design" anchor (scene 1), reused for every
+      //   other scene so the whole video shares one consistent graphic
+      //   design system.
+      // - TRANSFORMATION mode, live-action, no real reference photo
+      //   configured: TWO anchors — a "before" anchor (scene 1, Phase 1)
+      //   and an "after" anchor (the last scene, Phase 3), generated one
+      //   after another so both share the same person's face/body/wardrobe
+      //   while genuinely differing in the ONE diagnosed condition
+      //   attribute. A single shared anchor used to cause the model to
+      //   lock onto whichever state that one anchor happened to show
+      //   (almost always "before", since scene 1 sets it) for every scene,
+      //   including the ones meant to show the resolved "after" state —
+      //   text alone telling the model to "override the reference for this
+      //   one attribute" wasn't reliable enough against a strong visual
+      //   reference, so the fix is architectural: no single anchor is ever
+      //   asked to represent two visually-contradictory states.
+      // - Any other protagonist mode, live-action, no real reference
+      //   photo: ONE identity anchor (scene 1) — there's no before/after
+      //   tension to resolve, so the simpler single-anchor approach is enough.
+      // Poster mode treats a failed anchor as fatal; both live-action
+      // anchor strategies are best-effort — a failure falls back to
+      // independent per-scene generation instead of failing the video.
+      const isTransformationMode = scriptJson.ad_mode === "TRANSFORMATION";
+      const totalScenes = visualPromptsJson.visual_prompts.length;
+      const needsTwoAnchors = needsIdentityAnchor && isTransformationMode && totalScenes >= 3;
+      const lastSceneIndex = totalScenes - 1;
+      const phase3StartIndex = Math.floor((2 * totalScenes) / 3);
+      const MAX_ANCHOR_ATTEMPTS = 12;
+
       let anchorUrl: string | undefined;
-      if ((isPosterMode || needsIdentityAnchor) && visualPromptsJson.visual_prompts.length > 0) {
+      let beforeAnchorUrl: string | undefined;
+      let afterAnchorUrl: string | undefined;
+
+      if ((isPosterMode || (needsIdentityAnchor && !needsTwoAnchors)) && totalScenes > 0) {
         const anchorMode = isPosterMode ? "reference" : "identity";
         const anchorJobId = await step.run("trigger-scene-anchor-image", async () => {
           const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
@@ -175,7 +192,6 @@ export const generateVideoAd = inngest.createFunction(
         });
 
         let anchorAttempts = 0;
-        const MAX_ANCHOR_ATTEMPTS = 12;
         while (!anchorUrl && anchorAttempts < MAX_ANCHOR_ATTEMPTS) {
           await step.sleep(`wait-scene-anchor-${anchorAttempts}`, anchorAttempts === 0 ? "20s" : "15s");
           const status = await step.run(`check-scene-anchor-status-${anchorAttempts}`, async () => aiOrchestrator.checkTaskStatus(anchorJobId));
@@ -192,12 +208,78 @@ export const generateVideoAd = inngest.createFunction(
           anchorAttempts++;
         }
         if (isPosterMode && !anchorUrl) throw new Error("Poster anchor image generation timed out");
+      } else if (needsTwoAnchors) {
+        const beforeJobId = await step.run("trigger-before-anchor-image", async () => {
+          const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
+          return aiOrchestrator.createImageTask(visualPromptsJson.visual_prompts[0].prompt, "9:16", referenceImages, "identity");
+        });
+
+        let beforeAttempts = 0;
+        while (!beforeAnchorUrl && beforeAttempts < MAX_ANCHOR_ATTEMPTS) {
+          await step.sleep(`wait-before-anchor-${beforeAttempts}`, beforeAttempts === 0 ? "20s" : "15s");
+          const status = await step.run(`check-before-anchor-status-${beforeAttempts}`, async () => aiOrchestrator.checkTaskStatus(beforeJobId));
+          if (status.state === "success") {
+            try {
+              const r = JSON.parse(status.resultJson);
+              beforeAnchorUrl = r.resultUrls?.[0] || r.urls?.[0] || undefined;
+            } catch { /* malformed result — treated as still-pending below */ }
+          } else if (status.state === "fail") {
+            console.error(`Before-anchor image failed, continuing without either anchor: ${status.failMsg || status.failCode || "no reason given"}`);
+            break;
+          }
+          beforeAttempts++;
+        }
+
+        if (beforeAnchorUrl) {
+          // A dedicated, single-purpose edit — "same person, but this one
+          // attribute is now resolved" — rather than asking every Phase 3
+          // scene individually to override a strong visual reference.
+          const afterPrompt = `${visualPromptsJson.visual_prompts[lastSceneIndex].prompt} This must be the exact same person as the attached reference image — identical face, bone structure, skin tone, and body type — but with the specific condition now fully resolved, exactly as this scene's own description states. Every other feature of their identity stays exactly as the reference shows; only that one resolved attribute differs.`;
+          const afterJobId = await step.run("trigger-after-anchor-image", async () => {
+            const referenceImages = [beforeAnchorUrl, logoUrl].filter(Boolean) as string[];
+            return aiOrchestrator.createImageTask(afterPrompt, "9:16", referenceImages, "identity");
+          });
+
+          let afterAttempts = 0;
+          while (!afterAnchorUrl && afterAttempts < MAX_ANCHOR_ATTEMPTS) {
+            await step.sleep(`wait-after-anchor-${afterAttempts}`, afterAttempts === 0 ? "20s" : "15s");
+            const status = await step.run(`check-after-anchor-status-${afterAttempts}`, async () => aiOrchestrator.checkTaskStatus(afterJobId));
+            if (status.state === "success") {
+              try {
+                const r = JSON.parse(status.resultJson);
+                afterAnchorUrl = r.resultUrls?.[0] || r.urls?.[0] || undefined;
+              } catch { /* malformed result — treated as still-pending below */ }
+            } else if (status.state === "fail") {
+              console.error(`After-anchor image failed, falling back to the before-anchor for every scene: ${status.failMsg || status.failCode || "no reason given"}`);
+              break;
+            }
+            afterAttempts++;
+          }
+        }
       }
 
       const imageJobIds = await step.run("trigger-images", async () => {
         const ids = [];
         for (let i = 0; i < visualPromptsJson.visual_prompts.length; i++) {
           const vp = visualPromptsJson.visual_prompts[i];
+
+          if (needsTwoAnchors) {
+            if (i === 0 && beforeAnchorUrl) {
+              ids.push({ id: "", url: beforeAnchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null });
+              continue;
+            }
+            if (i === lastSceneIndex && afterAnchorUrl) {
+              ids.push({ id: "", url: afterAnchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null });
+              continue;
+            }
+            const isPhase3 = i >= phase3StartIndex;
+            const chosenAnchor = isPhase3 ? (afterAnchorUrl || beforeAnchorUrl) : beforeAnchorUrl;
+            const referenceImages = [chosenAnchor, logoUrl].filter(Boolean) as string[];
+            const jobId = await aiOrchestrator.createImageTask(vp.prompt, "9:16", referenceImages, "identity");
+            ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
+            continue;
+          }
+
           if (anchorUrl && i === 0) {
             // Already generated above as the anchor — reuse it, no new job.
             ids.push({ id: "", url: anchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null });
@@ -285,7 +367,7 @@ export const generateVideoAd = inngest.createFunction(
            const clipDuration = sceneAudio[i]?.durationSeconds ?? DEFAULT_SCENE_SECONDS;
            const cinematicPrompt = isPosterMode
              ? `${imgJob.videoScenario} Smooth, slow camera movement over this static designed composition only — a gentle zoom or pan, like a camera drifting across a printed poster. Do not animate, warp, distort, or attempt to regenerate any text or graphic element — every piece of text and design must stay perfectly crisp, legible, and unchanged throughout the clip, exactly as it appears in the source image. No new elements appear that weren't already in the original image.`
-             : `${imgJob.videoScenario} Cinematic ${service || intelligence.business.industry || "brand"} ad, ${moodPhrase}, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image, same color grade and lighting as the input image. The person's face, identity, body, and wardrobe must not change or drift at any point in the clip. Facial expression from the input image must be preserved exactly throughout the entire clip — do not alter or relax it.`;
+             : `${imgJob.videoScenario} Cinematic ${service || intelligence.business.industry || "brand"} ad, ${moodPhrase}, shallow depth of field, smooth slow camera movement only, no cuts within clip, photorealistic quality, animate the subject naturally from the image, preserve the exact scene composition and person from the image, same color grade and lighting as the input image. The person's face, identity, body, and wardrobe must not change or drift at any point in the clip. Facial expression from the input image must be preserved exactly throughout the entire clip — do not alter or relax it. Arms and legs must move only in natural, anatomically correct ways throughout the clip — no limb bending backward, twisting, or reversing direction at any point, even briefly.`;
            const jobId = await aiOrchestrator.createVideoTask(cinematicPrompt, [imgJob.url as string], "9:16", String(clipDuration));
            ids.push({ id: jobId, url: null as string | null, scene: imgJob.scene, cinematicPrompt, sourceImageUrl: imgJob.url as string, durationSeconds: clipDuration, resubmitted: false, state: null as string | null });
         }
