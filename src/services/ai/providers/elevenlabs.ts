@@ -3,17 +3,18 @@ import { env } from "@/config";
 
 /** Maps the language dropdown's display name (Create Ad / Create Post
  * modals — Meta Ads and Social share the exact same option list) to the
- * ISO 639-1 code ElevenLabs' `language_code` param expects. Only
- * `eleven_flash_v2_5` and `eleven_turbo_v2_5` support this enforcement
- * param — the model already in use here — everything else relies on
- * auto-detecting the language from the script text alone, which usually
- * works but is less reliable for non-Latin scripts like Hebrew. Add an
- * entry here for any new option added to either modal's LANGUAGE_OPTIONS. */
+ * ISO 639-1 code ElevenLabs' `language_code` param expects. `eleven_flash_v2_5`
+ * (the model in use here) supports this enforcement param, but only for
+ * languages actually in its own supported-language list — adding an entry
+ * here for a language that model doesn't support (Hebrew was tried and
+ * removed: real 400 "does not support language_code" errors, since the
+ * model doesn't support Hebrew AT ALL, not just the param) just moves the
+ * failure here instead of fixing it. Verify against ElevenLabs' current
+ * model docs before adding a new entry, don't assume. */
 const LANGUAGE_CODE_MAP: Record<string, string> = {
   english: "en",
   spanish: "es",
   french: "fr",
-  hebrew: "he",
   turkish: "tr",
 };
 

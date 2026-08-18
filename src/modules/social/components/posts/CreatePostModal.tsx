@@ -36,7 +36,14 @@ const VIDEO_MODE_OPTIONS = [
   { value: "live_action", label: "Real-life video" },
   { value: "animated_poster", label: "Animated design & text" },
 ];
-const LANGUAGE_OPTIONS = ["English", "Spanish", "French", "Hebrew", "Turkish"].map((v) => ({ value: v, label: v }));
+// Hebrew was removed — eleven_flash_v2_5 (the TTS model both video pipelines
+// use) doesn't support it at all (not just the language_code param; it's
+// simply not in the model's supported-language list), so every Hebrew
+// generation failed with a 400. ElevenLabs' newer eleven_v3 model does
+// support Hebrew, but needs its own verification (different request shape,
+// possibly different access tier) before adding it back — don't just drop
+// "Hebrew" back into this list without that.
+const LANGUAGE_OPTIONS = ["English", "Spanish", "French", "Turkish"].map((v) => ({ value: v, label: v }));
 const CHARACTER_OPTIONS = [{ value: "male", label: "Male" }, { value: "female", label: "Female" }];
 
 interface CreatePostModalProps {

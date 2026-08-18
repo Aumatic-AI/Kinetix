@@ -50,9 +50,9 @@ Manual placement choices are genuinely sent to Meta (`publisher_platforms`/`face
 
 Both Launch and the nightly sync job read `META_ACCESS_TOKEN`/`META_AD_ACCOUNT_ID` directly via `requireMetaAdAccountEnv()` in `src/services/meta/graph-client.ts` — this module does not read from `platform_connections`/Vault at all today. Lead Capture uses a *separate* pair of credentials (`META_PAGE_ID`/`META_PAGE_TOKEN`) — Page scope, not ad-account scope. See `CLAUDE.md`'s Meta Ads section.
 
-### Lead Capture — background sync, not a webhook and not a live page-load call
+### Lead Capture — live on every page load, not a webhook and not a background sync
 
-`jobs/meta-ads-leads-sync.job.ts` (Inngest cron, every 5 minutes) is the only thing that calls the Graph API for leads — `LeadsService.syncFromMeta()` walks every Instant Form's leads and upserts them on `meta_lead_id`. `GET /api/meta-ads/leads` only ever reads the now-current `leads` table, so opening the page is a single fast Postgres query. This wasn't the original design: the route used to sync live from Meta on every page-1 load, which measured at 7-8 seconds — far too slow for a page load, so it moved to the same background-job pattern used for the Root/Social dashboards (see `../architecture/system_design.md`'s "Never call a slow third-party API from a page-load GET route"). A "Sync now" button (`POST /api/meta-ads/leads/sync`, same underlying service) still exists for forcing an immediate, on-demand check instead of waiting for the next tick — that one *is* allowed to block, since it's an explicit action with its own loading state. There's deliberately no real-time webhook either — that would need a stable public URL, HMAC signature verification, and a one-time dashboard subscription, none of which is worth the complexity for a single-tenant app where "fresh as of the last 5-minute tick" is good enough. Upserting on `meta_lead_id` means syncing twice in a row (background tick + manual button) never creates duplicates.
+`GET /api/meta-ads/leads` calls `LeadsService.syncFromMeta()` (walks every Instant Form's leads via the Graph API, upserts them on `meta_lead_id`) before reading the `leads` table on every request — a real, measured 7-8 second round trip on each page load, accepted by deliberate choice so the page never shows data older than "right now." This used to go through a 5-minute background cron (`jobs/meta-ads-leads-sync.job.ts`) instead, with the route only ever reading the table; that job was removed in favor of always-live data — see `../architecture/system_design.md`'s note on Leads/dashboards calling their APIs live. Because `syncFromMeta()` only upserts and never deletes, a lead from an earlier sync stays in `leads` even if a later Graph API response happens to omit it, so reading the table right after syncing already reflects everything ever seen, not just this one call's response. If the live sync itself fails, the route falls back to whatever's already in `leads` instead of failing the whole page. A "Sync now" button (`POST /api/meta-ads/leads/sync`, same underlying service) still exists for forcing another sync without leaving/reloading the page. There's deliberately no real-time webhook either — that would need a stable public URL, HMAC signature verification, and a one-time dashboard subscription, none of which is worth the complexity for a single-tenant app.
 
 ## 4. Pagination
 
@@ -64,7 +64,7 @@ Campaigns, Reports, Ad Library, and Leads all paginate server-side through the s
 - `ad_analysis_reports`: self-performance intelligence (plus any pre-removal competitor rows), read back in at generation time. There's no separate competitor-ad gallery table — see `../architecture/database_schema.md` §5.
 - `ad_performance_daily`: real Meta ad performance, synced daily.
 - `campaigns`, `ad_sets`, `ads`: mirror Meta's own object structure, each a pointer (`external_*_id`) to the real Meta object — see §3.1 above. **Fully built**, not schema-only.
-- `leads`: permanent lead storage, synced from Meta on Leads-page open.
+- `leads`: permanent lead storage, synced live from Meta on every Leads-page load.
 
 See `../architecture/database_schema.md` for the full table list — this doc only covers what's specific to Meta Ads. Reports' ad-level list has **no backing DB table at all** — it's entirely live Meta Graph Insights data, by design (see §6 below), so don't go looking for a "reports" table.
 
@@ -92,7 +92,6 @@ See `../architecture/database_schema.md` for the full table list — this doc on
 | Ad creative generation jobs | `src/services/inngest/meta-ads/*.ts` |
 | Self-ad analysis job | `src/jobs/business-ad-analysis.job.ts` |
 | API routes | `src/app/api/meta-ads/**` |
-| Lead sync logic | `src/modules/meta-ads/services/leads.service.ts` |
-| Lead sync background job | `src/jobs/meta-ads-leads-sync.job.ts` |
+| Lead sync logic (called live from `GET /api/meta-ads/leads`, no background job) | `src/modules/meta-ads/services/leads.service.ts` |
 
 </details>
