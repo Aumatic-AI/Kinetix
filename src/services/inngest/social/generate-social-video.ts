@@ -245,7 +245,13 @@ export const generateSocialVideo = inngest.createFunction(
       if ((isPosterMode || (needsIdentityAnchor && !needsTwoAnchors)) && totalScenes > 0) {
         const anchorMode = isPosterMode ? "reference" : "identity";
         const anchorJobId = await step.run("trigger-scene-anchor-image", async () => {
-          const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
+          // The logo is only ever attached to the one scene the model marks
+          // shows_business_location — never to the identity anchor, which is
+          // a face-lock reference reused by every other scene and must never
+          // itself carry (and thus potentially bleed) the logo into them.
+          // Poster mode's "anchor" is a design-template reference, not a
+          // protagonist face-lock, so it keeps its existing logo behavior.
+          const referenceImages = isPosterMode ? [referenceUrl, logoUrl].filter(Boolean) as string[] : [referenceUrl].filter(Boolean) as string[];
           const anchorPrompt = isPosterMode ? visualPromptsJson.visual_prompts[0].prompt : `${visualPromptsJson.visual_prompts[0].prompt}${anchorGenderClause}`;
           return aiOrchestrator.createImageTask(anchorPrompt, aspectRatio, referenceImages, anchorMode);
         });
@@ -269,7 +275,10 @@ export const generateSocialVideo = inngest.createFunction(
         if (isPosterMode && !anchorUrl) throw new Error("Poster anchor image generation timed out");
       } else if (needsTwoAnchors) {
         const beforeJobId = await step.run("trigger-before-anchor-image", async () => {
-          const referenceImages = [referenceUrl, logoUrl].filter(Boolean) as string[];
+          // Never the logo here either — same reasoning as the single-anchor
+          // branch above, this image locks the protagonist's face for every
+          // other scene.
+          const referenceImages = [referenceUrl].filter(Boolean) as string[];
           return aiOrchestrator.createImageTask(`${visualPromptsJson.visual_prompts[0].prompt}${anchorGenderClause}`, aspectRatio, referenceImages, "identity");
         });
 
@@ -295,7 +304,7 @@ export const generateSocialVideo = inngest.createFunction(
           // scene individually to override a strong visual reference.
           const afterPrompt = `${visualPromptsJson.visual_prompts[lastSceneIndex].prompt} This must be the exact same person as the attached reference image — identical face, bone structure, skin tone, and body type — but with the specific condition now fully resolved, exactly as this scene's own description states. Every other feature of their identity stays exactly as the reference shows; only that one resolved attribute differs.${anchorGenderClause}`;
           const afterJobId = await step.run("trigger-after-anchor-image", async () => {
-            const referenceImages = [beforeAnchorUrl, logoUrl].filter(Boolean) as string[];
+            const referenceImages = [beforeAnchorUrl].filter(Boolean) as string[];
             return aiOrchestrator.createImageTask(afterPrompt, aspectRatio, referenceImages, "identity");
           });
 
@@ -336,7 +345,11 @@ export const generateSocialVideo = inngest.createFunction(
             }
             const isPhase3 = i >= phase3StartIndex;
             const chosenAnchor = isPhase3 ? (afterAnchorUrl || beforeAnchorUrl) : beforeAnchorUrl;
-            const referenceImages = [chosenAnchor, logoUrl].filter(Boolean) as string[];
+            // Only the one scene the model itself marked as the business's
+            // real location ever gets the logo reference — every other scene
+            // has no logo image available to it at all, so it can't copy or
+            // invent one.
+            const referenceImages = [chosenAnchor, vp.shows_business_location ? logoUrl : undefined].filter(Boolean) as string[];
             const jobId = await aiOrchestrator.createImageTask(vp.prompt, aspectRatio, referenceImages, "identity");
             ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
             continue;
@@ -352,7 +365,7 @@ export const generateSocialVideo = inngest.createFunction(
             : vp.prompt;
           const referenceImages = isPosterMode
             ? ([anchorUrl, logoUrl].filter(Boolean) as string[])
-            : ([referenceUrl || anchorUrl, logoUrl].filter(Boolean) as string[]);
+            : ([referenceUrl || anchorUrl, vp.shows_business_location ? logoUrl : undefined].filter(Boolean) as string[]);
           const jobId = await aiOrchestrator.createImageTask(scenePrompt, aspectRatio, referenceImages, isPosterMode ? "reference" : "identity");
           ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
         }
