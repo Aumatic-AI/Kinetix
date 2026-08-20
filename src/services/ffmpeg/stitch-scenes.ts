@@ -117,13 +117,16 @@ export interface PerSceneClip {
  * durations, never a mismatch to paper over with silence-padding or a
  * trailing `-t` cutoff.
  */
-export async function submitPerSceneStitchJob(clips: PerSceneClip[], aspectRatio?: "16:9" | "9:16"): Promise<string> {
+export async function submitPerSceneStitchJob(clips: PerSceneClip[], aspectRatio?: "16:9" | "9:16", logoUrl?: string | null): Promise<string> {
   const hasAudio = clips.some((c) => !!c.audioUrl);
   const { width, height } = resolutionForAspectRatio(aspectRatio);
+  const hasLogo = !!logoUrl;
+  const logoInputIndex = clips.length + (hasAudio ? clips.length : 0);
 
   const videoInputFlags = clips.map((_, i) => `-i {input${i}}`).join(" ");
   const audioInputFlags = hasAudio ? clips.map((_, i) => ` -i {input${clips.length + i}}`).join("") : "";
-  const inputs = `${videoInputFlags}${audioInputFlags}`;
+  const logoInputFlag = hasLogo ? ` -i {input${logoInputIndex}}` : "";
+  const inputs = `${videoInputFlags}${audioInputFlags}${logoInputFlag}`;
 
   const filterParts: string[] = [];
   clips.forEach((clip, i) => {
@@ -137,13 +140,26 @@ export async function submitPerSceneStitchJob(clips: PerSceneClip[], aspectRatio
     }
   });
 
+  // Watermark, applied once on the final concatenated video, not per scene —
+  // a per-scene AI-rendered logo drifts in size/position/clarity every
+  // scene since each is generated independently; an FFmpeg overlay is
+  // pixel-identical on every frame, which is what a watermark actually needs.
+  // Bottom-right corner, small (~8% of frame height) and semi-transparent
+  // (70% opacity) — the standard convention, out of the way of the subject.
+  const concatVideoLabel = hasLogo ? "vbase" : "v";
   if (hasAudio) {
     const concatInputs = clips.map((_, i) => `[v${i}][a${i}]`).join("");
     filterParts.push(`${concatInputs}concat=n=${clips.length}:v=1:a=1[vraw][a]`);
-    filterParts.push(`[vraw]format=yuv420p[v]`);
+    filterParts.push(`[vraw]format=yuv420p[${concatVideoLabel}]`);
   } else {
     const concatInputs = clips.map((_, i) => `[v${i}]`).join("");
-    filterParts.push(`${concatInputs}concat=n=${clips.length}:v=1:a=0,format=yuv420p[v]`);
+    filterParts.push(`${concatInputs}concat=n=${clips.length}:v=1:a=0,format=yuv420p[${concatVideoLabel}]`);
+  }
+  if (hasLogo) {
+    const logoHeight = Math.round((height * 0.08) / 2) * 2;
+    const margin = Math.round(width * 0.03);
+    filterParts.push(`[${logoInputIndex}:v]scale=-2:${logoHeight},format=rgba,colorchannelmixer=aa=0.7[wm]`);
+    filterParts.push(`[vbase][wm]overlay=W-w-${margin}:H-h-${margin}[v]`);
   }
   const filterComplex = filterParts.join(",");
 
@@ -157,9 +173,10 @@ export async function submitPerSceneStitchJob(clips: PerSceneClip[], aspectRatio
 
   const videoUrls = clips.map((c) => c.videoUrl);
   const audioUrls = hasAudio ? (clips.map((c) => c.audioUrl) as string[]) : [];
+  const logoUrls = hasLogo ? [logoUrl as string] : [];
 
   return FFmpegService.submitJob({
-    files: [...videoUrls, ...audioUrls],
+    files: [...videoUrls, ...audioUrls, ...logoUrls],
     command: fullCommand,
     outputExtension: "mp4",
   });

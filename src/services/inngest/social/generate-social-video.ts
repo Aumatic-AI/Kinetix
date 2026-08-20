@@ -520,7 +520,7 @@ export const generateSocialVideo = inngest.createFunction(
           audioUrl: sceneAudio[i]?.url ?? null,
           durationSeconds: job.durationSeconds,
         }));
-        return submitPerSceneStitchJob(clips, aspectRatio);
+        return submitPerSceneStitchJob(clips, aspectRatio, logoUrl);
       });
 
       // 10. Poll stitching
