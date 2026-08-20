@@ -144,8 +144,8 @@ export async function submitPerSceneStitchJob(clips: PerSceneClip[], aspectRatio
   // a per-scene AI-rendered logo drifts in size/position/clarity every
   // scene since each is generated independently; an FFmpeg overlay is
   // pixel-identical on every frame, which is what a watermark actually needs.
-  // Bottom-right corner, small (~8% of frame height) and semi-transparent
-  // (70% opacity) — the standard convention, out of the way of the subject.
+  // Top-right corner, small (~8% of frame height) and semi-transparent
+  // (70% opacity) — out of the way of the subject and any bottom captions.
   const concatVideoLabel = hasLogo ? "vbase" : "v";
   if (hasAudio) {
     const concatInputs = clips.map((_, i) => `[v${i}][a${i}]`).join("");
@@ -159,7 +159,7 @@ export async function submitPerSceneStitchJob(clips: PerSceneClip[], aspectRatio
     const logoHeight = Math.round((height * 0.08) / 2) * 2;
     const margin = Math.round(width * 0.03);
     filterParts.push(`[${logoInputIndex}:v]scale=-2:${logoHeight},format=rgba,colorchannelmixer=aa=0.7[wm]`);
-    filterParts.push(`[vbase][wm]overlay=W-w-${margin}:H-h-${margin}[v]`);
+    filterParts.push(`[vbase][wm]overlay=W-w-${margin}:${margin}[v]`);
   }
   const filterComplex = filterParts.join(",");
 
