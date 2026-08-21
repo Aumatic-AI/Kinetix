@@ -109,7 +109,7 @@ export function PostTile({ group, onPublish, onViewDetails, onRetry, onCancelSch
             <DropdownMenu>
               <DropdownMenuTrigger
                 aria-label="More actions"
-                className="w-7 h-7 flex items-center justify-center rounded-full bg-black/60 text-white hover:bg-black/75 transition-colors"
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-black/70 backdrop-blur-sm border border-white/15 text-white hover:bg-black/85 transition-colors"
               >
                 <MoreVertical className="w-4 h-4" />
               </DropdownMenuTrigger>
