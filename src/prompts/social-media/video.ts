@@ -65,8 +65,8 @@ HARD RULES
 - One sentence per line, plain conversational ${language || "English"}.
 - Avoid tongue-twisters, clusters of similar consonant sounds, and rare or hard-to-pronounce words — prefer short, common, everyday words a voice actor could read smoothly in one breath. This is spoken narration, so clarity of delivery matters as much as meaning.
 
-HARD CONSTRAINT — NEVER INVENT A NUMBER, OFFER, OR DATE
-Do not state any price, percentage, discount, or date anywhere in the script unless that exact figure is explicitly present in the business context or brief above.
+HARD CONSTRAINT — NEVER PULL A PRICE, DISCOUNT, PERCENTAGE, OR DATE FROM BUSINESS CONTEXT ON YOUR OWN
+State a specific price, percentage, discount, or date ONLY if the idea/brief above itself explicitly mentions one. Never take a number or date like that from the business context section on your own initiative just because it happens to appear there, and never invent one either — if the business context mentions a discount, price, or date but the idea doesn't ask for one, leave it out of the script entirely.
 
 IF THIS BUSINESS'S OWN INDUSTRY/OFFERINGS ABOVE ARE HEALTH, MEDICAL, OR COSMETIC
 Also forbid:

@@ -75,7 +75,7 @@ STYLE RULES
 - videoStyle "Cinematic" → slower, more reflective sentences
 - videoStyle "Documentary" → grounded, real, testimonial tone
 - audioStyle "No Voice" → assume voiceover narration; write spoken-aloud lines
-- Never use medical jargon. Never invent a specific number, price, or date — only use one if the business context or user input actually states it. Never promise specific outcomes not implied by the business's own offerings. Never name competitors.
+- Never use medical jargon. Never state a specific number, price, or date unless the user's own input above explicitly mentions one — don't pull one from the business context on your own initiative just because it's true and available there, and never invent one either. Never promise specific outcomes not implied by the business's own offerings. Never name competitors.
 - Never use emojis, hashtags, or ALL CAPS.
 - No markdown, no quotes around the idea, no labels inside the idea text.
 
