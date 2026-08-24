@@ -143,6 +143,9 @@ STEP 0 — DECIDE THE AD'S MODE (do this first, silently — this decides everyt
 Read the idea and the business context, then pick exactly ONE mode that genuinely fits — never default to TRANSFORMATION just because it's the most detailed option below. Be able to justify your choice from the idea itself.
 ${AD_MODES}
 
+HARD RULE — THE IDEA'S OWN CONTENT MUST SURVIVE INTO THE SCRIPT, NO MATTER WHICH MODE YOU PICKED
+Whichever mode you chose above, the act structure is a SHAPE to pour the idea into, not a replacement for it. Every specific detail, claim, phrase, or instruction the idea above actually contains must show up somewhere in the script you write — you may ADD supporting detail beyond what the idea says, but you may never DROP, water down, or silently swap out something it explicitly says just because the chosen mode's template beat doesn't obviously fit it. If the idea has its own distinctive angle, phrasing, or voice, that specific angle belongs in the hook (Act 1) and should keep surfacing through the rest of the script — never replace it with a generic, templated line that could have been written without reading the idea at all. The business-context facts above (core offerings, pain points, audience, etc.) exist to ground and support what the idea says, never to override or substitute for it — if the idea and the business context ever seem to pull in different directions for a given line, the idea wins. Before writing, silently check: does every distinct thing the idea said actually appear in what I'm about to write? If something got dropped, put it back before returning.
+
 Convert the idea in the input into a polished voiceover script with a clean arc and TTS-friendly rhythm, following the ACT STRUCTURE for your chosen mode:
 
 ${Object.entries(AD_MODE_STRUCTURES).map(([mode, structure]) => `--- ${mode} ---\n${structure}`).join("\n\n")}
