@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Image from "next/image";
-import { Loader2, Video, Image as ImageIcon, MessageSquareText, AlertCircle, Info, RotateCcw, Clock, X, Sparkles, MoreVertical, Trash2, Send } from "lucide-react";
+import { Loader2, Video, Image as ImageIcon, MessageSquareText, AlertCircle, Info, RotateCcw, Clock, X, Sparkles, MoreVertical, Trash2, Send, CheckCircle2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { PostGroup, groupState } from "../../lib/postGroups";
@@ -101,6 +101,11 @@ export function PostTile({ group, onPublish, onViewDetails, onRetry, onCancelSch
         {state === "scheduled" && (
           <span className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-black/60 text-white text-[11px] font-semibold px-2.5 py-1 rounded-full pointer-events-none">
             <Clock className="w-3 h-3" /> {formatDateTime(scheduledAt)}
+          </span>
+        )}
+        {state === "published" && (
+          <span className="absolute top-2.5 left-2.5 flex items-center gap-1.5 bg-success text-white text-[11px] font-semibold px-2.5 py-1 rounded-full pointer-events-none">
+            <CheckCircle2 className="w-3 h-3" /> Published
           </span>
         )}
 

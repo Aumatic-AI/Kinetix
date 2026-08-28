@@ -31,6 +31,7 @@ export const ROUTES = {
     CONNECTED_ACCOUNTS: "/social/connected-accounts",
     POSTS: "/social/posts",
     POSTS_PUBLISH: "/social/posts/publish",
+    PUBLISHED: "/social/published",
   },
   SETTINGS: {
     ROOT: "/settings",
