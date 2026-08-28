@@ -3,7 +3,7 @@
  * table's columns that are actually read somewhere in the app today
  * (see src/store/business.store.ts's OutreachSettings/BusinessService,
  * src/modules/meta-ads/components/campaigns/shared.tsx's
- * useBusinessMetaAdsDefaults, src/jobs/competitor-ad-scraper.job.ts).
+ * useBusinessMetaAdsDefaults).
  * businesses.keywords/guidelines are deliberately left out — they have no
  * defined shape and nothing in the app reads them yet, so building a
  * settings UI for them would just be guessing. business_colors now has a
@@ -15,11 +15,6 @@
 export interface BusinessServiceInput {
   name: string;
   description?: string;
-}
-
-export interface AdScriptTopicInput {
-  topic: string;
-  format: string;
 }
 
 export interface OutreachSettingsInput {
@@ -45,17 +40,9 @@ export interface BusinessSettings {
   targetAudience: string;
   services: BusinessServiceInput[];
   targetCountries: string[];
-  competitorKeywords: string[];
-  adScriptTopics: AdScriptTopicInput[];
   outreachSettings: OutreachSettingsInput;
   metaAdsAdvantageAudienceDefault: boolean;
   videoReferenceEnabled: boolean;
   videoReferenceMaleUrl: string | null;
   videoReferenceFemaleUrl: string | null;
-  competitorAnalysisScheduleDay: number;
-  competitorAnalysisScheduleHour: number;
-  competitorAnalysisLastRunAt: string | null;
-  selfAdAnalysisScheduleDay: number;
-  selfAdAnalysisScheduleHour: number;
-  selfAdAnalysisLastRunAt: string | null;
 }

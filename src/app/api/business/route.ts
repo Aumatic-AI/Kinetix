@@ -3,9 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Database } from "@/types/supabase";
 
-// Basic business info only — name/branding, not the deeper AI/competitor-
-// analysis config (competitor_keywords, ad_script_topics, guidelines,
-// settings, etc.), which is only needed on the settings pages themselves.
+// Basic business info only — name/branding, not the deeper AI-facing config
+// (guidelines, settings, etc.), which is only needed on the settings pages
+// themselves.
 export async function GET() {
   try {
     const supabase = (await createClient()) as SupabaseClient<Database>;

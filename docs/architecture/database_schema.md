@@ -10,10 +10,9 @@ A few things are worth knowing up front, because they're the result of deliberat
 
 - **`meta_ad_creatives` uses flat generation-config columns (`duration`, `audio_style`, `video_style`, `language`, `character_type`, `voice_id`) and a Json `ad_script`/`media_urls`, not a consolidated `ad_copy`/`generation_inputs` shape.** An earlier draft of this doc proposed the consolidated version; it was deliberately not adopted because the working image/video generation Inngest jobs already read and write the flat shape, and consolidating it would mean rewriting a pipeline that already works, for no functional gain.
 - **`social_posts` is one row per platform, not one row per post.** Posting the same creative to Instagram and TikTok is two rows sharing `media_asset_id`, each with its own `connection_id`, `caption`, and `status` — this is what lets "Instagram published, TikTok failed" be tracked as two independent outcomes instead of being unrepresentable.
-- **`ad_analysis_reports.report_type` values are `'competitor'` and `'self'`** (not `'competitor_analysis'`/`'self_ad_analysis'`) — that's what the real jobs filter on.
 - **Several tables carry column names from the original 2024 migration that predate this reconciliation** (`external_campaign_id` not `meta_campaign_id`, `account_kind` not `connection_type`, `access_token_ref`/`secret_ref` not `*_vault_ref`, `type` not `kind`). These were left as-is rather than renamed, since nothing was broken and renaming would be pure churn.
-- **No RAG, no vector DB, no Pinecone.** Competitor/self-ad intelligence and outreach email drafting all come from direct context-window prompting — see `system_design.md` §4.
-- **`meta_ad_creatives`, `ad_analysis_reports`, `ad_performance_daily`, and the competitor/self-ad analysis jobs are real, working code.** So is the entire Outreach schema in §8. Campaign Launch (paid Meta campaigns) and Meta Lead Capture are also real, working code — see `modules/meta_ads.md`.
+- **No RAG, no vector DB, no Pinecone.** Outreach email drafting comes from direct context-window prompting — see `system_design.md` §4.
+- **`meta_ad_creatives` and `ad_performance_daily` are real, working code.** So is the entire Outreach schema in §8. Campaign Launch (paid Meta campaigns) and Meta Lead Capture are also real, working code — see `modules/meta_ads.md`. `ad_analysis_reports` and the competitor/self-ad analysis jobs that wrote to it were removed as an unused feature — see §5 below.
 
 ## 1. Core: Users & Businesses
 
@@ -43,25 +42,17 @@ erDiagram
         text business_voice
         text target_audience
         text core_offerings
-        jsonb target_countries
-        jsonb competitor_keywords
+        jsonb target_countries "read live by Meta Ads campaign-launch defaults; no Settings UI edits it today, see modules/settings.md §3"
         text[] keywords
         jsonb guidelines
         jsonb business_colors
         uuid logo_asset_id FK "media_assets"
-        jsonb settings "incl. settings.competitor_scrape: only_active/max_ads/sort, settings.meta_ads.advantage_audience_default"
-        jsonb ad_script_topics "required ready_ad_scripts topics+formats for competitor analysis"
+        jsonb settings "incl. settings.meta_ads.advantage_audience_default"
         jsonb services "array of {name, description} — shared across Outreach/Meta Ads/Social, see §8"
         jsonb outreach_settings "daily_limit, timezone, days, send_window — see §8"
         boolean video_reference_enabled "added 20260803 — default false"
         text video_reference_male_url
         text video_reference_female_url
-        smallint competitor_analysis_schedule_day "added 20260804 — 0-6, default 1 (Monday)"
-        smallint competitor_analysis_schedule_hour "0-23, default 0"
-        timestamptz competitor_analysis_last_run_at
-        smallint self_ad_analysis_schedule_day "0-6, default 1 (Monday)"
-        smallint self_ad_analysis_schedule_hour "0-23, default 0"
-        timestamptz self_ad_analysis_last_run_at
         timestamptz created_at
         timestamptz updated_at
     }
@@ -239,14 +230,12 @@ erDiagram
 
 `ad_sets.placements` shape: `{ mode: "advantage_plus" }` (Meta picks automatically — the default) or `{ mode: "manual", publisher_platforms, facebook_positions?, instagram_positions? }`. Sent to Meta for real when "manual" is chosen — unlike the legacy project's equivalent UI, which collected manual placement choices but never actually forwarded them to Meta.
 
-## 5. Intelligence Engine — Competitor + Self Analysis
+## 5. Ad Performance — Daily Sync
 
-Only one table here is business-facing: `ad_analysis_reports`. There is deliberately no supporting gallery table for individual competitor ads.
+**Removed:** this section used to be "Intelligence Engine — Competitor + Self Analysis," covering a weekly competitor-scraping job, a weekly self-ad-analysis job, and the `ad_analysis_reports` table both wrote to (`report_type` `'competitor'`/`'self'`) — all three read back into the Ad Creative Generation prompts as "market intelligence"/"winning angle"/"creative directives." The competitor job was removed first; the self-ad-analysis job, its Settings-configurable schedule, and every prompt section reading either report type were removed in a later pass as an unused feature. `ad_analysis_reports` itself, and the `businesses` schedule columns that drove it, were dropped. Ad generation today is grounded only in the business's own Settings context and the user's own idea/brief — see `modules/meta_ads.md` §1.
 
 ```mermaid
 erDiagram
-    businesses ||--o{ ad_analysis_reports : "generates"
-
     ad_performance_daily {
         bigint id PK "identity, not UUID"
         uuid business_id FK
@@ -265,30 +254,18 @@ erDiagram
         numeric cpa
         numeric hook_rate
         numeric hold_rate
-        text ad_text "snapshot, for the AI prompt"
+        text ad_text "snapshot, formerly for the AI prompt"
         text media_url
         text format
         jsonb raw_data
     }
-
-    ad_analysis_reports {
-        uuid id PK
-        uuid business_id FK
-        text report_type "competitor, self"
-        jsonb insights
-        timestamptz created_at
-    }
 ```
 
-`ad_performance_daily` inherited its `bigint` identity PK from the original 2024 migration (`ad_metrics_daily`) — it was never a UUID, and there's no reason to change it. `ad_id`/`ctr`/`cpc_cents`/`cpm_cents`/`raw_data`/`reach` are original columns; `meta_ad_id`, `roas`, `cpa`, `hook_rate`, `hold_rate`, `ad_text`, `media_url`, `format` were added when this table absorbed what used to be a separate `meta_self_ad_metrics` table (see §10 for that history).
-
-**Competitor analysis — removed.** The weekly Apify-scrape-and-analyze job (`competitor-ad-scraper.job.ts`) and its Dashboard display were both removed from the app. `ad_analysis_reports` still allows `report_type = 'competitor'` and any rows written before removal may still exist (still read by the Ad Creative Generation pipeline for market context, see below), but nothing generates new ones anymore.
+`ad_performance_daily` inherited its `bigint` identity PK from the original 2024 migration (`ad_metrics_daily`) — it was never a UUID, and there's no reason to change it. `ad_id`/`ctr`/`cpc_cents`/`cpm_cents`/`raw_data`/`reach` are original columns; `meta_ad_id`, `roas`, `cpa`, `hook_rate`, `hold_rate`, `ad_text`, `media_url`, `format` were added when this table absorbed what used to be a separate `meta_self_ad_metrics` table (see §10 for that history). It's still real and still populated — genuinely still used, just by fewer things than before:
 
 **Performance sync — daily** (`meta-ads-performance-sync.job.ts`, cron `0 4 * * *`): fetches each business's own ads, campaigns, and insights directly from the Meta Graph API, and upserts one `ad_performance_daily` row per ad per day.
 
-**Self-ad analysis — weekly, conditional** (`business-ad-analysis.job.ts`): aggregates `ad_performance_daily` per ad (skipping businesses with 10 or fewer distinct ads), scores "seasoned" (7+ day) ads on a CTR-curve formula, and writes a report to `ad_analysis_reports` (`report_type = 'self'`).
-
-Both the self report and any pre-existing competitor report are read back in every time the Ad Creative Generation pipeline runs (business context + latest `competitor`/`self` reports feed the AI script-generation prompt).
+**Consumers today:** the root Dashboard and the Meta Ads Dashboard both read it for spend-trend charts and KPIs, and the Meta Ads Dashboard's self-ad score chart (`src/services/ai/self-ad-processor.ts`'s `aggregateByAd`/`diagnosePattern`) computes fresh from it on every load — a live numeric score/pattern diagnosis, unrelated to the removed AI-written weekly report.
 
 ## 6. Leads — built (Meta Ads Instant Forms)
 
@@ -499,6 +476,7 @@ Inngest jobs write with the service-role key, which bypasses RLS entirely — ex
 13. **`businesses.*_analysis_schedule_*`** (`20260804000000_business_analysis_schedules.sql`) — adds `competitor_analysis_schedule_day/hour/last_run_at` and `self_ad_analysis_schedule_day/hour/last_run_at` (day 0-6, hour 0-23, CHECK-constrained, both default Monday/0). Replaced the two analysis jobs' hardcoded weekly cron expressions with a per-business day/hour, checked hourly — see `system_design.md` §2.D.
 14. **Dropped `chk_meta_ad_creatives_service`** (`20260805000000_drop_stale_service_check.sql`) — this CHECK constraint hardcoded 3 service names from an earlier single-service setup and was silently rejecting ad-creative-generation inserts for any newer/renamed service, now that `businesses.services` is business-configurable via Settings.
 15. **`upload_post_analytics_cache`** (`20260806000000_upload_post_analytics_cache.sql`) — added so the Root/Social dashboards could stop calling Upload-Post's analytics API live (a measured ~several-second round trip), kept warm by a 5-minute Inngest job. **That job was later removed** — both dashboard routes now call Upload-Post live again on every request, by deliberate choice (see `system_design.md` §2's note on Leads/dashboards calling their APIs live). The table itself is still here, just unused.
+16. **`ad_analysis_reports` dropped, plus its `businesses` schedule/config columns** (`20260816000000_remove_self_ad_competitor_analysis.sql`) — unlike #15 above, this one actually drops rather than just orphans: `ad_analysis_reports` (both `report_type`s), `businesses.competitor_analysis_schedule_day/hour/last_run_at`, `businesses.self_ad_analysis_schedule_day/hour/last_run_at`, `businesses.competitor_keywords`, and `businesses.ad_script_topics` are all gone, along with the two jobs, the Settings "Competitor Intelligence"/"Analysis Schedule" tabs, and every ad-generation prompt section that read either report type — see §5 above and `modules/meta_ads.md` §1.
 
 ## 12. Worked Examples
 
@@ -512,19 +490,7 @@ Inngest jobs write with the service-role key, which bypasses RLS entirely — ex
 { "status": "review", "ad_script": { "script": ["..."], "audioUrl": "https://..." }, "media_urls": ["https://kie.ai/..."] }
 ```
 
-### B. Competitor Analysis (weekly, automatic — nothing persisted before this)
-
-```json
-{
-  "business_id": "b1…", "report_type": "competitor",
-  "insights": {
-    "executive_summary": "Competitors are heavily using user-generated content (UGC)...",
-    "market_insights": { "dominant_ad_format": "video", "dominant_emotional_angle": "trust/proof" }
-  }
-}
-```
-
-### C. Social Post (one row per platform)
+### B. Social Post (one row per platform)
 
 ```json
 // social_posts — Instagram
@@ -538,7 +504,7 @@ Inngest jobs write with the service-role key, which bypasses RLS entirely — ex
   "status": "scheduled", "scheduled_at": "2026-07-20T10:00:00Z" }
 ```
 
-### D. Outreach Campaign Send
+### C. Outreach Campaign Send
 
 ```json
 // outreach_campaigns — after AI drafting, before approval

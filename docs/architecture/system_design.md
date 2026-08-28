@@ -42,19 +42,18 @@ graph TD
 
 | Job | Trigger | Event name / cron |
 |---|---|---|
-| Self-ad performance analysis | cron, hourly — see note below | `0 * * * *` |
 | Meta Ads performance sync (writes `ad_performance_daily`) | cron, daily | `0 4 * * *` |
 | Meta ad creative generation (image) | event | `meta-ads/generate-image` |
 | Meta ad creative generation (video) | event | `meta-ads/generate-video` |
+| AI Ad Studio image generation | event | `meta-ads/generate-studio-image` |
+| AI Ad Studio image edit | event | `meta-ads/edit-studio-image` |
 | Social post generation (image) | event | `social/generate-image` |
 | Social post generation (video) | event | `social/generate-video` |
 | Scheduled social post publish | event, one instance per scheduled post — not a recurring poll | `social/scheduled-post-created` |
-| Social/Root dashboard analytics cache refresh | cron, every 5 min | `*/5 * * * *` |
-| Meta Ads leads sync | cron, every 5 min | `*/5 * * * *` |
 | Outreach lead scraping | event (triggered from Find Leads) | `outreach/scrape-contacts` |
 | Outreach campaign send | event (triggered from the Campaigns list, not a cron) | `outreach/send-campaign` |
 
-**Why the self-ad-analysis job runs hourly, not weekly:** each business picks its own day/hour for this report via Settings' "Analysis Schedule" (`businesses.self_ad_analysis_schedule_day/hour` — see `modules/settings.md`). Inngest's own cron trigger can't read a per-business DB value at schedule-definition time, so instead the job runs on a fixed hourly cron and, on every tick, calls `shouldRunScheduledJob()` (`src/services/scheduling/business-schedule.ts`) per business to decide whether *this* is the hour it's actually due to run. (The competitor-scrape job used to follow this same pattern via `competitor_analysis_schedule_day/hour` before it was removed — those columns may still exist on `businesses` but are no longer read by anything.)
+Only 2 of these are real crons (Meta Ads performance sync, daily) — everything else is either event-triggered on demand or (the scheduled social post publish) fired once per instance, never a recurring poll. Two previously-listed jobs no longer exist at all: a weekly self-ad-performance-analysis job (hourly cron checking a per-business Settings schedule via `shouldRunScheduledJob()`) was removed along with the "market intelligence"/"winning angle" it fed into ad-generation prompts, as an unused feature — see `database_schema.md` §5 and `modules/meta_ads.md` §1. A social/root dashboard analytics cache refresh and a Meta Ads leads sync (both every 5 minutes) were removed earlier still — see the Leads/dashboards note directly below.
 
 Every event payload carries `business_id` explicitly. Inngest functions run with the Supabase service-role key, which bypasses RLS entirely — scoping for background writes comes from the payload, never inferred from a session (there is no user session inside a background worker).
 
@@ -66,7 +65,7 @@ This used to go the other way: the Meta Ads Leads page and the Root/Social dashb
 
 Both background jobs (`meta-ads-leads-sync.job.ts`, `social-analytics-cache-refresh.job.ts`) were removed on purpose — always-fresh data was judged more valuable than avoiding the real, measured round trip (Meta Graph ~7-8s for Leads, Upload-Post analytics ~several seconds for the dashboards). `GET /api/meta-ads/leads` now calls `LeadsService.syncFromMeta()` before reading `leads` on every request; the Root/Social dashboard routes call `UploadPostService.getProfileAnalytics`/`getTotalImpressions` directly, no cache table involved. `syncFromMeta()` only ever upserts (never deletes), so a lead from an earlier sync stays in `leads` even if a later Graph API response happens to omit it — reading the table right after syncing already reflects both sources, not just the latest call. Both routes degrade to whatever they already have if the live call itself fails, rather than failing the whole page.
 
-`upload_post_analytics_cache` still exists as a table (nothing currently reads or writes it) — left alone rather than dropped, consistent with how this codebase generally treats orphaned schema from a removed feature (see the competitor-analysis removal in `CLAUDE.md`).
+`upload_post_analytics_cache` still exists as a table (nothing currently reads or writes it) — left alone rather than dropped, since no one asked for it to be removed. That's not a universal rule, though: when a later cleanup explicitly asked to remove the (separate, unrelated) self-ad-analysis/competitor-analysis feature, `ad_analysis_reports` and its `businesses` schedule columns were actually dropped, not just orphaned — see `database_schema.md` §5. Whether to drop or just leave a removed feature's schema behind depends on what was actually asked for, not a fixed house style.
 
 Don't reintroduce a background sync job for either of these without being asked — if page-load latency becomes a real problem again, restoring the cache pattern is a decision for whoever's asking to make explicitly. The underlying principle (a slow third-party API shouldn't block a passive page load by default) is still worth applying to any *new* integration; these two are documented, deliberate exceptions, not evidence the principle was wrong.
 
@@ -97,7 +96,7 @@ One code-level follow-up for whenever the migration actually happens (not part o
 
 ## 4. Intelligence: no RAG, no vector DB
 
-Competitor and self-ad intelligence is generated by direct context-window prompting: the top-scored competitor ads, or a business's own "seasoned" ad metrics, are assembled into a single prompt and sent to OpenAI in one call. Kinetix does not use Pinecone or any vector store for this. The legacy n8n pipeline used a Pinecone-backed RAG step for competitor analysis; it's deliberately not carried forward — the data volumes involved (a few hundred competitor ads per business, not tens of thousands) don't need retrieval, and a single well-scoped prompt is simpler to build, debug, and reason about.
+Every AI-facing feature in Kinetix (ad script/visual-prompt generation, outreach email drafting, social captions) works by direct context-window prompting: the relevant business context is assembled into a single prompt and sent to OpenAI in one call. Kinetix does not use Pinecone or any vector store anywhere. The legacy n8n pipeline used a Pinecone-backed RAG step for its competitor-analysis feature; that was deliberately not carried forward when this app was rebuilt, and the feature itself (competitor analysis, plus a related self-ad-analysis job) was later removed from Kinetix entirely as unused — see `database_schema.md` §5. The RAG-vs-single-prompt reasoning still holds for anything AI-facing this app does today: the data volumes involved are small enough (a business's own services/context, a handful of leads, one idea prompt) that retrieval isn't needed, and a single well-scoped prompt is simpler to build, debug, and reason about.
 
 ## 5. Root Dashboard — cross-module rollup
 

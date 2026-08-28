@@ -4,11 +4,8 @@ import { Search, Check, X, Upload } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Loader } from "@/components/ui/Loader";
-import { Dropdown } from "@/components/ui/Dropdown";
-import { BusinessServiceInput, AdScriptTopicInput } from "../types/settings.types";
+import { BusinessServiceInput } from "../types/settings.types";
 import { useUploadVideoReference, useUploadLogo } from "../hooks/useSettings";
-import { WEEKDAY_LABELS, hourLabel, computeNextRunDate } from "@/services/scheduling/business-schedule";
-import { formatDateTime, formatDate } from "@/utils/datetime";
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
@@ -77,30 +74,6 @@ export function ServicesEditor({ services, onChange }: { services: BusinessServi
       ))}
       <button type="button" onClick={() => onChange([...services, { name: "", description: "" }])} className="text-xs font-semibold text-primary hover:underline">
         + Add another service
-      </button>
-    </div>
-  );
-}
-
-export function AdScriptTopicsEditor({ topics, onChange }: { topics: AdScriptTopicInput[]; onChange: (next: AdScriptTopicInput[]) => void }) {
-  const update = (i: number, patch: Partial<AdScriptTopicInput>) => onChange(topics.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
-  const remove = (i: number) => onChange(topics.filter((_, idx) => idx !== i));
-
-  return (
-    <div className="space-y-3">
-      {topics.map((t, i) => (
-        <div key={i} className="flex gap-2 items-start">
-          <div className="flex-1 grid grid-cols-2 gap-2">
-            <Input value={t.topic} onChange={(e) => update(i, { topic: e.target.value })} placeholder="Topic, e.g. General Offer Awareness" />
-            <Input value={t.format} onChange={(e) => update(i, { format: e.target.value })} placeholder="Format, e.g. Image Ad" />
-          </div>
-          <button type="button" onClick={() => remove(i)} title="Remove" className="text-muted hover:text-danger p-2.5 shrink-0">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      ))}
-      <button type="button" onClick={() => onChange([...topics, { topic: "", format: "" }])} className="text-xs font-semibold text-primary hover:underline">
-        + Add another topic
       </button>
     </div>
   );
@@ -313,62 +286,6 @@ export function LogoUploader({ url }: { url: string | null }) {
         <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handlePick(e.target.files?.[0])} />
       </div>
       <p className="text-[11px] text-muted">Optional — shown on AI Ad Studio poster-style ads when it fits the design.</p>
-    </div>
-  );
-}
-
-/** Day + time picker for one of the two weekly background jobs
- * (Competitor Analysis, Self Ad Analysis), plus a live "last ran" / "next
- * run" preview — "next run" recomputes immediately as the day/time
- * changes, using the same math the actual hourly checker job uses
- * (business-schedule.ts), so what's shown here always matches what will
- * really happen once saved. */
-export function ScheduleEditor({
-  label,
-  description,
-  day,
-  hour,
-  lastRunAt,
-  timezone,
-  onChange,
-}: {
-  label: string;
-  description: string;
-  day: number;
-  hour: number;
-  lastRunAt: string | null;
-  timezone: string;
-  onChange: (patch: { day?: number; hour?: number }) => void;
-}) {
-  const nextRun = computeNextRunDate({ scheduleDay: day, scheduleHour: hour, timezone });
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <p className="text-sm font-semibold text-text">{label}</p>
-        <p className="text-[11px] text-muted mt-0.5">{description}</p>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Day">
-          <Dropdown
-            value={String(day)}
-            onValueChange={(v) => onChange({ day: Number(v) })}
-            options={WEEKDAY_LABELS.map((w, i) => ({ value: String(i), label: w }))}
-          />
-        </Field>
-        <Field label="Time">
-          <Dropdown
-            value={String(hour)}
-            onValueChange={(v) => onChange({ hour: Number(v) })}
-            options={Array.from({ length: 24 }, (_, h) => ({ value: String(h), label: hourLabel(h) }))}
-          />
-        </Field>
-      </div>
-      <p className="text-[11px] text-muted">
-        Last ran: <span className="font-semibold text-text">{lastRunAt ? formatDateTime(lastRunAt) : "Never yet"}</span>
-        {" · "}
-        Next run: <span className="font-semibold text-text">{formatDate(nextRun)} at {hourLabel(hour)}</span>
-      </p>
     </div>
   );
 }

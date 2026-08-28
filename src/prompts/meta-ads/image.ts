@@ -20,27 +20,8 @@ This image depicts ONE specific moment described in the idea above — not a gen
 
 export function getImageAdPrompt(intelligence: any, creative: any): string {
   const business = intelligence.business || {};
-  const competitor = intelligence.competitor || {};
-  const self = intelligence.self || {};
 
   const businessName = business.name || "the business";
-
-  const bestHookFormula = competitor?.hook_analysis?.best_hook_formula;
-  const topHookPatterns = (
-    competitor?.hook_analysis?.top_hook_patterns || []
-  ).slice(0, 3);
-  const gapOpportunities = (competitor?.gap_opportunities || []).slice(0, 3);
-  const ideaLower = String(creative.ideaPrompt || "").toLowerCase();
-  const matchingScript = (competitor?.ready_ad_scripts || []).find(
-    (s: any) =>
-      s?.topic &&
-      ideaLower.includes(String(s.topic).toLowerCase().split(" ")[0]),
-  );
-
-  const winningAngle =
-    self?.winning_patterns?.best_angle ||
-    "Not enough data yet — no live-performance history available.";
-  const creativeDirectives: string[] = self?.creative_directives || [];
 
   return `You are a world-class direct response ad creative specialist with 15 years of experience producing high-converting image ads for ${business.industry || "this"} brands on Meta and Instagram.
 
@@ -52,12 +33,6 @@ Generate ONE structured image ad from the IDEA PROMPT below. It must feel like i
 ${creative.service ? `THIS AD IS SPECIFICALLY FOR: ${creative.service}. Every claim, visual, and word must be about ${creative.service} — never blend in another service or offering.\n\n` : ""}IDEA PROMPT
 ${creative.ideaPrompt}
 
-${matchingScript ? `MATCHING COMPETITOR-INTELLIGENCE SCRIPT (use as inspiration, never copy verbatim):\n${JSON.stringify(matchingScript)}\n\n` : ""}${bestHookFormula ? `PROVEN HOOK FORMULA FROM MARKET DATA: ${bestHookFormula}\n\n` : ""}${topHookPatterns.length ? `TOP-PERFORMING HOOK PATTERNS IN THIS MARKET:\n${topHookPatterns.map((p: any) => `- ${p.pattern}: "${p.example}" (${p.why_it_works})`).join("\n")}\n\n` : ""}${gapOpportunities.length ? `GAPS NO COMPETITOR IS EXPLOITING (lean into these):\n${gapOpportunities.map((g: any) => `- ${g.gap} -> ${g.opportunity}`).join("\n")}\n\n` : ""}=== HISTORICAL PERFORMANCE RULES (FROM YOUR LIVE ADS) ===
-Our current winning angle is: ${winningAngle}
-MANDATORY DIRECTIVES BASED ON REAL AD DATA:
-${creativeDirectives.length ? creativeDirectives.map((d: string) => `- ${d}`).join("\n") : "- No live-performance directives yet — this is an early ad, rely on the market intelligence above."}
-You MUST follow these directives or the ad will fail.
-
 AD CREATIVE RULES
 1. Use a copywriting framework that fits the idea — rotate rather than reusing the same one every time: PAS (Problem-Agitate-Solve), AIDA (Attention-Interest-Desire-Action), BAB (Before-After-Bridge), Before/After, Direct, or Story.
 2. Never repeat a hook angle already used recently. Hook types that convert well in this space:
@@ -67,7 +42,7 @@ AD CREATIVE RULES
    - TRANSFORMATION: before vs. after framing.
    - URGENCY: a real, believable scarcity signal.
    - TRUST: credentials, accreditations, expert care — whatever is real for this business.
-3. Do NOT invent stats, claims, or proof not present in the business context or intelligence above.
+3. Do NOT invent stats, claims, or proof not present in the business context above.
 4. The image prompt must NEVER describe text, logos, UI elements, or overlays — those are composited separately.
 
 ${problemDepictionBlock(business, creative.service)}

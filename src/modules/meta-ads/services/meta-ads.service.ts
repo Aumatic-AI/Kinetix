@@ -5,7 +5,6 @@ import {
   MetaAdCreativePickerItem,
   CreativeFilters,
   PaginationOptions,
-  MetaAdIntelligence
 } from "../types/meta-ads.types";
 import { rangeFor } from "@/lib/pagination";
 
@@ -151,36 +150,6 @@ export class MetaAdsService {
       .eq("id", id);
 
     if (error) throw new Error(`Error deleting creative: ${error.message}`);
-  }
-
-  // ==========================================
-  // INTELLIGENCE
-  // ==========================================
-
-  static async getLatestIntelligence(
-    supabase: SupabaseClient,
-    businessId: string,
-    reportType: "competitor" | "self"
-  ): Promise<MetaAdIntelligence | null> {
-    const { data, error } = await supabase
-      .from("ad_analysis_reports")
-      .select("*")
-      .eq("business_id", businessId)
-      .eq("report_type", reportType)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) throw new Error(`Error fetching intelligence: ${error.message}`);
-    return data || null;
-  }
-
-  static async insertIntelligence(supabase: SupabaseClient, data: Partial<MetaAdIntelligence>): Promise<void> {
-    const { error } = await supabase
-      .from("ad_analysis_reports")
-      .insert(data);
-
-    if (error) throw new Error(`Error inserting intelligence: ${error.message}`);
   }
 
   // ==========================================

@@ -27,29 +27,7 @@ export const generateStudioImage = inngest.createFunction(
           .eq("id", businessId)
           .single();
 
-        const { data: compData } = await supabase
-          .from("ad_analysis_reports")
-          .select("*")
-          .eq("business_id", businessId)
-          .eq("report_type", "competitor")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        const { data: selfData } = await supabase
-          .from("ad_analysis_reports")
-          .select("*")
-          .eq("business_id", businessId)
-          .eq("report_type", "self")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        return {
-          business: businessData || {},
-          competitor: compData?.insights || {},
-          self: selfData?.insights || {}
-        };
+        return { business: businessData || {} };
       });
 
       const prompt = getStudioAdPrompt(intelligence, {

@@ -57,14 +57,6 @@ export interface MetaAdCreativePickerItem {
   aspect_ratio?: string;
 }
 
-export interface MetaAdIntelligence {
-  id: string;
-  created_at: string;
-  business_id: string;
-  report_type: "competitor" | "self";
-  insights: any;
-}
-
 export interface PaginationOptions {
   page?: number;
   limit?: number;
