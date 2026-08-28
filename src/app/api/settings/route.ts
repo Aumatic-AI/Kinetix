@@ -20,7 +20,6 @@ export async function GET() {
     const settingsJson = (business.settings as Record<string, any> | null) || {};
     const outreach = (business.outreach_settings as Record<string, any> | null) || {};
     const services = Array.isArray(business.services) ? (business.services as Record<string, any>[]) : [];
-    const adScriptTopics = Array.isArray(business.ad_script_topics) ? (business.ad_script_topics as Record<string, any>[]) : [];
 
     const settings: BusinessSettings = {
       name: business.name || "",
@@ -37,8 +36,6 @@ export async function GET() {
       targetAudience: business.target_audience || "",
       services: services.map((s) => ({ name: s.name || "", description: s.description || undefined })),
       targetCountries: Array.isArray(business.target_countries) ? (business.target_countries as string[]) : [],
-      competitorKeywords: Array.isArray(business.competitor_keywords) ? (business.competitor_keywords as string[]) : [],
-      adScriptTopics: adScriptTopics.map((t) => ({ topic: t.topic || "", format: t.format || "" })),
       outreachSettings: {
         dailyLimit: outreach.daily_limit ?? 50,
         timezone: outreach.timezone || "America/Detroit",
@@ -49,12 +46,6 @@ export async function GET() {
       videoReferenceEnabled: business.video_reference_enabled,
       videoReferenceMaleUrl: business.video_reference_male_url,
       videoReferenceFemaleUrl: business.video_reference_female_url,
-      competitorAnalysisScheduleDay: business.competitor_analysis_schedule_day,
-      competitorAnalysisScheduleHour: business.competitor_analysis_schedule_hour,
-      competitorAnalysisLastRunAt: business.competitor_analysis_last_run_at,
-      selfAdAnalysisScheduleDay: business.self_ad_analysis_schedule_day,
-      selfAdAnalysisScheduleHour: business.self_ad_analysis_schedule_hour,
-      selfAdAnalysisLastRunAt: business.self_ad_analysis_last_run_at,
     };
 
     return NextResponse.json({ settings });
@@ -98,8 +89,6 @@ export async function POST(request: Request) {
         target_audience: body.targetAudience || null,
         services: body.services.filter((s) => s.name.trim()) as any,
         target_countries: body.targetCountries,
-        competitor_keywords: body.competitorKeywords,
-        ad_script_topics: body.adScriptTopics.filter((t) => t.topic.trim()) as any,
         outreach_settings: {
           daily_limit: body.outreachSettings.dailyLimit,
           timezone: body.outreachSettings.timezone,
@@ -108,10 +97,6 @@ export async function POST(request: Request) {
         },
         settings: { ...existingSettingsJson, meta_ads: { ...existingSettingsJson.meta_ads, advantage_audience_default: body.metaAdsAdvantageAudienceDefault } },
         video_reference_enabled: body.videoReferenceEnabled,
-        competitor_analysis_schedule_day: body.competitorAnalysisScheduleDay,
-        competitor_analysis_schedule_hour: body.competitorAnalysisScheduleHour,
-        self_ad_analysis_schedule_day: body.selfAdAnalysisScheduleDay,
-        self_ad_analysis_schedule_hour: body.selfAdAnalysisScheduleHour,
       })
       .eq("id", business.id);
 

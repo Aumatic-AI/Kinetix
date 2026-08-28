@@ -57,7 +57,7 @@ export const generateVideoAd = inngest.createFunction(
     if (!creativeId) throw new Error("No creativeId provided");
 
     try {
-      // 1. Fetch business context + intelligence (competitor + self-ad reports)
+      // 1. Fetch business context
       const intelligence = await step.run("fetch-intelligence", async () => {
         const { data: businessData } = await supabase
           .from("businesses")
@@ -65,29 +65,7 @@ export const generateVideoAd = inngest.createFunction(
           .eq("id", businessId)
           .single();
 
-        const { data: compData } = await supabase
-          .from("ad_analysis_reports")
-          .select("*")
-          .eq("business_id", businessId)
-          .eq("report_type", "competitor")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        const { data: selfData } = await supabase
-          .from("ad_analysis_reports")
-          .select("*")
-          .eq("business_id", businessId)
-          .eq("report_type", "self")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
-
-        return {
-          business: businessData || {},
-          competitor: compData?.insights || {},
-          self: selfData?.insights || {}
-        };
+        return { business: businessData || {} };
       });
 
       // 2. Script — reuse whatever the user already reviewed/approved (or

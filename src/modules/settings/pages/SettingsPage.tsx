@@ -9,7 +9,7 @@ import { UnsavedChangesBar } from "@/components/ui/UnsavedChangesBar";
 import { Switch } from "@/components/ui/Switch";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
 import { BusinessSettings } from "../types/settings.types";
-import { Field, ServicesEditor, WeekdayToggle, TimezoneSelect, VideoReferenceUploader, LogoUploader, ScheduleEditor } from "../components/shared";
+import { Field, ServicesEditor, WeekdayToggle, TimezoneSelect, VideoReferenceUploader, LogoUploader } from "../components/shared";
 
 const SETTINGS_TABS = [
   { value: "general", label: "General" },
@@ -214,18 +214,6 @@ export function SettingsPage() {
               {form.videoReferenceEnabled && (!data?.videoReferenceMaleUrl || !data?.videoReferenceFemaleUrl) && (
                 <p className="text-xs text-warning mt-2">Upload both photos above — Save is blocked until both are set.</p>
               )}
-            </Section>
-
-            <Section title="Analysis Schedule" description="When the weekly Self Ad Analysis report runs — pick any day and time, nothing is fixed in code.">
-              <ScheduleEditor
-                label="Self Ad Analysis"
-                description="Analyzes this business's own live ad performance for next week's creative directives."
-                day={form.selfAdAnalysisScheduleDay}
-                hour={form.selfAdAnalysisScheduleHour}
-                lastRunAt={data?.selfAdAnalysisLastRunAt ?? null}
-                timezone={form.outreachSettings.timezone}
-                onChange={(p) => patch({ selfAdAnalysisScheduleDay: p.day ?? form.selfAdAnalysisScheduleDay, selfAdAnalysisScheduleHour: p.hour ?? form.selfAdAnalysisScheduleHour })}
-              />
             </Section>
           </div>
       )}

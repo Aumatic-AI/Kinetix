@@ -10,42 +10,10 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
-      ad_analysis_reports: {
-        Row: {
-          business_id: string
-          created_at: string
-          id: string
-          insights: Json
-          report_type: string
-        }
-        Insert: {
-          business_id: string
-          created_at?: string
-          id?: string
-          insights: Json
-          report_type: string
-        }
-        Update: {
-          business_id?: string
-          created_at?: string
-          id?: string
-          insights?: Json
-          report_type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ad_analysis_reports_business_id_fkey"
-            columns: ["business_id"]
-            isOneToOne: false
-            referencedRelation: "businesses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       ad_performance_daily: {
         Row: {
           ad_id: string | null
@@ -339,13 +307,8 @@ export type Database = {
       }
       businesses: {
         Row: {
-          ad_script_topics: Json
           business_colors: Json
           business_voice: string | null
-          competitor_analysis_last_run_at: string | null
-          competitor_analysis_schedule_day: number
-          competitor_analysis_schedule_hour: number
-          competitor_keywords: Json | null
           contact_phone: string | null
           core_offerings: string | null
           created_at: string
@@ -359,9 +322,6 @@ export type Database = {
           name: string
           outreach_settings: Json
           pain_points: string | null
-          self_ad_analysis_last_run_at: string | null
-          self_ad_analysis_schedule_day: number
-          self_ad_analysis_schedule_hour: number
           services: Json
           settings: Json
           target_audience: string | null
@@ -374,13 +334,8 @@ export type Database = {
           website_url: string | null
         }
         Insert: {
-          ad_script_topics?: Json
           business_colors?: Json
           business_voice?: string | null
-          competitor_analysis_last_run_at?: string | null
-          competitor_analysis_schedule_day?: number
-          competitor_analysis_schedule_hour?: number
-          competitor_keywords?: Json | null
           contact_phone?: string | null
           core_offerings?: string | null
           created_at?: string
@@ -394,9 +349,6 @@ export type Database = {
           name: string
           outreach_settings?: Json
           pain_points?: string | null
-          self_ad_analysis_last_run_at?: string | null
-          self_ad_analysis_schedule_day?: number
-          self_ad_analysis_schedule_hour?: number
           services?: Json
           settings?: Json
           target_audience?: string | null
@@ -409,13 +361,8 @@ export type Database = {
           website_url?: string | null
         }
         Update: {
-          ad_script_topics?: Json
           business_colors?: Json
           business_voice?: string | null
-          competitor_analysis_last_run_at?: string | null
-          competitor_analysis_schedule_day?: number
-          competitor_analysis_schedule_hour?: number
-          competitor_keywords?: Json | null
           contact_phone?: string | null
           core_offerings?: string | null
           created_at?: string
@@ -429,9 +376,6 @@ export type Database = {
           name?: string
           outreach_settings?: Json
           pain_points?: string | null
-          self_ad_analysis_last_run_at?: string | null
-          self_ad_analysis_schedule_day?: number
-          self_ad_analysis_schedule_hour?: number
           services?: Json
           settings?: Json
           target_audience?: string | null

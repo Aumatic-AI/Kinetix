@@ -97,17 +97,8 @@ export const MOOD_CINEMATOGRAPHY: Record<string, string> = {
 
 export function getVideoAdScriptPrompt(intelligence: any, creative: any): string {
   const business = intelligence.business || {};
-  const competitor = intelligence.competitor || {};
-  const self = intelligence.self || {};
 
   const businessName = business.name || "the business";
-  const winningAngle = self?.winning_patterns?.best_angle || "Not enough data yet";
-  const creativeDirectives: string[] = self?.creative_directives || [];
-  const bestHookFormula = competitor?.hook_analysis?.best_hook_formula;
-  const topHooks = (competitor?.hook_analysis?.top_hook_patterns || [])
-    .slice(0, 3)
-    .map((p: any) => p.example)
-    .filter(Boolean);
   const descriptor = serviceDescriptor(business, creative.service);
   const language = creative.language && creative.language !== "English" ? creative.language : null;
   const minSceneCount = sceneCountForDuration(creative.duration);
@@ -128,16 +119,7 @@ You are an expert voiceover scriptwriter for ${businessName}, a ${business.indus
 
 ${businessContextBlock(business)}
 
-PROVEN HOOKS FROM MARKET INTELLIGENCE (use as inspiration for the opening line, never copy verbatim): ${JSON.stringify(topHooks)}
-${bestHookFormula ? `Proven hook formula: ${bestHookFormula}` : ""}
-
 You write AUDIO ONLY. Your output is spoken narration that will be read aloud by ElevenLabs TTS over background music. No camera directions, no shot lists, no on-screen text — just the words the voice will say.
-
-=== HISTORICAL PERFORMANCE RULES (FROM YOUR LIVE ADS) ===
-Our current winning angle is: ${winningAngle}
-MANDATORY DIRECTIVES BASED ON REAL AD DATA:
-${creativeDirectives.length ? creativeDirectives.map((d: string) => `- ${d}`).join("\n") : "- No live-performance directives yet."}
-You MUST follow these directives or the ad will fail.
 
 STEP 0 — DECIDE THE AD'S MODE (do this first, silently — this decides everything below)
 Read the idea and the business context, then pick exactly ONE mode that genuinely fits — never default to TRANSFORMATION just because it's the most detailed option below. Be able to justify your choice from the idea itself.

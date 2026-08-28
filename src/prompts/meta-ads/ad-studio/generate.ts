@@ -24,14 +24,8 @@ export interface StudioAdInput {
  * attached image is which. */
 export function getStudioAdPrompt(intelligence: any, input: StudioAdInput): string {
   const business = intelligence.business || {};
-  const competitor = intelligence.competitor || {};
-  const self = intelligence.self || {};
   const businessName = business.name || "the business";
   const descriptor = serviceDescriptor(business, input.service);
-
-  const winningAngle = self?.winning_patterns?.best_angle || "Not enough data yet — no live-performance history available.";
-  const creativeDirectives: string[] = self?.creative_directives || [];
-  const bestHookFormula = competitor?.hook_analysis?.best_hook_formula;
 
   const hasLogo = !!business.logo_url;
   const contactText = contactDisplayText(business);
@@ -58,11 +52,7 @@ ${input.hasReferenceImage ? "\nA reference photo is attached alongside this prom
 BRIEF (the user's answers to your own questions)
 ${briefText}
 
-=== HISTORICAL PERFORMANCE ===
-Current winning angle: ${winningAngle}
-${creativeDirectives.length ? creativeDirectives.map((d) => `- ${d}`).join("\n") + "\nYou MUST follow these directives or the ad will fail." : "No live-performance directives yet — rely on the brief and market data instead."}
-
-${bestHookFormula ? `PROVEN HOOK FORMULA FROM MARKET DATA: ${bestHookFormula}\n\n` : ""}STEP 1 — THE BIG IDEA (decide this before anything else)
+STEP 1 — THE BIG IDEA (decide this before anything else)
 Decide the ONE thought this entire ad is built around — the single idea that the headline and the scene both prove from different angles, instead of each doing its own separate thing.
 
 Test it: if you could swap this ad's headline and scene into a totally different, unrelated ad and nobody would notice, there is no big idea yet — just decoration. For example:

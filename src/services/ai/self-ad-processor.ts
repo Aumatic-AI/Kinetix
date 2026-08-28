@@ -1,5 +1,5 @@
 /**
- * Self-Ad Performance Processor
+ * Self-Ad Performance Scoring
  *
  * Ports the deterministic scoring formula and pattern-based diagnosis
  * from the legacy project's /api/meta/report-analysis route — the one
@@ -8,6 +8,14 @@
  * snapshot rows per ad first (fixing a real bug: the previous version
  * bucketed individual daily rows instead of whole ads, so a 30-day-old
  * ad counted as ~23 separate "seasoned" entries).
+ *
+ * Used by the Meta Ads Dashboard's self-ad score distribution chart only
+ * (`/api/meta-ads/dashboard`) — computed fresh from `ad_performance_daily`
+ * on every load. The weekly AI self-ad-analysis report that used to also
+ * read this (bucketing into top/under-performers for an LLM writeup, with
+ * a rule-based fallback) was removed as an unused feature, along with its
+ * cron job — this file now only exports the scoring/diagnosis primitives
+ * the Dashboard chart actually needs.
  */
 
 export interface DailyRow {
@@ -137,86 +145,3 @@ export function diagnosePattern(ad: AggregatedAd, accountAvgCpcCents: number): A
   return null;
 }
 
-export interface SelfAdAnalysisInput {
-  topPerformers: AggregatedAd[];
-  underperformers: AggregatedAd[];
-  totals: { spendCents: number; impressions: number; clicks: number; avgCtr: number; avgCpmCents: number; avgCpcCents: number };
-  hasStrongPerformers: boolean;
-}
-
-/** Buckets scored, pattern-diagnosed ads into top performers (score >= 40)
- * vs. everything else, and rolls up account totals for prompt context. */
-export function bucketAds(scoredAds: AggregatedAd[]): SelfAdAnalysisInput {
-  const sorted = [...scoredAds].sort((a, b) => b.score - a.score);
-  const qualifiedTop = sorted.filter((a) => a.score >= 40).slice(0, 3);
-  const topIds = new Set(qualifiedTop.map((a) => a.metaAdId));
-  const underperformers = sorted.filter((a) => !topIds.has(a.metaAdId));
-
-  const spendCents = scoredAds.reduce((s, a) => s + a.spendCents, 0);
-  const impressions = scoredAds.reduce((s, a) => s + a.impressions, 0);
-  const clicks = scoredAds.reduce((s, a) => s + a.clicks, 0);
-
-  return {
-    topPerformers: qualifiedTop,
-    underperformers,
-    totals: {
-      spendCents,
-      impressions,
-      clicks,
-      avgCtr: impressions > 0 ? (clicks / impressions) * 100 : 0,
-      avgCpmCents: impressions > 0 ? Math.round((spendCents / impressions) * 1000) : 0,
-      avgCpcCents: clicks > 0 ? Math.round(spendCents / clicks) : 0,
-    },
-    hasStrongPerformers: qualifiedTop.length > 0,
-  };
-}
-
-/** Deterministic, no-AI fallback report — used if the OpenAI call fails or
- * no API key is configured, so the job always produces something usable. */
-export function ruleBasedSelfAdReport(bucketed: SelfAdAnalysisInput) {
-  const { topPerformers, underperformers, totals, hasStrongPerformers } = bucketed;
-  const best = topPerformers[0];
-  const spend = totals.spendCents / 100;
-
-  return {
-    ai_overview: `${topPerformers.length + underperformers.length} ads analyzed. Total spend $${spend.toFixed(2)}, ${totals.impressions.toLocaleString()} impressions, ${totals.clicks} clicks, avg CTR ${totals.avgCtr.toFixed(2)}%. ${
-      hasStrongPerformers ? `Ad ${best.metaAdId} leads with CTR ${best.ctr.toFixed(2)}%.` : "No ad has reached a score of 40 — all need improvement before scaling budget."
-    }`,
-    trend_shifts: { fatiguing_angles: [], emerging_winners: [] }, // requires last week's report to compare against — left empty in the deterministic fallback
-    winning_patterns: {
-      best_format: "insufficient data",
-      best_angle: hasStrongPerformers ? `Ad ${best.metaAdId} is winning on raw CTR (${best.ctr.toFixed(2)}%) — no creative-text comparison available without the AI pass.` : "No ad is winning yet.",
-      hook_analysis: "Not available in the deterministic fallback — requires the AI pass to read actual ad copy.",
-    },
-    key_insights: [
-      hasStrongPerformers
-        ? `Ad ${best.metaAdId} achieves CTR ${best.ctr.toFixed(2)}% with CPM $${(best.cpmCents / 100).toFixed(2)} — concentrate budget here.`
-        : "No ad is generating reliable clicks. All need hook rewrites before scaling.",
-      `${underperformers.filter((a) => a.spendCents === 0 && a.impressions === 0).length} ads have never served — check status and budget before editing copy.`,
-      totals.avgCtr < 0.3 ? "Average CTR is below 0.3%. The hook needs to be stronger across the board." : "CTR is at benchmark — scale top performers.",
-    ],
-    top_performer_notes: topPerformers.map((a) => ({
-      meta_ad_id: a.metaAdId,
-      why_performing: `CTR ${a.ctr.toFixed(2)}%, CPM $${(a.cpmCents / 100).toFixed(2)}, ${a.clicks} clicks over ${a.daysRunning} days.`,
-    })),
-    underperformer_suggestions: underperformers.map((a) => ({
-      meta_ad_id: a.metaAdId,
-      pattern: a.pattern,
-      issue:
-        a.pattern === "A"
-          ? "Never served — check status and budget before touching creative."
-          : a.pattern === "B"
-          ? `Spent $${(a.spendCents / 100).toFixed(2)} with ${a.impressions.toLocaleString()} impressions and 0 clicks — the hook is failing to stop the scroll.`
-          : `CTR ${a.ctr.toFixed(2)}% — below benchmark. Audience or copy needs work.`,
-      headline_suggestion: null,
-      cta_suggestion: null,
-      budget_suggestion: a.pattern === "A" ? "Set a minimum daily budget and confirm the campaign/ad set/ad status is active." : null,
-      targeting_suggestion: null,
-    })),
-    creative_directives: [], // requires reading actual ad copy — left empty in the deterministic fallback
-    budget_recommendations: hasStrongPerformers ? [`Increase budget on ad ${best.metaAdId}, currently at CTR ${best.ctr.toFixed(2)}%.`] : [],
-    overall_recommendation: hasStrongPerformers
-      ? `Increase budget on ad ${best.metaAdId}. Pause zero-CTR ads until hooks are rewritten.`
-      : "No ad is generating reliable clicks. Rewrite hooks across the board before scaling any budget.",
-  };
-}

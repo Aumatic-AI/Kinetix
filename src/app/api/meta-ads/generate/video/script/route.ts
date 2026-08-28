@@ -29,30 +29,7 @@ export async function POST(request: Request) {
     const { data: business } = await supabase.from("businesses").select("*").limit(1).single();
     if (!business) throw new Error("No business found");
 
-    const [{ data: compData }, { data: selfData }] = await Promise.all([
-      supabase
-        .from("ad_analysis_reports")
-        .select("*")
-        .eq("business_id", business.id)
-        .eq("report_type", "competitor")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single(),
-      supabase
-        .from("ad_analysis_reports")
-        .select("*")
-        .eq("business_id", business.id)
-        .eq("report_type", "self")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single(),
-    ]);
-
-    const intelligence = {
-      business,
-      competitor: compData?.insights || {},
-      self: selfData?.insights || {},
-    };
+    const intelligence = { business };
 
     const script = await generateVideoScript(intelligence, {
       ideaPrompt: body.ideaPrompt,

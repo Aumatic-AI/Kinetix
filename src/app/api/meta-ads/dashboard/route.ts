@@ -54,14 +54,13 @@ function emptyResponse(rangeDays: number): MetaAdsDashboardResponse {
 }
 
 /** Everything the Meta Ads dashboard renders, in one call: a spend trend +
- * self-ad score distribution computed fresh from ad_performance_daily (same
- * scoring/pattern logic as business-ad-analysis.job.ts, just run here
- * instead of waiting on that weekly job). Deliberately excludes every prose
- * field (executive_summary, ai_overview, key_insights, etc.) — this page
- * shows metrics/charts only. Competitor-intelligence display was removed
- * from this dashboard (and the scraper job that fed it) — `ad_analysis_reports`
- * rows with report_type 'competitor' may still exist and are still read by
- * ad-generation prompts for market context, just not shown here anymore.
+ * self-ad score distribution computed fresh from ad_performance_daily
+ * (`src/services/ai/self-ad-processor.ts`'s scoring/pattern logic). Deliberately
+ * excludes every prose field (executive_summary, ai_overview, key_insights,
+ * etc.) — this page shows metrics/charts only. The weekly AI self-ad-analysis
+ * report and the earlier competitor-intelligence job/dashboard display were
+ * both removed as unused features — this chart is computed fresh here and
+ * never depended on either of them.
  *
  * `?range=7d|14d|30d|90d|all` (default 30d) only rescopes the spend/CTR KPIs and
  * the spend trend chart — the only genuinely "last N days" data here. The
@@ -125,9 +124,8 @@ export async function GET(request: NextRequest) {
     const spendCents = (recentRows || []).reduce((s, r) => s + (r.spend_cents || 0), 0);
     const avgCtr = recentImpressions > 0 ? (recentClicks / recentImpressions) * 100 : 0;
 
-    // Self-ad score distribution — same aggregate/diagnose pipeline as
-    // business-ad-analysis.job.ts, run live here instead of read from the
-    // (AI-prose) weekly report, so it's pure numbers and never stale.
+    // Self-ad score distribution — aggregate/diagnose pipeline from
+    // self-ad-processor.ts, computed fresh here on every load.
     const aggregated = aggregateByAd((allRows || []) as unknown as DailyRow[]);
     const seasoned = aggregated.filter((a) => a.daysRunning >= 7);
     const accountAvgCpcCents = seasoned.length
