@@ -26,7 +26,12 @@ export async function GET(request: Request) {
     url.searchParams.set("sort", "trending");
     if (search) url.searchParams.set("search", search);
     if (gender && gender !== 'all') url.searchParams.set("gender", gender);
-    if (accent && accent !== 'all') url.searchParams.set("accent", accent);
+    // ElevenLabs stores/matches accent lowercase (their own docs example shows
+    // "accent": "american") — the frontend's accent options are capitalized
+    // for display ("Indian", "South African"), so this must be lowercased
+    // before being sent, or a case-sensitive mismatch silently returns zero
+    // results even though matching voices exist.
+    if (accent && accent !== 'all') url.searchParams.set("accent", accent.toLowerCase());
     if (language && language !== 'all') url.searchParams.set("language", language);
 
     const response = await fetch(url.toString(), {

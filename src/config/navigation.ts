@@ -117,9 +117,15 @@ export const SECONDARY_NAV_ITEMS: Record<
     },
     {
       id: "sm-posts",
-      label: "Posts",
+      label: "Gallery",
       href: ROUTES.SOCIAL.POSTS,
       icon: Megaphone,
+    },
+    {
+      id: "sm-published",
+      label: "Published",
+      href: ROUTES.SOCIAL.PUBLISHED,
+      icon: Send,
     },
     {
       id: "sm-accounts",

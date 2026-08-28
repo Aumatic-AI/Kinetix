@@ -111,7 +111,7 @@ export function PublishPostPage() {
     return (
       <div className="max-w-2xl mx-auto text-center py-24">
         <p className="text-muted">No post selected to publish.</p>
-        <Link href={ROUTES.SOCIAL.POSTS} className="text-primary font-semibold text-sm mt-2 inline-block">Back to Posts</Link>
+        <Link href={ROUTES.SOCIAL.POSTS} className="text-primary font-semibold text-sm mt-2 inline-block">Back to Gallery</Link>
       </div>
     );
   }
@@ -123,7 +123,7 @@ export function PublishPostPage() {
           onClick={goToPosts}
           className="flex items-center gap-1.5 text-xs font-semibold text-muted hover:text-text transition-colors mb-4"
         >
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to Posts
+          <ArrowLeft className="w-3.5 h-3.5" /> Back to Gallery
         </button>
 
         <Stepper
@@ -148,7 +148,7 @@ export function PublishPostPage() {
     return (
       <div className="max-w-2xl mx-auto text-center py-24">
         <p className="text-muted">This post couldn't be found — it may have already been published or removed.</p>
-        <Link href={ROUTES.SOCIAL.POSTS} className="text-primary font-semibold text-sm mt-2 inline-block">Back to Posts</Link>
+        <Link href={ROUTES.SOCIAL.POSTS} className="text-primary font-semibold text-sm mt-2 inline-block">Back to Gallery</Link>
       </div>
     );
   }
@@ -257,7 +257,7 @@ export function PublishPostPage() {
         onClick={goToPosts}
         className="flex items-center gap-1.5 text-xs font-semibold text-muted hover:text-text transition-colors mb-4"
       >
-        <ArrowLeft className="w-3.5 h-3.5" /> Back to Posts
+        <ArrowLeft className="w-3.5 h-3.5" /> Back to Gallery
       </button>
 
       <Stepper
