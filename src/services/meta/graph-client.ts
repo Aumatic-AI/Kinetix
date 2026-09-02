@@ -140,3 +140,22 @@ export function requireMetaPageEnv(): MetaPageEnv {
   }
   return { pageId, pageToken };
 }
+
+export interface MetaConversionsEnv {
+  accessToken: string;
+  datasetId: string;
+}
+
+/** Conversions API for CRM — reports a lead's status back to Meta, matched
+ * by its own lead ID. The dataset (META_CONVERSIONS_DATASET_ID) is created
+ * once in Meta Events Manager, outside this codebase — there's no code path
+ * that creates it. Not required for changing a lead's status locally; only
+ * the push to Meta needs it. */
+export function requireMetaConversionsEnv(): MetaConversionsEnv {
+  const accessToken = env.META_ACCESS_TOKEN;
+  const datasetId = env.META_CONVERSIONS_DATASET_ID;
+  if (!accessToken || !datasetId) {
+    throw new Error("Meta Conversions API for CRM isn't configured — set META_CONVERSIONS_DATASET_ID (and META_ACCESS_TOKEN).");
+  }
+  return { accessToken, datasetId };
+}

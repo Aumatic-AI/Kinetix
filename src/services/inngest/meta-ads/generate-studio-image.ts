@@ -2,6 +2,7 @@ import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
 import { getStudioAdPrompt } from "../../../prompts/meta-ads/ad-studio/generate";
+import { downloadAndStoreImage } from "./store-creative-image";
 import { env } from "@/config";
 
 const supabase = createClient(
@@ -76,25 +77,32 @@ export const generateStudioImage = inngest.createFunction(
 
       if (!finalImageUrl) throw new Error("Kie AI Image Generation Timed Out");
 
+      // Download + re-upload into our own storage — every downstream
+      // record (the creative, the session, the chat message) should point
+      // at our own durable URL, not Kie's own (potentially temporary) one.
+      const storedImageUrl = await step.run("store-image", async () => {
+        return await downloadAndStoreImage(supabase, businessId, finalImageUrl as string);
+      });
+
       await step.run("finalize", async () => {
         await supabase
           .from("meta_ad_creatives")
           .update({
             status: "review",
-            media_urls: [finalImageUrl],
+            media_urls: [storedImageUrl],
           })
           .eq("id", creativeId);
 
         await supabase
           .from("studio_sessions")
-          .update({ status: "reviewing", raw_image_url: finalImageUrl })
+          .update({ status: "reviewing", raw_image_url: storedImageUrl })
           .eq("id", sessionId);
 
         await supabase.from("studio_messages").insert({
           session_id: sessionId,
           role: "assistant",
           kind: "image",
-          payload: { imageUrl: finalImageUrl },
+          payload: { imageUrl: storedImageUrl },
         });
       });
 

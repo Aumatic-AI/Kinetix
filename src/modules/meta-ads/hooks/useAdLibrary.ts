@@ -109,6 +109,20 @@ export function useDeleteMetaAdCreative() {
   });
 }
 
+/** "Post to Social Media" — copies the creative's image into Social's own
+ * Media Library and returns the new mediaAssetId, which the caller routes
+ * to ROUTES.SOCIAL.POSTS_PUBLISH with (see the API route's own comment). */
+export function useShareCreativeToSocial() {
+  return useMutation({
+    mutationFn: async (creativeId: string) => {
+      const res = await fetch(`/api/meta-ads/creatives/${creativeId}/share-to-social`, { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to post this image to Social Media");
+      return data as { success: true; mediaAssetId: string; socialPostId: string };
+    },
+  });
+}
+
 export function useRetryMetaAdCreative() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
-import { Play, Check, Clock, Video, Image as ImageIcon, Sparkles, AlertTriangle, RefreshCw, MoreVertical, MessageSquare, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { Play, Check, Clock, Video, Image as ImageIcon, Sparkles, AlertTriangle, RefreshCw, MoreVertical, MessageSquare, Trash2, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ROUTES } from "@/config/routes";
+import { useShareCreativeToSocial } from "../../hooks/useAdLibrary";
 import { MetaAdCreativeListItem } from "../../types/meta-ads.types";
 
 interface AdCreativeCardProps {
@@ -23,6 +25,14 @@ export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRet
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const shareToSocial = useShareCreativeToSocial();
+
+  const handleShareToSocial = () => {
+    shareToSocial.mutate(ad.id, {
+      onSuccess: (data) => router.push(`${ROUTES.SOCIAL.POSTS_PUBLISH}?mediaAssetId=${data.mediaAssetId}`),
+      onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to post this image to Social Media"),
+    });
+  };
 
   const confirmDelete = async () => {
     setDeleteError("");
@@ -146,6 +156,11 @@ export function AdCreativeCard({ ad, index, onSelect, onApprove, onDelete, onRet
               {ad.studio_session_id && (
                 <DropdownMenuItem onClick={() => router.push(ROUTES.META_ADS.AD_STUDIO_SESSION(ad.studio_session_id as string))}>
                   <MessageSquare className="w-4 h-4" /> Chat History
+                </DropdownMenuItem>
+              )}
+              {ad.type === "image" && (
+                <DropdownMenuItem disabled={shareToSocial.isPending} onClick={handleShareToSocial}>
+                  <Share2 className="w-4 h-4" /> {shareToSocial.isPending ? "Posting..." : "Post to Social Media"}
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem variant="destructive" onClick={() => setConfirmingDelete(true)}>

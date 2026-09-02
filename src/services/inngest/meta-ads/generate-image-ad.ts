@@ -2,6 +2,7 @@ import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
 import { getImageAdPrompt } from "../../../prompts/meta-ads/image";
+import { downloadAndStoreImage } from "./store-creative-image";
 import { env } from "@/config";
 
 const supabase = createClient(
@@ -79,7 +80,13 @@ export const generateImageAd = inngest.createFunction(
         throw new Error("Kie AI Image Generation Timed Out");
       }
 
-      // 6. Finalize
+      // 6. Download + re-upload into our own storage — media_urls
+      // shouldn't point at Kie's own (potentially temporary) result URL.
+      const storedImageUrl = await step.run("store-image", async () => {
+        return await downloadAndStoreImage(supabase, businessId, imageUrl as string);
+      });
+
+      // 7. Finalize
       await step.run("finalize", async () => {
         await supabase
           .from('meta_ad_creatives')
@@ -89,7 +96,7 @@ export const generateImageAd = inngest.createFunction(
               headline: scriptJson.headline,
               primary_text: scriptJson.primary_text
             },
-            media_urls: [imageUrl]
+            media_urls: [storedImageUrl]
           })
           .eq('id', creativeId);
       });

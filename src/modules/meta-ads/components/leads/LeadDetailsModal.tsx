@@ -3,6 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime } from "@/utils/datetime";
 import { InfoItem } from "../campaigns/shared";
+import { LeadStatusControl } from "./LeadStatusControl";
 import { Lead, useLeadForms } from "../../hooks/useLeads";
 
 const NAME_KEYS = ["full_name", "first_name"];
@@ -39,12 +40,15 @@ export function LeadDetailsModal({ lead, onClose }: { lead: Lead | null; onClose
     <Dialog open={!!lead} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <div className="flex items-center gap-3">
-            <Avatar label={name} />
-            <div className="min-w-0">
-              <DialogTitle className="truncate">{name}</DialogTitle>
-              {lead && <p className="text-xs text-muted mt-0.5">Submitted {formatDateTime(lead.created_at)}</p>}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <Avatar label={name} />
+              <div className="min-w-0">
+                <DialogTitle className="truncate">{name}</DialogTitle>
+                {lead && <p className="text-xs text-muted mt-0.5">Submitted {formatDateTime(lead.created_at)}</p>}
+              </div>
             </div>
+            {lead && <LeadStatusControl leadId={lead.id} status={lead.status} />}
           </div>
         </DialogHeader>
 

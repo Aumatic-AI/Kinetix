@@ -2,6 +2,7 @@ import { inngest } from "../client";
 import { aiOrchestrator } from "../../ai/orchestrator";
 import { createClient } from "@supabase/supabase-js";
 import { getAdEditPrompt } from "../../../prompts/meta-ads/ad-studio/edit";
+import { downloadAndStoreImage } from "./store-creative-image";
 import { env } from "@/config";
 
 const supabase = createClient(
@@ -26,7 +27,7 @@ export const editStudioImage = inngest.createFunction(
       // preserve) — an edit just re-runs generation against it with the
       // instruction applied.
       const creative = await step.run("fetch-creative", async () => {
-        const { data } = await supabase.from("meta_ad_creatives").select("media_urls, revision_history").eq("id", creativeId).single();
+        const { data } = await supabase.from("meta_ad_creatives").select("business_id, media_urls, revision_history").eq("id", creativeId).single();
         return data;
       });
 
@@ -63,6 +64,12 @@ export const editStudioImage = inngest.createFunction(
 
       if (!newImageUrl) throw new Error("Kie AI Edit Timed Out");
 
+      // Download + re-upload into our own storage — same reasoning as
+      // generate-studio-image.ts's own "store-image" step.
+      const storedImageUrl = await step.run("store-image", async () => {
+        return await downloadAndStoreImage(supabase, creative!.business_id, newImageUrl as string);
+      });
+
       await step.run("finalize", async () => {
         const priorHistory = Array.isArray(creative?.revision_history) ? creative.revision_history : [];
         const nextHistory = [
@@ -76,19 +83,19 @@ export const editStudioImage = inngest.createFunction(
 
         await supabase
           .from("meta_ad_creatives")
-          .update({ media_urls: [newImageUrl], revision_history: nextHistory })
+          .update({ media_urls: [storedImageUrl], revision_history: nextHistory })
           .eq("id", creativeId);
 
         await supabase
           .from("studio_sessions")
-          .update({ status: "reviewing", raw_image_url: newImageUrl })
+          .update({ status: "reviewing", raw_image_url: storedImageUrl })
           .eq("id", sessionId);
 
         await supabase.from("studio_messages").insert({
           session_id: sessionId,
           role: "assistant",
           kind: "image",
-          payload: { imageUrl: newImageUrl },
+          payload: { imageUrl: storedImageUrl },
         });
       });
 

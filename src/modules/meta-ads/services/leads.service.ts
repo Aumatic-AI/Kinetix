@@ -1,6 +1,9 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { requireMetaPageEnv, graphGetAllPages } from "@/services/meta/graph-client";
 
+export type LeadStatus = "new" | "contacted" | "qualified" | "converted" | "not_interested";
+export const LEAD_STATUSES: LeadStatus[] = ["new", "contacted", "qualified", "converted", "not_interested"];
+
 interface MetaLeadRow {
   id: string;
   created_time?: string;
@@ -63,5 +66,12 @@ export class LeadsService {
     }
 
     return { formsChecked: forms.length, leadsImported: imported };
+  }
+
+  /** A plain partial update — unlike syncFromMeta's upsert above, this never
+   * touches any other column, so it can't collide with a later sync. */
+  static async updateStatus(supabase: SupabaseClient, id: string, status: LeadStatus): Promise<void> {
+    const { error } = await supabase.from("leads").update({ status }).eq("id", id);
+    if (error) throw new Error(`Error updating lead status: ${error.message}`);
   }
 }

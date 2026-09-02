@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { formatDateTime } from "@/utils/datetime";
 import { EmptyState } from "../dashboard/shared";
+import { LeadStatusControl } from "./LeadStatusControl";
 import { Lead, useLeadForms } from "../../hooks/useLeads";
 
 const NAME_KEYS = ["full_name", "first_name"];
@@ -29,6 +30,7 @@ export function LeadsTable({ leads, onView }: { leads: Lead[]; onView: (lead: Le
             <TableHead>Email</TableHead>
             <TableHead>Form</TableHead>
             <TableHead>Received</TableHead>
+            <TableHead>Status</TableHead>
             <TableHead />
           </TableRow>
         </TableHeader>
@@ -47,6 +49,9 @@ export function LeadsTable({ leads, onView }: { leads: Lead[]; onView: (lead: Le
                 <TableCell className="text-muted">{pick(lead.field_data, EMAIL_KEYS)}</TableCell>
                 <TableCell className="text-muted truncate max-w-40">{formName}</TableCell>
                 <TableCell className="text-muted whitespace-nowrap">{formatDateTime(lead.created_at)}</TableCell>
+                <TableCell>
+                  <LeadStatusControl leadId={lead.id} status={lead.status} />
+                </TableCell>
                 <TableCell>
                   <div className="flex justify-end">
                     <Button size="sm" variant="primary" onClick={() => onView(lead)}>View</Button>

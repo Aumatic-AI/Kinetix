@@ -10,12 +10,14 @@ import { Switch } from "@/components/ui/Switch";
 import { useSettings, useUpdateSettings } from "../hooks/useSettings";
 import { BusinessSettings } from "../types/settings.types";
 import { Field, ServicesEditor, WeekdayToggle, TimezoneSelect, VideoReferenceUploader, LogoUploader } from "../components/shared";
+import { UsageSettings } from "../components/UsageSettings";
 
 const SETTINGS_TABS = [
   { value: "general", label: "General" },
   { value: "voice", label: "Brand & Voice" },
   { value: "services", label: "Services" },
   { value: "automation", label: "Automation Defaults" },
+  { value: "usage", label: "Usage" },
 ];
 
 /**
@@ -217,6 +219,8 @@ export function SettingsPage() {
             </Section>
           </div>
       )}
+
+      {activeTab === "usage" && <UsageSettings />}
 
       <UnsavedChangesBar open={isDirty} onSave={handleSave} onDiscard={handleDiscard} saving={updateSettings.isPending} />
     </div>

@@ -34,6 +34,10 @@ const envSchema = z.object({
   META_PAGE_ID: z.string().optional(),
   META_PAGE_TOKEN: z.string().optional(),
 
+  // Meta Graph API — Conversions API for CRM (reports lead status back to Meta;
+  // the dataset itself is created once in Meta Events Manager, outside this codebase)
+  META_CONVERSIONS_DATASET_ID: z.string().optional(),
+
   // Storage
   STORAGE_PROVIDER: z.enum(["supabase", "s3", "local"]).default("supabase"),
 
@@ -70,6 +74,7 @@ const _env = envSchema.safeParse({
   META_AD_ACCOUNT_ID: process.env.META_AD_ACCOUNT_ID,
   META_PAGE_ID: process.env.META_PAGE_ID,
   META_PAGE_TOKEN: process.env.META_PAGE_TOKEN,
+  META_CONVERSIONS_DATASET_ID: process.env.META_CONVERSIONS_DATASET_ID,
 
   STORAGE_PROVIDER: process.env.STORAGE_PROVIDER,
 
