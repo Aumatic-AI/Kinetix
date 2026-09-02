@@ -1,6 +1,16 @@
 import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { PaginationMeta } from "@/lib/pagination";
 
+export type LeadStatus = "new" | "contacted" | "qualified" | "converted" | "not_interested";
+export const LEAD_STATUSES: LeadStatus[] = ["new", "contacted", "qualified", "converted", "not_interested"];
+export const LEAD_STATUS_LABEL: Record<LeadStatus, string> = {
+  new: "New",
+  contacted: "Contacted",
+  qualified: "Qualified",
+  converted: "Converted",
+  not_interested: "Not Interested",
+};
+
 export interface Lead {
   id: string;
   created_at: string;
@@ -11,6 +21,7 @@ export interface Lead {
   adset_name: string | null;
   campaign_name: string | null;
   field_data: Record<string, string>;
+  status: LeadStatus;
 }
 
 export interface LeadFormQuestion {
@@ -105,6 +116,21 @@ export function useSyncLeads() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => fetchJson<{ success: true; formsChecked: number; leadsImported: number }>("/api/meta-ads/leads/sync", { method: "POST" }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: leadsKeys.listAll() }),
+  });
+}
+
+/** Changes a lead's status — updates our own DB and best-effort reports it
+ * to Meta's Conversions API for CRM (see the API route's own comment). */
+export function useUpdateLeadStatus() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: LeadStatus }) =>
+      fetchJson<{ success: true }>("/api/meta-ads/leads/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status }),
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: leadsKeys.listAll() }),
   });
 }

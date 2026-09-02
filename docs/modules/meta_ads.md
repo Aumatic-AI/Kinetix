@@ -16,7 +16,7 @@ Meta Ads automates the whole lifecycle of a Meta (Facebook/Instagram) advertisin
 | **Add Creative (Ad)** | Adds another Ad under an *existing* Ad Set, inheriting its targeting/budget/optimization goal. |
 | **Quick Edit / Undo** | Ad copy can be edited after generation; every prior version is kept (`meta_ad_creatives.revision_history`) so a bad edit isn't a dead end. |
 | **Performance Polling** | Daily sync of every ad's live spend/impressions/clicks into `ad_performance_daily` — the input to the Dashboard's spend trend and self-ad score chart. |
-| **Lead Capture** | No webhook, and no live Meta call on page load either — a background job syncs into our own `leads` table every 5 minutes (Meta itself purges leads after 90 days, so this is the permanent copy). A manual "Sync now" button forces an immediate check. |
+| **Lead Capture** | No webhook, and no background cron either — every page load calls Meta live and upserts into our own `leads` table (Meta itself purges leads after 90 days, so this is the permanent copy). A manual "Sync now" button forces another sync without reloading. Each lead has a **status** (New/Contacted/Qualified/Converted/Not Interested), changeable from the Leads table or its detail modal — best-effort reported to Meta's Conversions API for CRM so it's on record for a future "Conversion Leads"-optimized campaign. |
 | **Instant Forms management** | Create/view/archive Meta Lead Gen forms directly from Kinetix. |
 
 ## 3. Pages
@@ -30,7 +30,7 @@ Meta Ads automates the whole lifecycle of a Meta (Facebook/Instagram) advertisin
 | Ad Detail | `/meta-ads/campaigns/:campaignId/:adSetId/:adId` | Creative preview, full ad copy, lifetime performance, "Preview on Meta," and inline copy editing. |
 | Reports | `/meta-ads/reports` | Live ad-level performance table (spend/CTR/CPM/score) for a selected range, paginated. |
 | Ad Library | `/meta-ads/ad-library` | Every generated/uploaded creative as a dense thumbnail grid, paginated; approve, retry, delete, or launch/relaunch a campaign from one. |
-| Leads | `/meta-ads/leads` | Browse captured leads (paginated table, synced from Meta every 5 minutes in the background) or manage Instant Forms, on two tabs; "Sync now" forces an immediate check. |
+| Leads | `/meta-ads/leads` | Browse captured leads (paginated table, synced live from Meta on every load) or manage Instant Forms, on two tabs; "Sync now" forces another sync; each lead's status can be changed inline. |
 | Create Campaign | `/meta-ads/campaigns/create` | The 3-step Launch wizard (reached from Campaigns or Ad Library, not in the sidebar). |
 
 ### 3.1 Campaign Launch & Management Flow, in more detail
@@ -52,6 +52,10 @@ Both Launch and the nightly sync job read `META_ACCESS_TOKEN`/`META_AD_ACCOUNT_I
 ### Lead Capture — live on every page load, not a webhook and not a background sync
 
 `GET /api/meta-ads/leads` calls `LeadsService.syncFromMeta()` (walks every Instant Form's leads via the Graph API, upserts them on `meta_lead_id`) before reading the `leads` table on every request — a real, measured 7-8 second round trip on each page load, accepted by deliberate choice so the page never shows data older than "right now." This used to go through a 5-minute background cron (`jobs/meta-ads-leads-sync.job.ts`) instead, with the route only ever reading the table; that job was removed in favor of always-live data — see `../architecture/system_design.md`'s note on Leads/dashboards calling their APIs live. Because `syncFromMeta()` only upserts and never deletes, a lead from an earlier sync stays in `leads` even if a later Graph API response happens to omit it, so reading the table right after syncing already reflects everything ever seen, not just this one call's response. If the live sync itself fails, the route falls back to whatever's already in `leads` instead of failing the whole page. A "Sync now" button (`POST /api/meta-ads/leads/sync`, same underlying service) still exists for forcing another sync without leaving/reloading the page. There's deliberately no real-time webhook either — that would need a stable public URL, HMAC signature verification, and a one-time dashboard subscription, none of which is worth the complexity for a single-tenant app.
+
+### Lead Status — local tracking + a best-effort push to Meta
+
+`leads.status` (`new` default, or `contacted`/`qualified`/`converted`/`not_interested`) is changed via `POST /api/meta-ads/leads/status`, which updates the row and then — separately, wrapped so a failure here never fails the request — calls `sendLeadStatusEvent()` (`src/services/meta/conversions-api.ts`) to report the same status to Meta's **Conversions API for CRM**, matched back to the original submission by `meta_lead_id`. This requires `META_CONVERSIONS_DATASET_ID` (a CRM dataset created once in Meta Events Manager, outside this codebase); if it isn't set, the local status change still succeeds and the Meta push is simply skipped. On its own, reporting the event does **not** change ad delivery — Meta only acts on it once an ad set's Optimization Goal is switched from `LEAD_GENERATION` to a quality-based **"Conversion Leads"** goal, which is a separate change not yet made to the Campaign creation flow (`resolveDeliverySettings()` in `launch.service.ts` still always forces `LEAD_GENERATION` for a native Instant Form ad set).
 
 ## 4. Pagination
 
