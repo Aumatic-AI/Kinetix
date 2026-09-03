@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { Database } from "@/types/supabase";
 import { MetaAdsService } from "@/modules/meta-ads/services/meta-ads.service";
 import { OutreachCampaignsService } from "@/modules/outreach/services/outreach.service";
+import { MetaLeadsImportService } from "@/modules/outreach/services/meta-leads-import.service";
 import { OutreachCampaignListItem } from "@/modules/outreach/types/outreach.types";
 import { getOutreachDraftPrompt } from "@/prompts/outreach";
 import { aiOrchestrator } from "@/services/ai/orchestrator";
@@ -50,8 +51,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    if (!body.name?.trim() || !body.listId || !body.serviceType || !body.targetRegion || !body.goal?.trim() || !body.messageBrief?.trim()) {
-      return NextResponse.json({ error: "Name, list, service type, target region, goal, and message brief are all required" }, { status: 400 });
+    const listIds: string[] = Array.isArray(body.listIds) ? body.listIds : [];
+    const metaCampaignNames: string[] = Array.isArray(body.metaCampaignNames) ? body.metaCampaignNames : [];
+    if (!body.name?.trim() || (listIds.length === 0 && metaCampaignNames.length === 0) || !body.serviceType || !body.targetRegion || !body.goal?.trim() || !body.messageBrief?.trim()) {
+      return NextResponse.json({ error: "Name, at least one list, service type, target region, goal, and message brief are all required" }, { status: 400 });
     }
 
     const supabase = (await createClient()) as SupabaseClient<Database>;
@@ -75,9 +78,18 @@ export async function POST(request: Request) {
       ctaLink: body.ctaLink?.trim() || undefined,
     };
 
+    // Meta-campaign entries get imported into a real list right here, at
+    // creation time — not before (see MetaLeadsImportService's own comment).
+    const importedListIds: string[] = [];
+    for (const campaignName of metaCampaignNames) {
+      const result = await MetaLeadsImportService.importCampaignLeads(businessId, campaignName);
+      importedListIds.push(result.listId);
+    }
+    const allListIds = Array.from(new Set([...listIds, ...importedListIds]));
+
     const campaign = await OutreachCampaignsService.createCampaign({
       business_id: businessId,
-      list_id: body.listId,
+      list_id: allListIds[0],
       name: body.name.trim(),
       goal: input.goal,
       tone: input.tone,
@@ -89,6 +101,8 @@ export async function POST(request: Request) {
       status: "draft",
       daily_limit: Number(body.dailyLimit) || business.outreach_settings?.daily_limit || 50,
     });
+
+    await OutreachCampaignsService.setCampaignLists(campaign.id, allListIds);
 
     const prompt = getOutreachDraftPrompt(business, input);
     const responseText = (await aiOrchestrator.executeTask("text", prompt.user, "openai", { systemPrompt: prompt.system })) as string;

@@ -86,7 +86,7 @@ export function CampaignDraftPanel({ campaign }: { campaign: OutreachCampaignDet
       )}
 
       {campaign.status === "ready" && (
-        <p className="text-sm text-muted">Approved — use the Send button on the Campaigns list to send it.</p>
+        <p className="text-sm text-muted">Approved — use the Send button above to send it.</p>
       )}
 
       {campaign.status === "no_recipients" && (

@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/Input";
 import { useCreateLead } from "@/modules/outreach/hooks/useLeads";
 
 /** Parent remounts this (via a `key` that changes on open) each time it's
- * opened, same pattern as ListModal — keeps the form fresh with no effect
- * needed to reset it between uses. */
+ * opened — keeps the form fresh with no effect needed to reset it between
+ * uses. Not currently wired to any button (leads are Meta Ads-derived now,
+ * see LeadsPage) — kept in case manual add-a-lead is wanted again later. */
 export function AddLeadModal({ listId, open, onClose }: { listId?: string; open: boolean; onClose: () => void }) {
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");

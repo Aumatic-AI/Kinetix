@@ -1,7 +1,6 @@
 import { CampaignStatusInfo, CampaignStatusValue, CampaignStatusTone } from "../utils/campaign-status";
 
 export type OutreachCampaignStatus = "draft" | "active" | "paused" | "completed" | "archived";
-export type ScrapeJobStatus = "queued" | "running" | "succeeded" | "failed" | "cancelled";
 
 export interface OutreachGeneratedBody {
   subject: string;
@@ -11,7 +10,11 @@ export interface OutreachGeneratedBody {
 export interface OutreachCampaign {
   id: string;
   business_id: string;
-  list_id: string;
+  /** Legacy single-list pointer — kept for backward compat, but new
+   * campaigns record their list(s) in outreach_campaign_lists instead (see
+   * OutreachCampaignsService.setCampaignLists). Don't write to this
+   * directly for a multi-list campaign. */
+  list_id: string | null;
   name: string;
   goal: string | null;
   tone: string | null;
@@ -30,25 +33,14 @@ export interface OutreachCampaign {
   updated_at: string;
 }
 
-export interface ScrapeJob {
-  id: string;
-  business_id: string;
-  list_id: string;
-  niches: string;
-  location: string;
-  max_results: number;
-  total_scraped: number;
-  valid_emails: number;
-  invalid_emails: number;
-  apify_run_id: string | null;
-  status: ScrapeJobStatus;
-  error_message: string | null;
-  created_at: string;
-}
-
 export interface CreateOutreachCampaignInput {
   name: string;
-  listId: string;
+  /** Real, already-existing outreach_lead_lists ids the user picked directly. */
+  listIds: string[];
+  /** Meta Ads campaign names picked from the live Meta-leads breakdown —
+   * imported into a real list (find-or-create, named after the campaign)
+   * at creation time; see MetaLeadsImportService.importCampaignLeads. */
+  metaCampaignNames?: string[];
   serviceType: string;
   targetRegion: string;
   goal: string;
@@ -56,13 +48,6 @@ export interface CreateOutreachCampaignInput {
   messageBrief: string;
   ctaText?: string;
   ctaLink?: string;
-}
-
-export interface StartScrapeInput {
-  niches: string;
-  location: string;
-  maxResults: number;
-  listId: string;
 }
 
 export interface OutreachCampaignStatusEntry extends CampaignStatusInfo {

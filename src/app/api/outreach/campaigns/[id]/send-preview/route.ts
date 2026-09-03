@@ -6,8 +6,8 @@ import { OutreachCampaignsService } from "@/modules/outreach/services/outreach.s
 
 /** Preview shown before a "ready" campaign is actually sent — same
  * suppression rule send-campaign.ts's fetch-recipients step uses
- * (bounced/do_not_contact/replied), so the number shown here always matches
- * what a real Send would do. */
+ * (bounced/do_not_contact/replied), summed across every list this campaign
+ * targets, so the number shown here always matches what a real Send would do. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
@@ -16,17 +16,20 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     const supabase = (await createClient()) as SupabaseClient<Database>;
 
-    const { data: list } = await supabase.from("outreach_lead_lists").select("name").eq("id", campaign.list_id).single();
+    const listIds = await OutreachCampaignsService.getCampaignListIds(campaign);
+    const { data: lists } = listIds.length ? await supabase.from("outreach_lead_lists").select("name").in("id", listIds) : { data: [] };
 
-    const { count: eligibleLeads } = await supabase
-      .from("outreach_leads")
-      .select("id", { count: "exact", head: true })
-      .eq("business_id", campaign.business_id)
-      .eq("list_id", campaign.list_id)
-      .not("status", "in", "(bounced,do_not_contact,replied)");
+    const { count: eligibleLeads } = listIds.length
+      ? await supabase
+          .from("outreach_leads")
+          .select("id", { count: "exact", head: true })
+          .eq("business_id", campaign.business_id)
+          .in("list_id", listIds)
+          .not("status", "in", "(bounced,do_not_contact,replied)")
+      : { count: 0 };
 
     return NextResponse.json({
-      listName: list?.name || "Unknown list",
+      listName: (lists || []).map((l) => l.name).join(", ") || "Unknown list",
       eligibleLeads: eligibleLeads || 0,
       dailyLimit: campaign.daily_limit,
     });

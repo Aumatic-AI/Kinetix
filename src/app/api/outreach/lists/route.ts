@@ -7,14 +7,11 @@ import { LeadListsService, LeadsService } from "@/modules/outreach/services/outr
 import { paginationMeta, PAGE_SIZE_COMPACT } from "@/lib/pagination";
 
 /**
- * Lead lists — a client-managed list of names they can rename, add to, or
- * delete freely, instead of a fixed set baked into the code.
+ * Lead lists — read-only now that lists are entirely Meta-campaign-derived
+ * (see MetaLeadsImportService); nothing creates/renames/deletes a list by
+ * hand anymore, so only GET remains.
  *
- * `page`/`limit` are optional: the Leads page passes them for its
- * paginated table, but pickers that need every list at once (FindLeadsModal,
- * NewCampaignPage, via the plain useLeadLists() hook) call this with
- * neither — in that case this returns the full list, unpaginated, exactly
- * as before.
+ * `page`/`limit` are optional: pass neither for the full list, unpaginated.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -37,22 +34,5 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error("[OUTREACH_LISTS_LIST]", error);
     return NextResponse.json({ error: error.message || "Failed to load lists" }, { status: 500 });
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const { name } = await request.json();
-    if (!name?.trim()) return NextResponse.json({ error: "List name is required" }, { status: 400 });
-
-    const supabase = (await createClient()) as SupabaseClient<Database>;
-    const businessId = await MetaAdsService.getFirstBusinessId(supabase);
-    if (!businessId) return NextResponse.json({ error: "No business configured" }, { status: 400 });
-
-    const list = await LeadListsService.createList(businessId, name.trim());
-    return NextResponse.json({ success: true, list });
-  } catch (error: any) {
-    console.error("[OUTREACH_LISTS_CREATE]", error);
-    return NextResponse.json({ error: error.message || "Failed to create list" }, { status: 500 });
   }
 }

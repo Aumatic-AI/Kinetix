@@ -2,8 +2,8 @@
 import { useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Play } from "lucide-react";
-import { useOutreachCampaign, useResumeOutreachCampaign } from "../../hooks/useCampaigns";
+import { ArrowLeft, Play, Send } from "lucide-react";
+import { useOutreachCampaign, useResumeOutreachCampaign, useSendOutreachCampaign, useCampaignSendPreview } from "../../hooks/useCampaigns";
 import { CampaignDraftPanel } from "./CampaignDraftPanel";
 import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,11 +27,11 @@ const STATS: { key: keyof OutreachCampaignDetail; label: string; rateKey?: keyof
   { key: "bounced", label: "Bounced", rateKey: "bounceRate" },
 ];
 
-function Field({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+function Field({ label, value, wide, truncate = true }: { label: string; value: string; wide?: boolean; truncate?: boolean }) {
   return (
     <div className={wide ? "col-span-2 min-w-0" : "min-w-0"}>
       <p className="text-[10px] font-semibold text-muted uppercase tracking-wide">{label}</p>
-      <p className="text-sm font-medium text-text mt-0.5 truncate">{value}</p>
+      <p className={`text-sm font-medium text-text mt-0.5 ${truncate ? "truncate" : ""}`}>{value}</p>
     </div>
   );
 }
@@ -50,7 +50,7 @@ function InfoCard({ title, children }: { title: string; children: ReactNode }) {
 function CampaignMeta({ campaign }: { campaign: OutreachCampaignDetail }) {
   return (
     <InfoCard title="Campaign Details">
-      <Field label="List" value={campaign.listName} />
+      <Field label="List" value={campaign.listName} wide truncate={false} />
       <Field label="Service" value={campaign.serviceType || "—"} />
       <Field label="Region" value={campaign.targetRegion || "—"} />
       <Field label="Daily limit" value={String(campaign.dailyLimit)} />
@@ -161,6 +161,22 @@ export function CampaignDetailPage() {
     }
   };
 
+  const sendCampaign = useSendOutreachCampaign();
+  const [confirmingSend, setConfirmingSend] = useState(false);
+  const [sendError, setSendError] = useState("");
+  const { data: sendPreview, isLoading: sendPreviewLoading } = useCampaignSendPreview(confirmingSend ? campaign?.id || null : null);
+
+  const handleSend = async () => {
+    if (!campaign) return;
+    setSendError("");
+    try {
+      await sendCampaign.mutateAsync({ id: campaign.id });
+      setConfirmingSend(false);
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : "Something went wrong — please try again.");
+    }
+  };
+
   return (
     <div className="max-w-5xl mx-auto space-y-6 pb-10">
       <Link href={ROUTES.OUTREACH.CAMPAIGNS} className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-text">
@@ -180,6 +196,16 @@ export function CampaignDetailPage() {
                 </span>
               </div>
               {campaign.statusReason && <p className="text-xs text-muted mt-1">{campaign.statusReason}</p>}
+              {campaign.status === "ready" && (
+                <Button
+                  size="sm"
+                  className="mt-3"
+                  onClick={() => { setSendError(""); setConfirmingSend(true); }}
+                  icon={<Send className="w-3.5 h-3.5" />}
+                >
+                  Send
+                </Button>
+              )}
               {campaign.status === "paused" && (
                 <Button
                   size="sm"
@@ -213,6 +239,31 @@ export function CampaignDetailPage() {
         loading={resumeCampaign.isPending}
         error={resumeError}
         onConfirm={handleResume}
+      />
+
+      <ConfirmModal
+        open={confirmingSend}
+        onOpenChange={(open) => { if (!open) { setConfirmingSend(false); setSendError(""); } }}
+        title="Send this campaign?"
+        description={campaign ? `"${campaign.name}" will be sent via Instantly.` : ""}
+        confirmLabel="Send"
+        loading={sendCampaign.isPending}
+        error={sendError}
+        onConfirm={handleSend}
+        details={
+          sendPreviewLoading ? (
+            <p className="text-xs text-muted">Loading recipient details…</p>
+          ) : sendPreview ? (
+            <dl className="text-sm bg-surface/60 rounded-lg p-3 space-y-1.5">
+              <div className="flex justify-between"><dt className="text-muted">List</dt><dd className="font-semibold text-text">{sendPreview.listName}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted">Eligible leads</dt><dd className="font-semibold text-text">{sendPreview.eligibleLeads}</dd></div>
+              <div className="flex justify-between"><dt className="text-muted">Will send this run</dt><dd className="font-semibold text-text">{Math.min(sendPreview.eligibleLeads, sendPreview.dailyLimit)} (daily limit {sendPreview.dailyLimit})</dd></div>
+              {campaign?.goal && (
+                <div className="flex justify-between gap-4"><dt className="text-muted shrink-0">Goal</dt><dd className="text-text text-right">{campaign.goal}</dd></div>
+              )}
+            </dl>
+          ) : null
+        }
       />
     </div>
   );

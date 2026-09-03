@@ -19,9 +19,6 @@ const envSchema = z.object({
   FFMPEG_API_KEY: z.string().optional(),
   UPLOAD_POST_PROFILE: z.string().optional(),
 
-  // Web scraping (Apify) — used by Meta Ads competitor intel and Outreach lead-finding
-  APIFY_API_TOKEN: z.string().optional(),
-
   // Outreach (lead verification & cold email sending)
   MILLIONVERIFIER_API_KEY: z.string().optional(),
   INSTANTLY_API_KEY: z.string().optional(),
@@ -64,8 +61,6 @@ const _env = envSchema.safeParse({
 
   FFMPEG_API_KEY: process.env.FFMPEG_API_KEY,
   UPLOAD_POST_PROFILE: process.env.UPLOAD_POST_PROFILE,
-
-  APIFY_API_TOKEN: process.env.APIFY_API_TOKEN,
 
   MILLIONVERIFIER_API_KEY: process.env.MILLIONVERIFIER_API_KEY,
   INSTANTLY_API_KEY: process.env.INSTANTLY_API_KEY,

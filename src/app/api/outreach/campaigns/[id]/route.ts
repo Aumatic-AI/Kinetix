@@ -19,10 +19,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     const campaign = await OutreachCampaignsService.getCampaignById(id);
     if (!campaign) return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
 
-    const [list, entry] = await Promise.all([
-      campaign.list_id ? LeadListsService.getListById(campaign.list_id) : Promise.resolve(null),
+    const [listIds, entry] = await Promise.all([
+      OutreachCampaignsService.getCampaignListIds(campaign),
       OutreachCampaignsService.getCampaignAnalyticsEntry(campaign),
     ]);
+    const lists = await Promise.all(listIds.map((id) => LeadListsService.getListById(id)));
+    const listName = lists.filter(Boolean).map((l) => l!.name).join(", ") || "—";
 
     const detail: OutreachCampaignDetail = {
       id: campaign.id,
@@ -35,7 +37,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
       ctaText: campaign.cta_text,
       ctaLink: campaign.cta_link,
       createdAt: campaign.created_at,
-      listName: list?.name || "—",
+      listName,
       generatedBody: campaign.generated_body,
       status: entry.value,
       statusLabel: entry.label,

@@ -25,7 +25,19 @@ export const sendOutreachCampaign = inngest.createFunction(
     });
     if (!campaign?.generated_subject || !campaign?.generated_body?.body) throw new Error("Campaign has no content to send");
 
+    // Every list this campaign targets — the join table (multi-list) if it
+    // has rows, else the legacy single list_id, for a campaign created
+    // before multi-list support (see setCampaignLists' own comment).
+    const listIds = await step.run("fetch-list-ids", async () => {
+      if (listId) return [listId];
+      const { data } = await supabase.from("outreach_campaign_lists").select("list_id").eq("outreach_campaign_id", campaignId);
+      if (data && data.length > 0) return data.map((r) => r.list_id);
+      return campaign.list_id ? [campaign.list_id] : [];
+    });
+
     const recipients = await step.run("fetch-recipients", async () => {
+      if (listIds.length === 0) return [];
+
       // Global suppression only — matches the New Campaign form's live
       // eligibility count. "contacted" is deliberately NOT global: being
       // sent an email under one campaign must never block a different
@@ -43,7 +55,7 @@ export const sendOutreachCampaign = inngest.createFunction(
         .from("outreach_leads")
         .select("id, email, first_name, last_name, company")
         .eq("business_id", campaign.business_id)
-        .eq("list_id", listId || campaign.list_id)
+        .in("list_id", listIds)
         .not("status", "in", "(bounced,do_not_contact,replied)")
         .limit(campaign.daily_limit);
 
