@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Play, Send } from "lucide-react";
+import { ArrowLeft, Play, Send, Loader2 } from "lucide-react";
 import { useOutreachCampaign, useResumeOutreachCampaign, useSendOutreachCampaign, useCampaignSendPreview } from "../../hooks/useCampaigns";
 import { CampaignDraftPanel } from "./CampaignDraftPanel";
 import { Button } from "@/components/ui/Button";
@@ -144,7 +144,15 @@ function CampaignDetailSkeleton() {
 
 export function CampaignDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: campaign, isLoading } = useOutreachCampaign(id);
+  // Set once, right after a successful Send — starts a bounded polling
+  // window (see useOutreachCampaign's own comment for why).
+  const [pollUntil, setPollUntil] = useState<number | null>(null);
+  const { data: campaign, isLoading } = useOutreachCampaign(id, pollUntil);
+  // Doesn't re-check the deadline here (Date.now() isn't pure to call during
+  // render) — the actual stop condition lives in useOutreachCampaign's own
+  // refetchInterval; this is just the UI hint, which self-corrects once
+  // that stops updating status away from "ready".
+  const isSending = !!pollUntil && campaign?.status === "ready";
 
   const resumeCampaign = useResumeOutreachCampaign();
   const [confirmingResume, setConfirmingResume] = useState(false);
@@ -172,6 +180,7 @@ export function CampaignDetailPage() {
     try {
       await sendCampaign.mutateAsync({ id: campaign.id });
       setConfirmingSend(false);
+      setPollUntil(Date.now() + 45_000);
     } catch (e) {
       setSendError(e instanceof Error ? e.message : "Something went wrong — please try again.");
     }
@@ -196,7 +205,11 @@ export function CampaignDetailPage() {
                 </span>
               </div>
               {campaign.statusReason && <p className="text-xs text-muted mt-1">{campaign.statusReason}</p>}
-              {campaign.status === "ready" && (
+              {campaign.status === "ready" && isSending ? (
+                <p className="flex items-center gap-1.5 text-xs text-muted mt-3">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Sending — this can take a few seconds…
+                </p>
+              ) : campaign.status === "ready" ? (
                 <Button
                   size="sm"
                   className="mt-3"
@@ -205,7 +218,7 @@ export function CampaignDetailPage() {
                 >
                   Send
                 </Button>
-              )}
+              ) : null}
               {campaign.status === "paused" && (
                 <Button
                   size="sm"

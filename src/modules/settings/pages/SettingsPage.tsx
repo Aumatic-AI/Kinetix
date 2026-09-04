@@ -195,7 +195,7 @@ export function SettingsPage() {
                 />
                 <span className="text-xs text-text">
                   <span className="font-semibold">Advantage+ Audience by default</span>
-                  <span className="block text-muted">New ad sets start with Meta&apos;s automatic audience expansion turned on.</span>
+                  <span className="block text-muted">When on, Meta can show your ad to people outside the exact audience you picked, if it thinks they&apos;re likely to respond — usually better results, but less control over exactly who sees it.</span>
                 </span>
               </label>
             </Section>

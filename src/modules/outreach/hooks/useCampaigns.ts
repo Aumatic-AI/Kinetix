@@ -42,11 +42,24 @@ export function useOutreachCampaigns(page: number, limit: number) {
   });
 }
 
-export function useOutreachCampaign(id: string | null) {
+/** `pollUntil` — the Send action returns as soon as the background job is
+ * queued, not once it's actually done (Instantly campaign creation +
+ * activation genuinely takes a few seconds) — pass a deadline timestamp
+ * right after a successful Send so the status badge catches up on its own
+ * instead of looking unchanged until the page is manually reloaded. Stops
+ * as soon as the query's own last-fetched status moves off "ready" (the job
+ * caught up) or once the deadline passes, whichever comes first — evaluated
+ * from the query's own state, not external component state, so there's
+ * nothing to keep in sync by hand. */
+export function useOutreachCampaign(id: string | null, pollUntil: number | null = null) {
   return useQuery({
     queryKey: outreachKeys.campaign(id || ""),
     queryFn: () => fetchJson<{ campaign: OutreachCampaignDetail }>(`/api/outreach/campaigns/${id}`).then((d) => d.campaign),
     enabled: !!id,
+    refetchInterval: (query) => {
+      if (!pollUntil || Date.now() >= pollUntil) return false;
+      return query.state.data?.status === "ready" ? 3000 : false;
+    },
   });
 }
 

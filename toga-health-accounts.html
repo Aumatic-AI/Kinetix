@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Toga Health — Accounts & Subscriptions</title>
+<style>
+  :root{
+    --bg:#f6f7fb; --surface:#ffffff; --border:#e3e5ee; --border-soft:#edeef5;
+    --text:#15161c; --muted:#686b82; --faint:#9497a9;
+    --accent:#7132f5; --accent-bg:#f2ecfe; --accent-border:#d9c8fb;
+    --warn-bg:#fffbeb; --warn-border:#fde68a;
+    --shadow:0 1px 2px rgba(16,20,30,.04), 0 8px 24px -14px rgba(16,20,30,.12);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    padding:40px 20px 80px;
+  }
+  .wrap{max-width:780px;margin:0 auto;}
+  header{margin-bottom:24px;}
+  h1{font-size:24px;font-weight:800;margin:0 0 6px;letter-spacing:-0.01em;}
+  .sub{color:var(--muted);font-size:14px;margin:0;max-width:600px;}
+
+  /* Kinetix login — the one card that deserves to stand out */
+  .login-card{
+    border:1.5px solid var(--accent-border);background:var(--accent-bg);border-radius:14px;
+    padding:16px 20px;margin-bottom:24px;
+  }
+  .login-card .name{font-weight:800;font-size:15px;margin-bottom:8px;}
+  .login-card .creds{font-size:13.5px;}
+
+  /* Accordion modules — unchanged, this part works */
+  details.module{
+    background:var(--surface);border:1px solid var(--border);border-radius:14px;
+    margin-bottom:12px;box-shadow:var(--shadow);overflow:hidden;
+  }
+  details.module > summary{
+    list-style:none;cursor:pointer;padding:15px 20px;display:flex;align-items:center;gap:12px;
+    font-weight:700;font-size:15px;
+  }
+  details.module > summary::-webkit-details-marker{display:none;}
+  details.module > summary::before{
+    content:"›"; display:inline-flex;align-items:center;justify-content:center;
+    width:18px;height:18px;font-size:16px;color:var(--muted);transform:rotate(0deg);
+    transition:transform .15s ease;flex-shrink:0;
+  }
+  details.module[open] > summary::before{transform:rotate(90deg);}
+  .badge{
+    margin-left:auto;font-size:10.5px;font-weight:700;color:var(--muted);background:var(--border-soft);
+    padding:3px 9px;border-radius:99px;white-space:nowrap;
+  }
+  .module-body{padding:0 20px 6px;}
+  .module-note{color:var(--muted);font-size:12.5px;margin:-2px 0 12px;}
+
+  /* Flat provider rows — no nested boxes, just dividers, so this reads
+     differently from the accordion shell around it */
+  .provider-row{padding:12px 0;border-bottom:1px solid var(--border-soft);}
+  .provider-row:last-child{border-bottom:none;}
+  .row-top{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .row-top .name{font-weight:700;font-size:14px;}
+  .row-top .cost{font-size:11.5px;color:var(--muted);font-weight:600;white-space:nowrap;}
+  .row-what{font-size:12.5px;color:var(--muted);margin:2px 0 8px;max-width:56ch;}
+
+  .creds{font-size:13px;line-height:2;}
+  .creds .item{margin-right:20px;white-space:nowrap;display:inline-block;}
+  .creds .lbl{color:var(--faint);font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-right:6px;}
+  .creds a{color:var(--accent);text-decoration:none;font-weight:600;}
+  .creds a:hover{text-decoration:underline;}
+  .creds code{background:var(--border-soft);padding:1px 6px;border-radius:5px;font-size:12.5px;}
+  .empty{color:var(--faint);font-style:italic;}
+
+  .flag{
+    background:var(--warn-bg);border:1px solid var(--warn-border);color:#8a5a06;
+    font-size:12px;border-radius:8px;padding:10px 12px;margin:10px 0 14px;
+  }
+
+  footer{color:var(--faint);font-size:12px;text-align:center;margin-top:36px;}
+
+  @media print{
+    body{background:#fff;padding:0;}
+    details.module{box-shadow:none;break-inside:avoid;}
+    details.module summary::before{display:none;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Toga Health — Accounts &amp; Subscriptions</h1>
+    <p class="sub">Where to check first if something stops working — each service's dashboard, login, and what breaks when it runs out of credit.</p>
+  </header>
+
+  <div class="login-card">
+    <div class="name">🔑 Kinetix App Login</div>
+    <div class="creds">
+      <span class="item"><span class="lbl">App URL</span><a href="https://kinetix-aumatic.vercel.app/" target="_blank" rel="noopener noreferrer">kinetix-aumatic.vercel.app</a></span>
+      <span class="item"><span class="lbl">Email</span><code>togah@gmail.com</code></span>
+      <span class="item"><span class="lbl">Password</span><code>togah</code></span>
+    </div>
+  </div>
+
+  <!-- WHATSAPP AUTOMATION -->
+  <details class="module">
+    <summary>1. WhatsApp Automation</summary>
+    <div class="module-body">
+      <p class="module-note">Automated WhatsApp replies/campaigns for Toga Health, independent of the Kinetix app below.</p>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">WhatsApp Automation Dashboard</span></div>
+        <p class="row-what">Main control panel — start/stop automation, view conversations, see leads. Templates limit: 250 per 1-day window — replies can stop once this is hit.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://chat.togahh.com/app/accounts/2/dashboard" target="_blank" rel="noopener noreferrer">chat.togahh.com</a></span>
+          <span class="item"><span class="lbl">Email</span><code>togahealthai@gmail.com</code></span>
+          <span class="item"><span class="lbl">Password</span><code>Togahh123.com</code></span>
+          <span class="item"><span class="lbl">Start / Stop</span><code>st</code> / <code>sp</code></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Twilio</span><span class="cost">$2/month</span></div>
+        <p class="row-what">Provides the WhatsApp number (Twilio "Digital One") — <a href="https://wa.me/+14374763375" target="_blank" rel="noopener noreferrer">wa.me/+14374763375</a>. Balance runs out → messages stop sending entirely.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://console.twilio.com/" target="_blank" rel="noopener noreferrer">console.twilio.com</a></span>
+          <span class="item"><span class="lbl">Login</span><code>togahealthai@gmail.com</code></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Meta (WhatsApp message billing)</span></div>
+        <p class="row-what">Meta charges per conversation past the free tier. Billing issue → Meta pauses message delivery directly.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Billing</span><a href="https://business.facebook.com/latest/billing_hub/accounts/details/?payment_account_id=2008376086453051&asset_id=843907665417567&business_id=1157419559623256&external_flow_id=SU-1785997133373-582002252-68394673&placement=whatsapp_ads" target="_blank" rel="noopener noreferrer">Meta Billing Hub</a></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">OpenAI</span></div>
+        <p class="row-what">Powers the automated reply text. Out of credit → replies stop generating.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://platform.openai.com/" target="_blank" rel="noopener noreferrer">platform.openai.com</a></span>
+          <span class="item"><span class="lbl">Login</span><span class="empty">— add login —</span></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Supabase</span><span class="cost">$25/month</span></div>
+        <p class="row-what">Database behind this automation.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer">supabase.com/dashboard</a></span>
+          <span class="item"><span class="lbl">Login</span><code>togahealthai@gmail.com</code></span>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- META ADS -->
+  <details class="module">
+    <summary>2. Meta Ads <span class="badge">Kinetix</span></summary>
+    <div class="module-body">
+      <p class="module-note">AI-generated image &amp; video ads, campaign launch, and lead capture from Meta Instant Forms.</p>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Meta Business Manager / Ad Account</span></div>
+        <p class="row-what">Runs the actual ad campaigns and spend. Billing issue → campaigns get disapproved or stop delivering (nothing to do with Kinetix itself).</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Billing</span><a href="https://adsmanager.facebook.com/adsmanager/billing_hub/accounts/details/?business_id=1157419559623256&asset_id=906650389058071&payment_account_id=906650389058071" target="_blank" rel="noopener noreferrer">Meta Ads Billing Hub</a></span>
+          <span class="item"><span class="lbl">Login</span><code>togahealthai@gmail.com</code> <span class="empty">(same as Social Media below — confirm)</span></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">OpenAI</span></div>
+        <p class="row-what">Writes ad copy &amp; video scripts — the first step of every generation. Out of credit → image AND video ads both fail immediately.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://platform.openai.com/" target="_blank" rel="noopener noreferrer">platform.openai.com</a></span>
+          <span class="item"><span class="lbl">Login</span><span class="empty">— add login —</span></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Kie.ai</span></div>
+        <p class="row-what">Generates the actual image &amp; video content (incl. AI Ad Studio). Out of credit → generation gets stuck on "Generating…" or fails.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://kie.ai/" target="_blank" rel="noopener noreferrer">kie.ai</a></span>
+          <span class="item"><span class="lbl">Login</span><span class="empty">— add login —</span></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">ElevenLabs</span></div>
+        <p class="row-what">Generates spoken narration for video ads. Out of credit → video ads fail specifically (image ads unaffected).</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://elevenlabs.io/app" target="_blank" rel="noopener noreferrer">elevenlabs.io/app</a></span>
+          <span class="item"><span class="lbl">Login</span><span class="empty">— add login —</span></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Upload-Post (video rendering)</span></div>
+        <p class="row-what">Stitches individual scenes into the final ad video — same Upload-Post account as Social Media below. Out of credit → video ads generate every scene but fail on the very last step.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://app.upload-post.com" target="_blank" rel="noopener noreferrer">app.upload-post.com</a></span>
+          <span class="item"><span class="lbl">Login</span><span class="empty">— add login —</span></span>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- SOCIAL MEDIA -->
+  <details class="module">
+    <summary>3. Social Media <span class="badge">Kinetix</span></summary>
+    <div class="module-body">
+      <p class="module-note">AI-generated posts (image/video) and publishing to connected social accounts.</p>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Social Dashboard login</span></div>
+        <p class="row-what">Shared login for Social Media's connected tools.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Email</span><code>togahealthai@gmail.com</code></span>
+          <span class="item"><span class="lbl">Password</span><code>Meta123.com</code></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Kie.ai</span></div>
+        <p class="row-what">Same account as Meta Ads above — generates Social's images/videos too.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://kie.ai/" target="_blank" rel="noopener noreferrer">kie.ai</a></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">ElevenLabs</span></div>
+        <p class="row-what">Narration for social video posts — same account as Meta Ads above.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://elevenlabs.io/app" target="_blank" rel="noopener noreferrer">elevenlabs.io/app</a></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">OpenAI</span></div>
+        <p class="row-what">Writes post captions — same account as Meta Ads above.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://platform.openai.com/" target="_blank" rel="noopener noreferrer">platform.openai.com</a></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Upload-Post</span><span class="cost">Yearly</span></div>
+        <p class="row-what">Actually publishes posts to Instagram/Facebook/etc — also renders Meta Ads' videos (see above). Plan lapsing → posts get created but never go live.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://app.upload-post.com" target="_blank" rel="noopener noreferrer">app.upload-post.com</a></span>
+          <span class="item"><span class="lbl">Login</span><span class="empty">— add login —</span></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">n8n</span><span class="cost">Yearly</span></div>
+        <p class="row-what">Workflow automation tool — confirm with the dev team whether it's still actively used for social posting, or a leftover from an earlier setup.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Workflow</span><a href="https://n8n.srv1208919.hstgr.cloud/workflow/hPY6NmVaKXMWtomB" target="_blank" rel="noopener noreferrer">n8n.srv1208919.hstgr.cloud</a></span>
+          <span class="item"><span class="lbl">Email</span><code>togahealthai@gmail.com</code></span>
+          <span class="item"><span class="lbl">Password</span><code>Togahh123.com</code></span>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <!-- OUTREACH -->
+  <details class="module">
+    <summary>4. Outreach <span class="badge">Kinetix</span></summary>
+    <div class="module-body">
+      <p class="module-note">Cold email campaigns to leads captured from Meta Ads.</p>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Instantly.ai</span><span class="cost">$45/month</span></div>
+        <p class="row-what">Actually sends the outreach emails. Plan issue → campaigns stop sending, or new ones can't be created.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://app.instantly.ai" target="_blank" rel="noopener noreferrer">app.instantly.ai</a></span>
+          <span class="item"><span class="lbl">Login</span><span class="empty">— add login —</span></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">MillionVerifier</span><span class="cost">$20 one-time</span></div>
+        <p class="row-what">Checks a lead's email is real before it's added. Credits run out → new leads get silently skipped instead of added.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://www.millionverifier.com" target="_blank" rel="noopener noreferrer">millionverifier.com</a></span>
+          <span class="item"><span class="lbl">Login</span><span class="empty">— add login —</span></span>
+        </div>
+      </div>
+
+      <div class="flag">⚠ Apify was previously used here for lead scraping — that's been removed (leads now come from Meta Ads directly), so it's no longer needed for Outreach to keep working. If it's still being billed monthly, it can likely be cancelled — worth confirming with the dev team first.</div>
+    </div>
+  </details>
+
+  <!-- SHARED INFRA -->
+  <details class="module">
+    <summary>5. Shared Infrastructure <span class="badge">whole app, not one module</span></summary>
+    <div class="module-body">
+      <p class="module-note">If Meta Ads, Social Media, <em>and</em> Outreach all stop working at once, it's almost always one of these three — not any single module.</p>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Supabase</span></div>
+        <p class="row-what">Database + file storage for the whole app. Plan limit → whole app can become unusable, not just one feature. Confirm whether this is the same Supabase project as WhatsApp Automation's ($25/month, above) or a separate one.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer">supabase.com/dashboard</a></span>
+          <span class="item"><span class="lbl">Login</span><span class="empty">— add login —</span></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Vercel</span></div>
+        <p class="row-what">Hosts the Kinetix web app itself. Billing/plan issue → the entire site can go offline.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer">vercel.com/dashboard</a></span>
+          <span class="item"><span class="lbl">Login</span><span class="empty">— add login —</span></span>
+        </div>
+      </div>
+
+      <div class="provider-row">
+        <div class="row-top"><span class="name">Inngest</span></div>
+        <p class="row-what">Runs every background job — every AI generation, every outreach send, nightly syncs. Plan limit → things silently get "stuck" instead of showing an error.</p>
+        <div class="creds">
+          <span class="item"><span class="lbl">Dashboard</span><a href="https://app.inngest.com" target="_blank" rel="noopener noreferrer">app.inngest.com</a></span>
+          <span class="item"><span class="lbl">Login</span><span class="empty">— add login —</span></span>
+        </div>
+      </div>
+    </div>
+  </details>
+
+  <footer>Toga Health — internal reference. Keep this file private; it contains real login credentials.</footer>
+</div>
+</body>
+</html>
