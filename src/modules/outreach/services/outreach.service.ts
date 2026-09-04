@@ -1,6 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
-import { Lead, LeadSummary, LeadFilters, PaginationOptions, LeadList, LeadListSummary, LeadCampaignHistoryEntry } from "../types/leads.types";
+import { Lead, LeadSummary, LeadFilters, PaginationOptions, LeadListSummary, LeadCampaignHistoryEntry } from "../types/leads.types";
 import { OutreachCampaign, OutreachCampaignStatusEntry } from "../types/outreach.types";
 import { InstantlyService, InstantlyCampaignAnalytics } from "@/services/instantly";
 import { resolveCampaignStatus } from "../utils/campaign-status";
@@ -76,6 +76,7 @@ export class LeadsService {
     let query = supabase.from("outreach_leads").select("id, first_name, last_name, email, city, country", { count: "exact" }).eq("business_id", businessId);
 
     if (filters?.listId) query = query.eq("list_id", filters.listId);
+    if (filters?.listIds?.length) query = query.in("list_id", filters.listIds);
     if (filters?.status) query = query.eq("status", filters.status);
     if (filters?.excludeStatuses?.length) {
       query = query.not("status", "in", `(${filters.excludeStatuses.join(",")})`);
@@ -157,9 +158,9 @@ export class LeadsService {
 }
 
 export class LeadListsService {
-  /** Omit `pagination` for the full list (pickers/dropdowns that need
-   * every list — FindLeadsModal, NewCampaignPage); pass it for the Leads
-   * page's paginated table. */
+  /** Omit `pagination` for the full, unpaginated list; pass it for a
+   * paginated table. Not currently called by any page — see useLeadLists'
+   * own comment. */
   static async getLists(businessId: string, pagination?: PaginationOptions): Promise<{ lists: LeadListSummary[]; total: number }> {
     const supabase = await createClient();
     let query = supabase
@@ -183,29 +184,6 @@ export class LeadListsService {
     const { data, error } = await supabase.from("outreach_lead_lists").select("id, name").eq("id", id).single();
     if (error && error.code !== "PGRST116") throw new Error(`Error fetching list: ${error.message}`);
     return (data as LeadListSummary) || null;
-  }
-
-  static async createList(businessId: string, name: string): Promise<LeadList> {
-    const supabase = await createClient();
-    const { data, error } = await supabase
-      .from("outreach_lead_lists")
-      .insert({ business_id: businessId, name })
-      .select("*")
-      .single();
-    if (error) throw new Error(`Error creating list: ${error.message}`);
-    return data as LeadList;
-  }
-
-  static async renameList(id: string, name: string): Promise<void> {
-    const supabase = await createClient();
-    const { error } = await supabase.from("outreach_lead_lists").update({ name }).eq("id", id);
-    if (error) throw new Error(`Error renaming list: ${error.message}`);
-  }
-
-  static async deleteList(id: string): Promise<void> {
-    const supabase = await createClient();
-    const { error } = await supabase.from("outreach_lead_lists").delete().eq("id", id);
-    if (error) throw new Error(`Error deleting list: ${error.message}`);
   }
 }
 
@@ -277,6 +255,29 @@ export class OutreachCampaignsService {
     const { data, error } = await supabase.from("outreach_campaigns").insert(row as any).select("*").single();
     if (error) throw new Error(`Error creating outreach campaign: ${error.message}`);
     return data as unknown as OutreachCampaign;
+  }
+
+  /** The real list(s) a campaign targets — replaces whatever was there
+   * before (a campaign always has exactly the set passed here, not an
+   * accumulation). `list_id` on the campaign row itself is left as the
+   * first of these, purely for old code paths that still read it directly. */
+  static async setCampaignLists(campaignId: string, listIds: string[]): Promise<void> {
+    const supabase = await createClient();
+    await supabase.from("outreach_campaign_lists").delete().eq("outreach_campaign_id", campaignId);
+    if (listIds.length === 0) return;
+    const { error } = await supabase
+      .from("outreach_campaign_lists")
+      .insert(listIds.map((list_id) => ({ outreach_campaign_id: campaignId, list_id })));
+    if (error) throw new Error(`Error setting campaign lists: ${error.message}`);
+  }
+
+  /** Falls back to the legacy single list_id for a campaign created before
+   * multi-list support, so nothing already sent loses its list association. */
+  static async getCampaignListIds(campaign: { id: string; list_id: string | null }): Promise<string[]> {
+    const supabase = await createClient();
+    const { data } = await supabase.from("outreach_campaign_lists").select("list_id").eq("outreach_campaign_id", campaign.id);
+    if (data && data.length > 0) return data.map((r) => r.list_id);
+    return campaign.list_id ? [campaign.list_id] : [];
   }
 
   static async updateCampaign(id: string, row: Partial<OutreachCampaign>): Promise<void> {

@@ -1,6 +1,5 @@
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Lead, LeadSummary, LeadFilters, LeadList, LeadListSummary, LeadCampaignHistoryEntry } from "../types/leads.types";
-import { ScrapeJob, StartScrapeInput } from "../types/outreach.types";
+import { Lead, LeadSummary, LeadFilters, LeadListSummary, LeadCampaignHistoryEntry, MetaCampaignLeadBreakdown, MetaCampaignLead } from "../types/leads.types";
 import { PaginationMeta } from "@/lib/pagination";
 
 export const leadsKeys = {
@@ -9,10 +8,6 @@ export const leadsKeys = {
   infiniteList: (filters?: LeadFilters, limit?: number) => [...leadsKeys.all, "infinite-list", filters, limit] as const,
   lists: () => [...leadsKeys.all, "lists"] as const,
   history: (leadId: string) => [...leadsKeys.all, "history", leadId] as const,
-};
-
-export const scrapeJobsKeys = {
-  all: ["outreach-scrape-jobs"] as const,
 };
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -25,6 +20,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 function buildLeadsParams(filters: LeadFilters | undefined, page: number, limit: number): URLSearchParams {
   const params = new URLSearchParams({ page: String(page), limit: String(limit) });
   if (filters?.listId) params.set("listId", filters.listId);
+  if (filters?.listIds?.length) params.set("listIds", filters.listIds.join(","));
   if (filters?.search) params.set("search", filters.search);
   if (filters?.status) params.set("status", filters.status);
   if (filters?.excludeStatuses?.length) params.set("excludeStatuses", filters.excludeStatuses.join(","));
@@ -84,8 +80,11 @@ export interface LeadListWithCount extends LeadListSummary {
 }
 
 /** The full list, unpaginated — for pickers/dropdowns that need every list
- * at once (FindLeadsModal, NewCampaignPage). For the Leads page's
- * paginated table, use usePaginatedLeadLists instead. */
+ * at once. For the Leads page's paginated table, use usePaginatedLeadLists
+ * instead. Not currently used by any page (lists are shown via Meta
+ * campaigns now — see useMetaCampaignBreakdown), kept since the underlying
+ * outreach_lead_lists rows this reads are still real and still created by
+ * MetaLeadsImportService. */
 export function useLeadLists() {
   return useQuery({
     queryKey: leadsKeys.lists(),
@@ -94,9 +93,8 @@ export function useLeadLists() {
   });
 }
 
-/** The Leads page's paginated table — same underlying route as
- * useLeadLists, just with page/limit passed so the response comes back
- * paginated (see the route's own comment). */
+/** Same underlying route as useLeadLists, paginated. See that hook's own
+ * comment — not currently used by any page. */
 export function usePaginatedLeadLists(page: number, limit: number) {
   return useQuery({
     queryKey: [...leadsKeys.lists(), "paginated", page, limit] as const,
@@ -106,50 +104,33 @@ export function usePaginatedLeadLists(page: number, limit: number) {
   });
 }
 
-export function useCreateLeadList() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (name: string) => fetchJson<{ success: true; list: LeadList }>("/api/outreach/lists", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: leadsKeys.lists() }),
-  });
-}
-
-export function useRenameLeadList() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) => fetchJson(`/api/outreach/lists/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: leadsKeys.lists() }),
-  });
-}
-
-export function useDeleteLeadList() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => fetchJson(`/api/outreach/lists/${id}`, { method: "DELETE" }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: leadsKeys.all }),
-  });
-}
-
-/** "Find Leads" (Leads tab) — kicks off a background scrape job, recorded in
- * outreach_scrape_jobs. Polled directly by ScrapeProgressBanner while a job
- * is queued/running — this is the only source of truth for that banner,
- * no realtime broadcast or global jobs widget involved. */
-export function useScrapeJobs() {
+/** Live breakdown of Meta Ads campaigns with leads — the "list" concept
+ * everywhere in Outreach now (New Campaign's picker, the Leads page's
+ * table). Cheap to call on every visit (reads our own already-synced
+ * `leads` table, no live Meta API call). */
+export function useMetaCampaignBreakdown() {
   return useQuery({
-    queryKey: scrapeJobsKeys.all,
-    queryFn: () => fetchJson<{ jobs: ScrapeJob[] }>("/api/outreach/scrape/jobs").then((d) => d.jobs),
-    refetchInterval: (query) => {
-      const jobs = (query.state.data as ScrapeJob[] | undefined) || [];
-      return jobs.some((j) => j.status === "queued" || j.status === "running") ? 4000 : false;
-    },
+    queryKey: ["outreach-meta-campaigns"] as const,
+    queryFn: () => fetchJson<{ campaigns: MetaCampaignLeadBreakdown[] }>("/api/outreach/meta-campaigns").then((d) => d.campaigns),
   });
 }
 
-export function useStartScrape() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (input: StartScrapeInput) =>
-      fetchJson<{ success: true; job: ScrapeJob }>("/api/outreach/scrape", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: scrapeJobsKeys.all }),
+/** One Meta campaign's individual leads, live from Meta Ads' own `leads`
+ * table (not outreach_leads — nothing needs to be imported just to browse
+ * them) — backs the Leads page's "View" drawer. Infinite-scroll, same
+ * shape as useInfiniteLeads. */
+export function useInfiniteMetaCampaignLeads(campaignName: string | undefined, limit = 30) {
+  return useInfiniteQuery({
+    queryKey: ["outreach-meta-campaign-leads", campaignName, limit] as const,
+    queryFn: ({ pageParam }) =>
+      fetchJson<{ leads: MetaCampaignLead[]; count: number }>(
+        `/api/outreach/meta-campaigns/leads?campaignName=${encodeURIComponent(campaignName || "")}&page=${pageParam}&limit=${limit}`
+      ),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const fetchedSoFar = allPages.reduce((sum, p) => sum + p.leads.length, 0);
+      return fetchedSoFar < lastPage.count ? allPages.length + 1 : undefined;
+    },
+    enabled: !!campaignName,
   });
 }

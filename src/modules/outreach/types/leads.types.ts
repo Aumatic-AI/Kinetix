@@ -57,9 +57,37 @@ export interface LeadSummary {
 
 export interface LeadFilters {
   listId?: string;
+  /** Matches any of these lists — for a combined count across several
+   * selected lists at once (e.g. New Campaign's multi-select). Additive
+   * with listId, not a replacement for it. */
+  listIds?: string[];
   search?: string;
   status?: LeadStatus;
   excludeStatuses?: LeadStatus[];
+}
+
+/** One Meta Ads campaign's leads, live-computed from Meta Ads' own `leads`
+ * table (not stored) — shown as a selectable "list" in campaign creation
+ * alongside real outreach_lead_lists. `totalLeads` is every lead Meta
+ * captured for that campaign; `emailableLeads` is how many actually have a
+ * usable email address (Instant Form email questions are optional, so this
+ * can be lower than totalLeads) — only those get imported/sent. Picking one
+ * imports it into a real list named `Meta: <campaignName>` at that point. */
+export interface MetaCampaignLeadBreakdown {
+  campaignName: string;
+  totalLeads: number;
+  emailableLeads: number;
+}
+
+/** One raw Meta Ads lead, as shown in the Leads page's "View" drawer —
+ * read live from Meta's own `leads` table (field_data extracted), not from
+ * outreach_leads. `email` can genuinely be null here (an Instant Form's
+ * email question is optional) — LeadsTable renders a "—" placeholder for it. */
+export interface MetaCampaignLead {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
 }
 
 export interface PaginationOptions {

@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
       businessId,
       {
         listId: searchParams.get("listId") || undefined,
+        listIds: searchParams.get("listIds")?.split(",").filter(Boolean),
         search: searchParams.get("search") || undefined,
         status: (searchParams.get("status") as any) || undefined,
         excludeStatuses: searchParams.get("excludeStatuses")?.split(",").filter(Boolean) as any,
