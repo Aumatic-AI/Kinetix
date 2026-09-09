@@ -114,7 +114,7 @@ export const generateStudioImage = inngest.createFunction(
         session_id: sessionId,
         role: "assistant",
         kind: "text",
-        content: "Something went wrong generating that ad. Please try again.",
+        content: `Something went wrong generating that ad: ${e?.message || "unknown error"}`,
       });
       throw e;
     }

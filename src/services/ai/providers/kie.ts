@@ -61,9 +61,20 @@ export class KieService {
   ) {
     const referenceImageUrls = (Array.isArray(referenceImages) ? referenceImages : referenceImages ? [referenceImages] : []).filter(Boolean);
 
-    const finalPrompt = referenceImageUrls.length > 0 && mode === "identity"
+    let finalPrompt = referenceImageUrls.length > 0 && mode === "identity"
       ? `${prompt} The subject face and identity must match the reference image exactly. Facial expression is critical and must match the emotion described in the prompt precisely.`
       : prompt;
+
+    // Kie's nano-banana-2 rejects the whole request past 20,000 characters
+    // (a 500, not a validation error) — this is a hard backstop for every
+    // caller, not just the one whose prompt happened to grow too long, so a
+    // future unexpectedly-long prompt fails soft (a slightly truncated ad)
+    // instead of not generating at all.
+    const KIE_PROMPT_MAX_CHARS = 19_500;
+    if (finalPrompt.length > KIE_PROMPT_MAX_CHARS) {
+      console.warn(`[KIE] Prompt was ${finalPrompt.length} chars, over Kie's 20,000 limit — truncating to ${KIE_PROMPT_MAX_CHARS}.`);
+      finalPrompt = finalPrompt.slice(0, KIE_PROMPT_MAX_CHARS);
+    }
 
     const aspectRatio = imageSize === "4:5" ? "2:3" : imageSize;
 
