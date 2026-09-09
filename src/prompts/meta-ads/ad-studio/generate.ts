@@ -30,8 +30,16 @@ export function getStudioAdPrompt(intelligence: any, input: StudioAdInput): stri
   const hasLogo = !!business.logo_url;
   const contactText = contactDisplayText(business);
 
+  // Kie's prompt field caps out at 20,000 characters total (see
+  // createImageTask's own backstop) — a single long-winded or
+  // accidentally-pasted answer here shouldn't be able to consume that whole
+  // budget on its own and starve the actual instructions below it.
+  const MAX_ANSWER_CHARS = 1500;
+  const truncateAnswer = (answer: string): string =>
+    answer.length > MAX_ANSWER_CHARS ? `${answer.slice(0, MAX_ANSWER_CHARS)}… (truncated, was ${answer.length} characters)` : answer;
+
   const briefText = input.qaBrief.length
-    ? input.qaBrief.map((qa) => `Q: ${qa.question}\nA: ${qa.answer?.trim() || "(no preference given — use your judgement)"}`).join("\n\n")
+    ? input.qaBrief.map((qa) => `Q: ${qa.question}\nA: ${qa.answer?.trim() ? truncateAnswer(qa.answer.trim()) : "(no preference given — use your judgement)"}`).join("\n\n")
     : "(no answers given — use your judgement based on the idea and business context alone)";
 
   return `You are a world-class direct response ad creative specialist with 15 years of experience producing high-converting image ads for ${business.industry || "this"} brands on Meta and Instagram.

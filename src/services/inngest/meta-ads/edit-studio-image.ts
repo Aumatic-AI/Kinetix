@@ -105,7 +105,7 @@ export const editStudioImage = inngest.createFunction(
         session_id: sessionId,
         role: "assistant",
         kind: "text",
-        content: "That edit didn't go through. Please try describing the change again.",
+        content: `That edit didn't go through: ${e?.message || "unknown error"}`,
       });
       throw e;
     }
