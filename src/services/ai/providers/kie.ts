@@ -114,16 +114,25 @@ export class KieService {
   }
 
   /**
-   * Triggers a Video Generation Task and returns the raw jobId
+   * Triggers a Video Generation Task and returns the raw jobId.
+   *
+   * Uses Seedance 2 Mini (model "bytedance/seedance-2-mini") — its input
+   * schema differs from Seedance 1.5: the source image goes in
+   * `first_frame_url` (a single string; there is no `input_urls` field, so
+   * passing that silently degrades to text-to-video), `duration` is an
+   * integer (4–15), and `generate_audio` defaults to true. We turn audio off
+   * since the stitch step only ever takes each clip's video track (narration
+   * comes from ElevenLabs), so generated audio would be paid for and thrown away.
    */
   static async createVideoTask(prompt: string, imageUrls: string[], aspectRatio: string = "9:16", duration: string = "4") {
     const requestBody = {
       model: "bytedance/seedance-2-mini",
       input: {
         prompt,
-        input_urls: imageUrls,
+        first_frame_url: imageUrls[0],
         aspect_ratio: aspectRatio,
-        duration: duration,
+        duration: Number(duration),
+        generate_audio: false,
       }
     };
     console.log("[KIE_REQUEST] POST createTask (video)", requestBody);
