@@ -25,6 +25,8 @@ const MAX_SCENE_SECONDS = 12;
 // isn't "Voiceover") — matches the old fixed-clip-length default.
 const DEFAULT_SCENE_SECONDS = 4;
 
+type ImageRequest = { prompt: string; referenceImages: string[]; mode: "identity" | "reference" };
+
 // A live-action Seedance clip with real human motion never compresses down
 // to almost nothing — this floor exists purely to catch the suspiciously
 // tiny file size of a blank/near-black clip (see the content-moderation
@@ -336,11 +338,11 @@ export const generateSocialVideo = inngest.createFunction(
 
           if (needsTwoAnchors) {
             if (i === 0 && beforeAnchorUrl) {
-              ids.push({ id: "", url: beforeAnchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null });
+              ids.push({ id: "", url: beforeAnchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null, request: null as ImageRequest | null, resubmitted: false, pendingPolls: 0 });
               continue;
             }
             if (i === lastSceneIndex && afterAnchorUrl) {
-              ids.push({ id: "", url: afterAnchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null });
+              ids.push({ id: "", url: afterAnchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null, request: null as ImageRequest | null, resubmitted: false, pendingPolls: 0 });
               continue;
             }
             const isPhase3 = i >= phase3StartIndex;
@@ -350,14 +352,15 @@ export const generateSocialVideo = inngest.createFunction(
             // has no logo image available to it at all, so it can't copy or
             // invent one.
             const referenceImages = [chosenAnchor, vp.shows_business_location ? logoUrl : undefined].filter(Boolean) as string[];
-            const jobId = await aiOrchestrator.createImageTask(vp.prompt, aspectRatio, referenceImages, "identity");
-            ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
+            const request: ImageRequest = { prompt: vp.prompt, referenceImages, mode: "identity" };
+            const jobId = await aiOrchestrator.createImageTask(request.prompt, aspectRatio, request.referenceImages, request.mode);
+            ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null, request: request as ImageRequest | null, resubmitted: false, pendingPolls: 0 });
             continue;
           }
 
           if (anchorUrl && i === 0) {
             // Already generated above as the anchor — reuse it, no new job.
-            ids.push({ id: "", url: anchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null });
+            ids.push({ id: "", url: anchorUrl as string, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: "success" as string | null, request: null as ImageRequest | null, resubmitted: false, pendingPolls: 0 });
             continue;
           }
           const scenePrompt = isPosterMode
@@ -366,8 +369,9 @@ export const generateSocialVideo = inngest.createFunction(
           const referenceImages = isPosterMode
             ? ([anchorUrl, logoUrl].filter(Boolean) as string[])
             : ([referenceUrl || anchorUrl, vp.shows_business_location ? logoUrl : undefined].filter(Boolean) as string[]);
-          const jobId = await aiOrchestrator.createImageTask(scenePrompt, aspectRatio, referenceImages, isPosterMode ? "reference" : "identity");
-          ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null });
+          const request: ImageRequest = { prompt: scenePrompt, referenceImages, mode: isPosterMode ? "reference" : "identity" };
+          const jobId = await aiOrchestrator.createImageTask(request.prompt, aspectRatio, request.referenceImages, request.mode);
+          ids.push({ id: jobId, url: null as string | null, scene: vp.scene, imagePrompt: vp.prompt, videoScenario: vp.video_scenario, fellBack: false, state: null as string | null, request: request as ImageRequest | null, resubmitted: false, pendingPolls: 0 });
         }
         return ids;
       });
@@ -383,9 +387,18 @@ export const generateSocialVideo = inngest.createFunction(
       // "fail" is seen, retrying the exact same reference-image-conditioned
       // request would likely fail the same way, so fall back once to plain
       // text-to-image for just that scene.
+      //
+      // Separately, Kie occasionally leaves one task parked in "waiting"
+      // indefinitely while every sibling submitted in the same batch
+      // finishes — it never reaches "fail", so the fallback above never
+      // fires and the whole run used to time out on that one scene. A job
+      // still non-terminal after STALL_POLLS polls is resubmitted once with
+      // the identical request (same prompt + reference images, so character
+      // consistency is kept); the abandoned task is simply ignored.
       let imagesDone = false;
       let imgAttempts = 0;
-      const MAX_IMAGE_ATTEMPTS = 12;
+      const STALL_POLLS = 6;
+      const MAX_IMAGE_ATTEMPTS = 18;
       while (!imagesDone && imgAttempts < MAX_IMAGE_ATTEMPTS) {
         await step.sleep(`wait-image-${imgAttempts}`, imgAttempts === 0 ? "30s" : "20s");
         const pollResult = await step.run(`check-image-status-${imgAttempts}`, async () => {
@@ -411,6 +424,13 @@ export const generateSocialVideo = inngest.createFunction(
               pending = true;
             } else {
               pending = true; // waiting / queuing / generating — normal, keep polling
+              job.pendingPolls++;
+              if (!job.resubmitted && !job.fellBack && job.request && job.pendingPolls >= STALL_POLLS) {
+                console.error(`Kie image for scene ${job.scene} (job ${job.id}) still "${status.state}" after ${job.pendingPolls} polls — resubmitting`);
+                job.id = await aiOrchestrator.createImageTask(job.request.prompt, aspectRatio, job.request.referenceImages, job.request.mode);
+                job.resubmitted = true;
+                job.pendingPolls = 0;
+              }
             }
           }
           return { imageJobIds, allComplete: !pending };
