@@ -118,7 +118,7 @@ export class KieService {
    */
   static async createVideoTask(prompt: string, imageUrls: string[], aspectRatio: string = "9:16", duration: string = "4") {
     const requestBody = {
-      model: "bytedance/seedance-1.5-pro",
+      model: "bytedance/seedance-2-mini",
       input: {
         prompt,
         input_urls: imageUrls,
