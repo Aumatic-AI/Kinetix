@@ -1,35 +1,21 @@
 "use client";
 import React, { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { ImageIcon, Video, MessageSquareText, Sparkles, UploadCloud, Send, Mic2, File, Trash2, X, RectangleHorizontal, RectangleVertical } from "lucide-react";
+import { ImageIcon, Video, MessageSquareText, Sparkles, UploadCloud, Send, File, Trash2, X, RectangleHorizontal, RectangleVertical } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/Switch";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/config/routes";
 import { PLATFORMS } from "../../lib/platforms";
 import { useConnections } from "../../hooks/usePosts";
-import VoiceExplorerModal from "@/components/global/VoiceExplorerModal";
 import { useBusinessStore } from "@/store/business.store";
 
-const VOICE_OPTIONS = {
-  male: [
-    { id: "KLoLpdGWK7agg0O2TJYg", label: "Charlie - Men" },
-    { id: "eqz5FuihuZwmJPuvZ65E", label: "Jess - Men" },
-  ],
-  female: [
-    { id: "wrxvN1LZJIfL3HHvffqe", label: "Bella - Lady" },
-    { id: "odyUrTN5HMVKujvVAgWW", label: "Emily - Lady" },
-    { id: "aD6riP1btT197c6dACmy", label: "Rachel - Lady" },
-    { id: "KClAuq9Hs0wFY7oJmaGN", label: "Maayan - Lady" },
-  ],
-};
-
-// Same option set as Meta Ads' CreateAdModal — kept identical on purpose so
-// the two video-generation flows behave the same way for the same input.
-const DURATION_OPTIONS = ["20 seconds", "28 seconds", "32 seconds", "36 seconds", "40 seconds"].map((v) => ({ value: v, label: v }));
+// Videos are made in one go by Seedance 2.5 (POST /api/social/posts/generate/one-shot-video), which makes at
+// most 30 seconds. Its own voice speaks (male or female from Character), and the business's reference photo for
+// that character is always used, so there's no voice picker or photo toggle. Same lengths as Meta Ads' CreateAdModal.
+const DURATION_OPTIONS = ["20 seconds", "25 seconds", "30 seconds"].map((v) => ({ value: v, label: v }));
 const AUDIO_STYLE_OPTIONS = ["No Voice", "Voiceover"].map((v) => ({ value: v, label: v }));
 const VIDEO_STYLE_OPTIONS = ["Bold & Colorful", "Cinematic", "Minimal & Clean", "Dark & Moody", "Neon / Glow", "Hand-drawn / Sketch"].map((v) => ({ value: v, label: v }));
 const VIDEO_MODE_OPTIONS = [
@@ -62,22 +48,17 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
   const service = serviceOverride || serviceOptions[0] || "";
   const [videoStyle, setVideoStyle] = useState(VIDEO_STYLE_OPTIONS[0].value);
   const [videoMode, setVideoMode] = useState<"live_action" | "animated_poster">("live_action");
-  const [useReferencePhoto, setUseReferencePhoto] = useState(false);
   const [language, setLanguage] = useState(LANGUAGE_OPTIONS[0].value);
-  const [duration, setDuration] = useState(DURATION_OPTIONS[1].value);
+  const [duration, setDuration] = useState(DURATION_OPTIONS[2].value);
   const [audioStyle, setAudioStyle] = useState("Voiceover");
   const [character, setCharacter] = useState<"male" | "female">("male");
-  const [voiceId, setVoiceId] = useState(VOICE_OPTIONS.male[0].id);
-  const [voiceLabel, setVoiceLabel] = useState(VOICE_OPTIONS.male[0].label);
-  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  // Video only: script-review step, between the form and actually kicking
-  // off generation — see handleGenerate/handleConfirmScript below. Mirrors
-  // the same two-phase flow already proven in Meta Ads' CreateAdModal.
+  // Video only: plan-review step (the AI's concept and every spoken line), between the form and the paid
+  // video — see handleGenerate/handleConfirmScript below. The same two-phase flow as Meta Ads' CreateAdModal.
   const [step, setStep] = useState<"form" | "script">("form");
-  const [scriptDraft, setScriptDraft] = useState<{ ad_mode: string; visual_mood: string; script: string[] } | null>(null);
+  const [scriptDraft, setScriptDraft] = useState<{ concept: string; script: string[] } | null>(null);
   const isScriptReview = format === "video" && step === "script";
 
   const [isGeneratingIdeas, setIsGeneratingIdeas] = useState(false);
@@ -138,10 +119,10 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
     setError("");
     try {
       if (format === "video") {
-        const res = await fetch("/api/social/posts/generate/video/script", {
+        const res = await fetch("/api/social/posts/generate/one-shot-video/script", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ideaPrompt: idea, duration, character, service, language }),
+          body: JSON.stringify({ ideaPrompt: idea, duration, character, service, language, audioStyle, videoStyle, videoMode, aspectRatio }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.script) {
@@ -183,22 +164,19 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
     setIsSubmitting(true);
     setError("");
     try {
-      const res = await fetch("/api/social/posts/generate", {
+      const res = await fetch("/api/social/posts/generate/one-shot-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          format: "video",
           ideaPrompt: idea,
           platforms: [],
           aspectRatio,
           duration,
           audioStyle,
           character,
-          voiceId: audioStyle === "Voiceover" ? voiceId : undefined,
           service,
           videoStyle,
           videoMode,
-          useReferencePhoto,
           language,
           script: scriptDraft,
         }),
@@ -297,7 +275,7 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
               <div>
                 <DialogTitle className="text-xl font-bold text-text">{isScriptReview ? "Review the Script" : "Create Post"}</DialogTitle>
                 <DialogDescription className="text-xs text-muted mt-0.5">
-                  {isScriptReview ? "Each line becomes one scene in the video. Edit anything, then confirm." : "Create content first, decide where it goes whenever you're ready."}
+                  {isScriptReview ? "The AI's idea for this video and every spoken line. Edit anything, then confirm: the video is made from this." : "Create content first, decide where it goes whenever you're ready."}
                 </DialogDescription>
               </div>
             </div>
@@ -324,9 +302,18 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                 >
                   ← Edit details
                 </button>
+                <div>
+                  <p className="text-xs font-semibold text-muted mb-1.5">The idea</p>
+                  <Textarea
+                    value={scriptDraft.concept}
+                    onChange={(e) => setScriptDraft({ ...scriptDraft, concept: e.target.value })}
+                    className="!p-3 min-h-[110px] text-sm"
+                  />
+                </div>
+                {!scriptDraft.script.length && <p className="text-xs text-muted">No spoken lines: this video has music and natural sound only.</p>}
                 {scriptDraft.script.map((line, i) => (
                   <div key={i}>
-                    <p className="text-xs font-semibold text-muted mb-1.5">Scene {i + 1}</p>
+                    <p className="text-xs font-semibold text-muted mb-1.5">Line {i + 1}</p>
                     <Textarea
                       value={line}
                       onChange={(e) => {
@@ -510,31 +497,10 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                       <p className="text-xs font-semibold text-muted mb-2">Audio Style</p>
                       <Dropdown value={audioStyle} onValueChange={setAudioStyle} options={AUDIO_STYLE_OPTIONS} />
                     </div>
-                    {audioStyle === "Voiceover" && (
-                      <div>
-                        <p className="text-xs font-semibold text-muted mb-2">Voice</p>
-                        <button
-                          type="button"
-                          onClick={() => setIsVoiceModalOpen(true)}
-                          className="w-full h-9 px-3 flex items-center justify-center gap-2 bg-background border border-dashed border-primary/50 text-primary hover:bg-primary/5 rounded-lg text-xs font-semibold transition-all"
-                        >
-                          <Mic2 className="w-3.5 h-3.5 shrink-0" />
-                          <span className="truncate">{voiceLabel}</span>
-                        </button>
-                      </div>
-                    )}
                     <div>
                       <p className="text-xs font-semibold text-muted mb-2">Character</p>
-                      <Dropdown
-                        value={character}
-                        onValueChange={(val) => {
-                          const c = val as "male" | "female";
-                          setCharacter(c);
-                          setVoiceId(VOICE_OPTIONS[c][0].id);
-                          setVoiceLabel(VOICE_OPTIONS[c][0].label);
-                        }}
-                        options={CHARACTER_OPTIONS}
-                      />
+                      <Dropdown value={character} onValueChange={(val) => setCharacter(val as "male" | "female")} options={CHARACTER_OPTIONS} />
+                      <p className="mt-1 text-[11px] text-muted">Uses your {character} reference photo and a {character} voice.</p>
                     </div>
                     <div>
                       <p className="text-xs font-semibold text-muted mb-2">Visual Style</p>
@@ -556,15 +522,6 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
                   </div>
                 )}
 
-                {format === "video" && (
-                  <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-default bg-surface">
-                    <div>
-                      <p className="text-sm font-semibold text-text">Use my reference photo</p>
-                      <p className="text-xs text-muted">Only where it fits — off by default.</p>
-                    </div>
-                    <Switch checked={useReferencePhoto} onCheckedChange={setUseReferencePhoto} />
-                  </div>
-                )}
               </>
             ) : (
               <div>
@@ -633,17 +590,6 @@ export function CreatePostModal({ isOpen, onClose, onSuccess }: CreatePostModalP
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <VoiceExplorerModal
-        isOpen={isVoiceModalOpen}
-        onOpenChange={setIsVoiceModalOpen}
-        selectedVoiceId={voiceId}
-        onSelectVoice={(id, label) => {
-          setVoiceId(id);
-          setVoiceLabel(label);
-          setIsVoiceModalOpen(false);
-        }}
-      />
     </>
   );
 }

@@ -1,20 +1,20 @@
 "use client";
 import React, { useEffect, useState, useRef } from "react";
 import { toast } from "sonner";
-import { X, Video, Image as ImageIcon, Music, Mic, Sparkles, Send, Tag, Monitor, User, Mic2, UploadCloud, File, Trash2, CheckCircle2, Wand2, MessageSquare, Clock, Globe } from "lucide-react";
+import { X, Video, Image as ImageIcon, Music, Mic, Sparkles, Send, Tag, Monitor, User, UploadCloud, File, Trash2, CheckCircle2, Wand2, MessageSquare, Clock, Globe } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/Button";
 import { Dropdown } from "@/components/ui/Dropdown";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/Switch";
 import { cn } from "@/lib/utils";
-import VoiceExplorerModal from "@/components/global/VoiceExplorerModal";
 import { createClient } from "@/lib/supabase/client";
 import { useCreateMetaAdCreative } from "../../hooks/useAdLibrary";
 import { useBusinessStore } from "@/store/business.store";
 
-const DURATION_OPTIONS = ["20 seconds", "28 seconds", "32 seconds", "36 seconds", "40 seconds"].map((v) => ({ value: v, label: v }));
-const AUDIO_STYLE_OPTIONS = ["No Voice", "Voiceover"].map((v) => ({ value: v, label: v }));
+// Videos are made in one go by Seedance 2.5 (POST /api/meta-ads/generate/one-shot-video), which makes at most
+// 30 seconds. Its own voice speaks the lines (male or female from Character), so there's no voice or audio picker.
+const DURATION_OPTIONS = ["20 seconds", "25 seconds", "30 seconds"].map((v) => ({ value: v, label: v }));
 const CHARACTER_OPTIONS = [{ value: "male", label: "Male" }, { value: "female", label: "Female" }];
 const VIDEO_STYLE_OPTIONS = ["Bold & Colorful", "Cinematic", "Minimal & Clean", "Dark & Moody", "Neon / Glow", "Hand-drawn / Sketch"].map((v) => ({ value: v, label: v }));
 const VIDEO_MODE_OPTIONS = [
@@ -30,19 +30,6 @@ const ASPECT_RATIO_OPTIONS = [
 // it at all — see src/services/ai/providers/elevenlabs.ts's modelIdFor).
 const LANGUAGE_OPTIONS = ["English", "Spanish", "French", "Hebrew", "Turkish"].map((v) => ({ value: v, label: v }));
 
-const VOICE_OPTIONS = {
-  male: [
-    { id: "KLoLpdGWK7agg0O2TJYg", label: "Charlie - Men" },
-    { id: "eqz5FuihuZwmJPuvZ65E", label: "Jess - Men" }
-  ],
-  female: [
-    { id: "wrxvN1LZJIfL3HHvffqe", label: "Bella - Lady" },
-    { id: "odyUrTN5HMVKujvVAgWW", label: "Emily - Lady" },
-    { id: "aD6riP1btT197c6dACmy", label: "Rachel - Lady" },
-    { id: "KClAuq9Hs0wFY7oJmaGN", label: "Maayan - Lady" }
-  ]
-};
-
 interface CreateAdModalInitialValues {
   type?: "video" | "image";
   duration?: string;
@@ -57,31 +44,29 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
   // AI Generate state
   const [type, setType] = useState("video");
   const [service, setService] = useState("");
-  const [duration, setDuration] = useState("28 seconds");
-  const [audioStyle, setAudioStyle] = useState("Voiceover");
+  const [duration, setDuration] = useState("30 seconds");
   const [character, setCharacter] = useState<"male"|"female">("male");
-  const [voiceId, setVoiceId] = useState(VOICE_OPTIONS.male[0].id);
-  const [voiceLabel, setVoiceLabel] = useState(VOICE_OPTIONS.male[0].label);
   const [videoStyle, setVideoStyle] = useState("Bold & Colorful");
   const [videoMode, setVideoMode] = useState<"live_action" | "animated_poster">("live_action");
   const [aspectRatio, setAspectRatio] = useState<"9:16" | "16:9">("9:16");
-  const [useReferencePhoto, setUseReferencePhoto] = useState(false);
+  // On by default: the main character looks like the business's reference photo for that character
+  const [useReferencePhoto, setUseReferencePhoto] = useState(true);
   const [language, setLanguage] = useState("English");
   const [idea, setIdea] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
 
-  // Video only: script-review step, between the form and actually kicking
-  // off generation — see handleGenerateSubmit/handleConfirmScript below.
+  // Video only: plan-review step (the AI's concept and every spoken line), between the form and the
+  // paid video — see handleGenerateSubmit/handleConfirmScript below.
   const [step, setStep] = useState<"form" | "script">("form");
-  const [scriptDraft, setScriptDraft] = useState<{ ad_mode: string; visual_mood: string; script: string[] } | null>(null);
+  const [scriptDraft, setScriptDraft] = useState<{ concept: string; script: string[] } | null>(null);
 
   // Pre-fill from an external source (e.g. a ready-to-launch script handed
   // in via a retry/duplicate action) when the modal opens with initialValues set.
   useEffect(() => {
     if (isOpen && initialValues) {
       if (initialValues.type) setType(initialValues.type);
-      if (initialValues.duration) setDuration(initialValues.duration);
+      // Older creatives have lengths Seedance 2.5 can't make (28–40 s): those start at 30
+      if (initialValues.duration) setDuration(DURATION_OPTIONS.some((o) => o.value === initialValues.duration) ? initialValues.duration : "30 seconds");
       if (initialValues.idea) setIdea(initialValues.idea);
       if (initialValues.service) setService(initialValues.service);
     }
@@ -123,10 +108,10 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
     setIsSubmitting(true);
     try {
       if (type === "video") {
-        const response = await fetch("/api/meta-ads/generate/video/script", {
+        const response = await fetch("/api/meta-ads/generate/one-shot-video/script", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ duration, audioStyle, videoStyle, character, service, language, ideaPrompt: idea }),
+          body: JSON.stringify({ duration, videoStyle, videoMode, aspectRatio, character, service, language, useReferencePhoto, ideaPrompt: idea }),
         });
         const data = await response.json().catch(() => ({}));
         if (response.ok && data.script) {
@@ -164,11 +149,11 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
     if (!scriptDraft) return;
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/meta-ads/generate/video", {
+      const response = await fetch("/api/meta-ads/generate/one-shot-video", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          duration, audioStyle, character, voiceId, videoStyle, videoMode, useReferencePhoto, language, aspectRatio,
+          duration, character, videoStyle, videoMode, useReferencePhoto, language, aspectRatio,
           ideaPrompt: idea, service, script: scriptDraft,
         }),
       });
@@ -194,7 +179,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
       const response = await fetch("/api/meta-ads/generate-idea", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idea, type, duration, audioStyle, videoStyle, character, service }),
+        body: JSON.stringify({ idea, type, duration, audioStyle: "Voiceover", videoStyle, character, service }),
       });
       const data = await response.json();
       if (response.ok && Array.isArray(data.ideas) && data.ideas.length > 0) {
@@ -297,7 +282,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
                 </DialogTitle>
                 <DialogDescription className="text-sm text-muted mt-1">
                   {activeTab === "generate"
-                    ? (step === "script" ? "Each line becomes one scene in the video. Edit anything, then confirm." : "Generate highly engaging ads with AI.")
+                    ? (step === "script" ? "The AI's idea for this ad and every spoken line. Edit anything, then confirm: the video is made from this." : "Generate highly engaging ads with AI.")
                     : "Upload your finalized video or image assets directly."}
                 </DialogDescription>
               </div>
@@ -325,10 +310,18 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
                   >
                     ← Edit details
                   </button>
+                  <div>
+                    <Label className="mb-1.5 block text-xs font-semibold text-muted">The idea</Label>
+                    <Textarea
+                      value={scriptDraft.concept}
+                      onChange={(e) => setScriptDraft({ ...scriptDraft, concept: e.target.value })}
+                      className="!p-3 min-h-[110px] text-sm"
+                    />
+                  </div>
                   <div className="space-y-4">
                     {scriptDraft.script.map((line, i) => (
                       <div key={i}>
-                        <Label className="mb-1.5 block text-xs font-semibold text-muted">Scene {i + 1}</Label>
+                        <Label className="mb-1.5 block text-xs font-semibold text-muted">Line {i + 1}</Label>
                         <Textarea
                           value={line}
                           onChange={(e) => {
@@ -440,36 +433,9 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
                   </div>
 
                   <div>
-                    <Label className="mb-2 block text-sm font-semibold">Audio Style</Label>
-                    <Dropdown value={audioStyle} onValueChange={setAudioStyle} options={AUDIO_STYLE_OPTIONS} />
-                  </div>
-
-                  {audioStyle === "Voiceover" && (
-                    <div>
-                      <Label className="mb-2 block text-sm font-semibold">Voice</Label>
-                      <button
-                        type="button"
-                        onClick={() => setIsVoiceModalOpen(true)}
-                        className="w-full h-9 px-4 flex items-center justify-center gap-2 bg-background border border-dashed border-primary/50 text-primary hover:bg-primary/5 rounded-lg text-sm font-semibold transition-all focus:ring-1 focus:ring-primary/20"
-                      >
-                        <Mic2 className="w-4 h-4 shrink-0" />
-                        <span className="truncate">{voiceLabel !== VOICE_OPTIONS.male[0].label ? voiceLabel : "Select Voice *"}</span>
-                      </button>
-                    </div>
-                  )}
-
-                  <div>
                     <Label className="mb-2 block text-sm font-semibold">Character</Label>
-                    <Dropdown
-                      value={character}
-                      onValueChange={(val) => {
-                        const newChar = val as "male" | "female";
-                        setCharacter(newChar);
-                        setVoiceId(VOICE_OPTIONS[newChar][0].id);
-                        setVoiceLabel(VOICE_OPTIONS[newChar][0].label);
-                      }}
-                      options={CHARACTER_OPTIONS}
-                    />
+                    <Dropdown value={character} onValueChange={(val) => setCharacter(val as "male" | "female")} options={CHARACTER_OPTIONS} />
+                    <p className="mt-1 text-xs text-muted">The main person in the ad, and a {character} voice.</p>
                   </div>
 
                   <div>
@@ -507,7 +473,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
                 <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border border-default bg-surface">
                   <div>
                     <p className="text-sm font-semibold text-text">Use my reference photo</p>
-                    <p className="text-xs text-muted">Only where it fits — off by default.</p>
+                    <p className="text-xs text-muted">The main person looks like your {character} reference photo (Settings). On by default.</p>
                   </div>
                   <Switch checked={useReferencePhoto} onCheckedChange={setUseReferencePhoto} />
                 </div>
@@ -595,7 +561,7 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
                   className="px-8 rounded-lg font-bold shadow-md"
                   icon={isSubmitting ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Send className="w-5 h-5" />}
                 >
-                  {isSubmitting ? "Generating..." : "Confirm & Generate Video"}
+                  {isSubmitting ? "Starting..." : "Confirm & Generate Video"}
                 </Button>
               ) : (
                 <Button
@@ -620,17 +586,6 @@ export function CreateAdModal({ isOpen, onClose, onSuccess, initialValues }: { i
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <VoiceExplorerModal
-        isOpen={isVoiceModalOpen}
-        onOpenChange={setIsVoiceModalOpen}
-        selectedVoiceId={voiceId}
-        onSelectVoice={(id, label) => {
-          setVoiceId(id);
-          setVoiceLabel(label);
-          setIsVoiceModalOpen(false);
-        }}
-      />
     </>
   );
 }

@@ -44,6 +44,15 @@ export async function POST(request: Request) {
 
     const platforms = posts.map((p: any) => p.platform_connections?.platform).filter(Boolean);
 
+    // One-shot videos (Seedance 2.5) go back through their own pipeline, with the plan the user approved
+    if (inputs.pipeline === "one_shot") {
+      await inngest.send({
+        name: "social/generate-one-shot-video",
+        data: { ...inputs, businessId: posts[0].business_id, platforms, socialPostIds: body.socialPostIds },
+      });
+      return NextResponse.json({ success: true, message: "Retry started" });
+    }
+
     await inngest.send({
       name: inputs.format === "video" ? "social/generate-video" : "social/generate-image",
       data: {
