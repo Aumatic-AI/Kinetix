@@ -2,6 +2,8 @@ import { OpenAIService } from './providers/openai';
 import { GeminiService } from './providers/gemini';
 import { ElevenLabsService } from './providers/elevenlabs';
 import { KieService } from './providers/kie';
+import { KieSeedanceFullService, type FullVideoRequest } from './providers/kie-seedance-full';
+import { OpenAIJsonService } from './providers/openai-json';
 
 export type TextProvider = 'openai' | 'gemini';
 export type TaskType = 'text' | 'analysis';
@@ -22,6 +24,16 @@ export class AIOrchestrator {
 
   createVideoTask(prompt: string, imageUrls: string[], aspectRatio?: string, duration?: string) {
     return KieService.createVideoTask(prompt, imageUrls, aspectRatio, duration);
+  }
+
+  /** A text call that comes back as one valid JSON object (OpenAI JSON mode); the prompt must mention JSON. */
+  executeJsonTask(prompt: string, options?: { systemPrompt?: string }): Promise<string> {
+    return OpenAIJsonService.generateJson(prompt, options?.systemPrompt);
+  }
+
+  /** One finished video in one go (Seedance 2.5): the one-shot Meta Ads video pipeline. */
+  createFullVideoTask(request: FullVideoRequest) {
+    return KieSeedanceFullService.createFullVideoTask(request);
   }
 
   checkTaskStatus(jobId: string) {

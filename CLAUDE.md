@@ -72,7 +72,7 @@ There is no per-user auth gating (no `middleware.ts`) and almost every API route
 
 ### AI orchestration
 
-`aiOrchestrator` in `src/services/ai/orchestrator.ts` is the single entry point for every AI provider — the only 4 actually wired in are OpenAI/Gemini (`executeTask`, text), Kie (`createImageTask`/`createVideoTask`/`checkTaskStatus`, image/video), and ElevenLabs (`generateSpeech`, voice). Always call through this, never a provider SDK directly from a route or job. All prompt-building logic lives in `src/prompts/<domain>/index.ts` as plain exported functions, one file per domain — never inline long prompt strings in a route.
+`aiOrchestrator` in `src/services/ai/orchestrator.ts` is the single entry point for every AI provider — the only 4 actually wired in are OpenAI/Gemini (`executeTask`, text; `executeJsonTask`, OpenAI JSON mode for long JSON answers), Kie (`createImageTask`/`createVideoTask`/`checkTaskStatus`, image/video; `createFullVideoTask` for Seedance 2.5 one-shot videos, used by Meta Ads' Create Video and Social Media's Create Post, with shared prompts in `src/prompts/one-shot-video` — see `docs/modules/meta_ads.md` §3.2), and ElevenLabs (`generateSpeech`, voice). Always call through this, never a provider SDK directly from a route or job. All prompt-building logic lives in `src/prompts/<domain>/index.ts` as plain exported functions, one file per domain — never inline long prompt strings in a route.
 
 ### Meta Ads module — credentials and data model
 

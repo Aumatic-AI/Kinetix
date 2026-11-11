@@ -110,7 +110,18 @@ flowchart TD
     I --> J
 ```
 
-Generation itself (writing the script, generating the image/video, adding voiceover) is entirely Kinetix's own AI pipeline — the same one built for Meta Ads. Only the final "publish this to Facebook/Instagram/etc." step is handed off to Upload-Post, which is what makes independent per-platform status possible: each platform is its own request, so one failing never affects the others.
+Generation itself (writing the script, generating the image/video, adding voiceover) is entirely Kinetix's own AI pipeline. Only the final "publish this to Facebook/Instagram/etc." step is handed off to Upload-Post, which is what makes independent per-platform status possible: each platform is its own request, so one failing never affects the others.
+
+### 7.0 Videos: one shot with Seedance 2.5
+
+Videos started from Create Post are made **in one go** by Seedance 2.5, the same system as Meta Ads' video creatives (`docs/modules/meta_ads.md` §3.2) and the same shared prompts (`src/prompts/one-shot-video`). Unlike Meta Ads, every Social video **follows one story by default** (`socialStory`): the problem, clearly visible → finding the business → being cared for → the problem resolved and noticed by the people around them. Only what happens inside each part (the problem, the moment, the places, the people) comes from the idea and the service; the AI picks it. When the idea asks for a different kind of video (an offer or promotion, an introduction to the business, an announcement…), the idea decides the structure instead.
+
+1. **Form**: idea, category (service), duration (20, 25 or 30 s; 30 by default), audio style (Voiceover, or No Voice for music and natural sound only), character (male or female: the main person and the voice), visual style, video type, language, aspect ratio. No voice picker and no reference-photo toggle: the business's reference photo for the character is always used when uploaded.
+2. **Plan** (`POST /api/social/posts/generate/one-shot-video/script`): the concept and every spoken line, reviewed and editable.
+3. **Start** (`POST /api/social/posts/generate/one-shot-video`): the `social_posts` rows (inputs and the approved plan on `generation_inputs` with `pipeline: "one_shot"`, so Retry makes the same video) and `social/generate-one-shot-video`.
+4. **Job** (`src/services/inngest/social/generate-social-one-shot-video.ts`): post text per platform (when there are platforms) → the reference photo, fitted to Seedance's size rules → one OpenAI call (JSON mode) writes the Seedance prompt → Seedance 2.5 (480p, sound on; retried once on a fail or a blank file) → our code puts the exact logo top-right (FFmpeg) → `media_assets` (metadata keeps the concept, script and video prompt) → the posts become drafts.
+
+The per-scene pipeline (`generate-social-video.ts`) stays for older posts and their retries.
 
 ### 7.1 Scheduling, in a bit more detail
 
@@ -137,7 +148,9 @@ Posting the same generated video to Instagram and TikTok is genuinely **two rows
 | Route | What it does |
 |---|---|
 | `dashboard` | Builds the whole Dashboard payload — connection health from `platform_connections` plus Upload-Post profile analytics/impressions, called live on every request (see §6.2). |
-| `posts/generate` | Starts AI image/video generation for one or more platforms. |
+| `posts/generate` | Starts AI image generation (and the older per-scene video pipeline) for one or more platforms. |
+| `posts/generate/one-shot-video/script` | Writes the one-shot video plan (concept and spoken lines) for review — doesn't save anything. |
+| `posts/generate/one-shot-video` | Starts a one-shot Seedance 2.5 video from the approved plan (see §7.0). |
 | `posts/generate-text` | Writes a caption-only post immediately, no background job. |
 | `posts/generate-idea` | Expands a rough idea into a few angle variations — doesn't save anything. |
 | `posts/improve-caption` | Rewrites a single caption with AI feedback. |

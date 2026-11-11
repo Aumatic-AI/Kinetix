@@ -30,19 +30,24 @@ export async function POST(request: Request) {
       .eq("id", creative.id);
 
     if (creative.type === "video") {
+      // Videos are made one shot by Seedance 2.5 (generate-one-shot-video-ad.ts), with the plan the user
+      // approved when it was kept on the creative; otherwise the job writes a new one
+      const kept = creative.ad_script as { pipeline?: string; concept?: string; script?: string[] } | null;
       await inngest.send({
-        name: "meta-ads/generate-video",
+        name: "meta-ads/generate-one-shot-video",
         data: {
           duration: creative.duration,
-          audioStyle: creative.audio_style,
           character: creative.character_type,
-          voiceId: creative.voice_id,
           videoStyle: creative.video_style,
+          videoMode: creative.video_mode,
+          aspectRatio: creative.aspect_ratio,
           language: creative.language,
           ideaPrompt: creative.idea_prompt,
           service: creative.service,
+          useReferencePhoto: true,
           creativeId: creative.id,
           businessId: creative.business_id,
+          script: kept?.pipeline === "one_shot" && kept.script?.length ? { concept: kept.concept || "", script: kept.script } : undefined,
         },
       });
     } else {

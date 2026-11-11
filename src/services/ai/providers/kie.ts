@@ -116,8 +116,9 @@ export class KieService {
   /**
    * Triggers a Video Generation Task and returns the raw jobId.
    *
-   * Uses Seedance 2 Mini (model "bytedance/seedance-2-mini") — its input
-   * schema differs from Seedance 1.5: the source image goes in
+   * Uses Seedance 2.0 (model "bytedance/seedance-2" — same input schema as
+   * "bytedance/seedance-2-mini", which it replaced). Its schema differs from
+   * Seedance 1.5: the source image goes in
    * `first_frame_url` (a single string; there is no `input_urls` field, so
    * passing that silently degrades to text-to-video), `duration` is an
    * integer (4–15), and `generate_audio` defaults to true. We turn audio off
@@ -126,7 +127,7 @@ export class KieService {
    */
   static async createVideoTask(prompt: string, imageUrls: string[], aspectRatio: string = "9:16", duration: string = "4") {
     const requestBody = {
-      model: "bytedance/seedance-2-mini",
+      model: "bytedance/seedance-2",
       input: {
         prompt,
         first_frame_url: imageUrls[0],
