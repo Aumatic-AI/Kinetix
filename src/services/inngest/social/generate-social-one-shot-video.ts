@@ -111,8 +111,18 @@ export const generateSocialOneShotVideo = inngest.createFunction(
           ? { concept: String(sent.concept || ""), script: (sent.script ?? []).map(String) }
           : await step.run("generate-plan", () => generateOneShotPlan(business, fullChoices));
 
-      // 4. One prompt for the whole video
-      const written = await step.run("write-video-prompt", () => writeOneShotVideoPrompt(business, fullChoices, plan, references.map((r) => r.what)));
+      // 4. One prompt for the whole video. If it still asks to show written words (which Seedance misspells),
+      //    the writer gets one rewrite with the problems named; a second miss stops here, before Kie is paid
+      const images = references.map((r) => r.what);
+      let written = await step.run("write-video-prompt", () => writeOneShotVideoPrompt(business, fullChoices, plan, images));
+      if (written.problems.length) {
+        const problems = written.problems;
+        console.error(`[ONE_SHOT_SOCIAL_VIDEO] Video prompt asked for written words, rewriting: ${problems.join(" | ")}`);
+        written = await step.run("rewrite-video-prompt", () => writeOneShotVideoPrompt(business, fullChoices, plan, images, problems));
+        if (written.problems.length) {
+          throw new Error(`The video prompt kept asking for words in the picture, which the video model misspells (${written.problems[0]}). Try again, or reword the idea without on-screen words.`);
+        }
+      }
 
       // 5. Seedance 2.5 makes the video
       const request = {

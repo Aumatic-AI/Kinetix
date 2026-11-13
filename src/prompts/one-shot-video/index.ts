@@ -20,12 +20,13 @@ import { serviceDescriptor, contactDisplayText } from "../meta-ads/shared";
  *
  * Fixed here: only facts, safety, the owner's choices (length, format,
  * character, language, voice) and what the video model can't do well: it
- * misspells every word it draws, so the picture has no writing at all (the
- * business name is only spoken, with a respelling our code always appends;
- * our code adds the logo top-right; the brand image is sent only when a shot,
- * such as the business's website on a screen, needs it), and it draws
- * whatever it's told about, so the brief it gets is written in positive
- * terms only.
+ * misspells every word it draws, so the picture has no writing at all, even
+ * when the idea asks for some (the business name is only spoken, with a
+ * respelling beside the line that says it; our code adds the logo top-right;
+ * the brand image is sent only when a shot, such as the business's website on
+ * a screen, needs it), it fills quiet moments with words of its own, so only
+ * the script is spoken, and it draws whatever it's told about, so the brief it
+ * gets is written in positive terms only.
  */
 
 export type OneShotChannel = "meta_ad" | "social_post";
@@ -65,6 +66,16 @@ const WHAT_IT_IS: Record<OneShotChannel, string> = {
   meta_ad: "a paid Meta (Facebook and Instagram) video ad",
   social_post: "an organic social media video post (Instagram, Facebook, TikTok, YouTube Shorts, LinkedIn): native to the feed, worth watching for its own sake, never a hard sell",
 };
+
+/** Finds the business's name in a text: in full, or its first word when that's distinctive ("Novara" for "Novara Clinic"). */
+export function businessNamePattern(businessName: string | null | undefined): RegExp | null {
+  const name = String(businessName ?? "").trim().toLowerCase();
+  if (!name) return null;
+  const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const first = name.split(/\s+/)[0];
+  const parts = [escape(name), ...(first.length >= 4 && first !== name ? [escape(first)] : [])];
+  return new RegExp(`\\b(${parts.join("|")})\\b`, "i");
+}
 
 /** Everything the business has told us, in full: the AI writes only from this. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -122,7 +133,8 @@ function rules(businessName: string): string {
 
 PICTURES WITHOUT WRITING
 The video model misspells every word it draws, so the video tells everything through pictures and speech, never through writing:
-- No written words anywhere in the picture: no captions, titles or text cards, and nothing readable on screens, laptops, phones, documents, signs, clothes, packaging or buildings. Screens show soft, unreadable interfaces; every surface is plain and unbranded. (The one exception, added later only where a shot needs it: a screen showing the business's own website may show its brand mark.)
+- No written words anywhere in the picture: no captions, titles or text cards, and nothing readable on screens, laptops, phones, documents, signs, clothes, packaging or buildings. Screens show soft, unreadable interfaces; every surface is plain and unbranded. (The one exception, added later only where a shot needs the brand: the business's brand mark, copied from its logo image, may appear there — on a screen showing its website, on an object the moment needs branded, such as a ticket or a card, or in the final shot.)
+- This holds even when the owner's idea asks for written words, such as a title, or a name on a ticket, card, badge, sign, tape or screen: keep that moment, with the object plain, or showing the brand mark when the moment needs the brand, and when the words matter, someone says them instead. Things that usually carry writing (tickets, boarding passes, badges, warning tape, signs, labels, newspapers, menus) are left out, or are plain and blank.
 - "${businessName}" is only ever spoken, at most twice in the whole video. The website is spoken only where the video needs it, usually the call to action.
 
 WHAT THE SERVICE CHANGES (the default; the owner's idea can change it)
@@ -191,16 +203,15 @@ Return ONLY JSON, no markdown:
 
 /** Fields both channels return beside the video prompt; our code acts on them (see services/ai/one-shot-video.ts). */
 const SHARED_OUTPUT = `- "videoPrompt": detailed, usually 3,000 to 9,000 characters, never more than 15,000.
-- "pronunciation": how to say the business name, and the website when it is spoken, as plain respellings (see SAYING THE NAME AND THE WEBSITE). Our code adds it to the end of the prompt, so the voices always have it.
 - "useBrandImage": true only when a beat shows the brand image (see PICTURES WITHOUT WRITING); otherwise false, and the image isn't sent.`;
 
 const OUTPUT: Record<OneShotChannel, string> = {
-  meta_ad: `Return JSON only: { "title": string, "headline": string, "primaryText": string, "videoPrompt": string, "pronunciation": string, "useBrandImage": boolean }.
+  meta_ad: `Return JSON only: { "title": string, "headline": string, "primaryText": string, "videoPrompt": string, "useBrandImage": boolean }.
 - "title": a few words naming the video.
 - "headline": the Meta ad headline, at most 40 characters.
 - "primaryText": the Meta ad primary text, 1 to 3 short sentences, at most 300 characters, ending with the call to action. Plain text, so the business name and website may appear here.
 ${SHARED_OUTPUT}`,
-  social_post: `Return JSON only: { "title": string, "videoPrompt": string, "pronunciation": string, "useBrandImage": boolean }.
+  social_post: `Return JSON only: { "title": string, "videoPrompt": string, "useBrandImage": boolean }.
 - "title": a few words naming the video.
 ${SHARED_OUTPUT}`,
 };
@@ -215,7 +226,7 @@ export function getOneShotSystemPrompt(channel: OneShotChannel): string {
 You are the creative director and film director of short social videos — here, ${WHAT_IT_IS[channel]}. You write ONE prompt for Seedance 2.5, a video model that makes the whole finished video in one go: the pictures, the cuts and camera, the people and how they move, speech in sync with their lips or a voice-over, music and sound effects. What your prompt describes is the video people will see.
 
 THE PLAN
-You get an approved concept and script. Keep the concept and say every line word for word. Everything else — the places, light, wardrobe, actions, camera, transitions, sound — is yours to make the video vivid, specific and alive: a lot happens, it keeps changing, it holds attention to the last second. Never slow, plain or generic; write it at the level of a top creative agency.
+You get an approved concept and script. Keep the concept and say every line word for word; the one thing you never keep is written words in the picture (see PICTURES WITHOUT WRITING), even when the concept or the owner's idea asks for them. Everything else — the places, light, wardrobe, actions, camera, transitions, sound — is yours to make the video vivid, specific and alive: a lot happens, it keeps changing, it holds attention to the last second. Never slow, plain or generic; write it at the level of a top creative agency.
 ${channel === "social_post" ? `
 ${socialStory("the business")}
 When the approved concept follows THE STORY, keep the four parts in this order, each with its share of the time, and in TIMELINE mark which part each beat belongs to. When it is a different kind of video because the owner's idea asked for one, follow the concept.
@@ -227,14 +238,17 @@ PICTURES WITHOUT WRITING (the most important rule)
 The video model misspells every word it draws, so the video tells everything through pictures and speech:
 - Describe every surface as plain and unbranded: plain clothes and uniforms, plain walls and signs, plain packaging, phone and laptop screens glowing with soft, blurred, unreadable interfaces, documents seen from too far or too blurred to read.
 - No captions, titles, text cards, subtitles or written words of any kind. Do not ask for any.
-- The one exception is the brand image, when one is listed under ATTACHED IMAGES. Use it only where a shot truly needs it, such as a laptop or phone screen showing the business's own website or page: that screen shows the brand mark from that reference image, copied exactly. Name it only in the beats that show it. Most videos need it nowhere, and it is never decoration. When no shot needs it, never mention it at all.
+- This holds even when the owner's idea or the approved concept asks for written words, such as a title at the end, or a name on a ticket, card, badge, sign, tape or screen. Keep that moment, with the object plain (for example "a plain glowing golden card"), or, when the moment needs the brand and a brand image is attached, showing the brand mark from it (see below); and when the words matter, a character says them instead.
+- Things that usually carry writing (tickets, boarding passes, badges, warning tape, signs, labels, newspapers, menus, books) are left out, or described as plain, blank, solid-coloured objects.
+- The business's name appears only in THE BUSINESS AND THE SERVICE, SPOKEN WORDS and SOUND. Never in a description of something we see: never "a card for" the business, the business's lounge, sign or screen. A place or object is described by how it looks.
+- The one exception is the brand image, when one is listed under ATTACHED IMAGES. Use it wherever a shot needs the brand: a laptop or phone screen showing the business's own website or page, an object the moment needs branded instead of written words (a ticket, a card, a badge), or the final shot. That surface shows the brand mark from that reference image, copied exactly, called "the brand mark from reference image N", never by the business's name. Name it only in the beats that show it. It is never decoration: when no shot needs it, never mention it at all.
 - Our editor adds the brand's mark in the top-right corner of every video afterwards. Never mention that, and never use the words "logo", "watermark" or "text" in your prompt. Instead, simply compose every shot so its top-right corner is calm and clear: soft background there, no faces, hands or key action.
 
 SAYING THE NAME AND THE WEBSITE
 The video model guesses how to say names and web addresses, and often guesses wrong: a hard consonant softened into another (a G heard as a K), or an address broken into separate letters with pauses. So:
 - The business name is only ever spoken, at most twice in the whole video, and never written. It is said exactly as it is spelled, every letter keeping its own sound. Give a plain respelling (for example: "Novara, said noh-VAH-rah").
 - The website is spoken only where the video needs it, usually the call to action; many videos don't say it at all. When it is said, it is said exactly as written, as one smooth phrase in one breath with no pauses inside it, with its own respelling.
-- Put both respellings in SOUND, and in "pronunciation".
+- Put each respelling in SOUND, and in SPOKEN WORDS on its own line straight after the line that says it (for example: How to say "Novara": noh-VAH-rah).
 
 THE MAIN CHARACTER AND EVERYONE ELSE
 - The main character is one person and looks the same in every shot. When their reference photo is attached, only the main character has its face, features and skin tone; the photo's background and pose are not reused.
@@ -263,8 +277,8 @@ PROCEDURE
    b. THE BUSINESS AND THE SERVICE: who the business is, what the service is, who it is for, the one message and the tone, so the model understands what the video is about.
    c. REFERENCE IMAGES: when the main character's photo is attached, "reference image 1 is the main character" and what that means (their face, features and skin tone only), then how what the service treats looks on them before and after the change, in physical words. The brand image is named here only when a beat uses it.
    d. PEOPLE: the main character first (age range, look, hair, wardrobe, manner, and the state of what the service treats at each point), then anyone else, each clearly different from the main character.
-   e. TIMELINE: the video beat by beat, each beat with its start and end time in seconds, together filling the exact length: what we see, the shot and camera move, the action, the place and light, and the sound in that moment. Every beat before the change repeats the full physical description of the problem. Every surface plain, every screen soft and unreadable (apart from a screen showing the brand image, where a beat needs it), every top-right corner calm.
-   f. SPOKEN WORDS: every script line exactly as written, at the second it is said and by whom (a character on camera with lips in sync, or a voice-over). When the video has no speech, nobody speaks.
+   e. TIMELINE: the video beat by beat, each beat with its start and end time in seconds, together filling the exact length: what we see, the shot and camera move, the action, the place and light, and the sound in that moment. Every beat before the change repeats the full physical description of the problem. Every surface plain, every screen soft and unreadable (apart from the brand mark, where a beat shows the brand image), every top-right corner calm.
+   f. SPOKEN WORDS: every script line exactly as written, at the second it is said and by whom (a character on camera with lips in sync, or a voice-over). These lines are the only words anyone says: between them there is music and natural sound, and what we see is shown, never described aloud. When the video has no speech, nobody speaks.
    g. SOUND: each voice (gender, age, accent and tone that fit the speaker and the language), the respelling of the business name (and of the website, when it is spoken), the music (new and original, described only by mood, tempo, instruments and how it builds — never a song, artist or famous track) and the sound effects.
    h. THE ENDING: the last shot — a strong, calm image with a clear top-right corner — ${channel === "social_post" ? "the payoff moment of THE STORY (or the concept's own ending), ending on the last spoken line of the script." : "and the call to action, spoken."}
    i. A closing line telling the model that the timeline is the plan, not a fixed script: it may improve shots, camera, transitions and timing where that makes a better video, keeping the concept, the main character, the spoken words, the business and the facts.
@@ -276,9 +290,11 @@ ${OUTPUT[channel]}
 SELF-CHECK
 - Would a top creative agency post this? If any shot, line or setting is generic, rewrite it.
 - Every script line is in the timeline, word for word, and fits its time (about 2.5 words per second).
-- The prompt asks for no written words anywhere and never uses the words "logo", "watermark", "caption" or "text"; every surface is plain and every screen unreadable.
+- The prompt asks for no written words anywhere, even where the owner's idea or the concept asked for some, and never uses the words "logo", "watermark", "caption" or "text"; every surface is plain and every screen unreadable.
+- The business's name appears only in THE BUSINESS AND THE SERVICE, SPOKEN WORDS and SOUND, never in what we see.
 - The brand image appears only in a beat that truly needs it, or nowhere; "useBrandImage" says which.
-- The business name is spoken at most twice; the website only where the video needs it, as one smooth phrase; "pronunciation" has the respelling of each one that is spoken.
+- The business name is spoken at most twice; the website only where the video needs it, as one smooth phrase; the respelling of each one that is spoken is in SOUND and right after its line in SPOKEN WORDS.
+- Only the script's lines are spoken; nothing else is said aloud.
 - Only the main character has the reference photo's face; everyone else is clearly someone else.
 - Whenever the video shows the problem this service treats, it is at its most severe, in concrete physical words repeated in PEOPLE and every beat before the change, with a close-up, and the result is visible after.
 - The prompt never explains why the top-right corner is calm.
@@ -286,8 +302,12 @@ ${channel === "social_post" ? "- When the concept follows THE STORY, all four pa
 - The prompt stands on its own: someone who knows nothing about the business could make the video from it.`;
 }
 
+/**
+ * `problems`: what the code check (services/ai/one-shot-video.ts) found in the writer's last draft, for its one
+ * rewrite.
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function getOneShotVideoPrompt(business: any, c: OneShotChoices, plan: { concept: string; script: string[] }, images: string[]): string {
+export function getOneShotVideoPrompt(business: any, c: OneShotChoices, plan: { concept: string; script: string[] }, images: string[], problems: string[] = []): string {
   return [
     businessFacts(business, c.service),
     `\nTHE OWNER'S IDEA\n${c.ideaPrompt}`,
@@ -299,6 +319,9 @@ export function getOneShotVideoPrompt(business: any, c: OneShotChoices, plan: { 
     "Top-right corner: our editor adds the brand there afterwards, so keep that corner of every shot calm and clear (see PICTURES WITHOUT WRITING).",
     images.length ? `\nATTACHED IMAGES\n${images.map((what, i) => `Reference image ${i + 1}: ${what}`).join("\n")}` : "",
     c.hasCharacterPhoto ? "" : "\nNo photo of the main character is attached: describe them in full, and keep them the same in every shot.",
+    problems.length
+      ? `\nYOUR LAST DRAFT BROKE PICTURES WITHOUT WRITING. Write the whole prompt again, keeping everything else, without these:\n${problems.map((p) => `- ${p}`).join("\n")}`
+      : "",
   ].join("\n");
 }
 
@@ -321,7 +344,7 @@ export function oneShotReferences(business: any, character: "male" | "female", w
     business?.logo_url
       ? {
           url: String(business.logo_url),
-          what: `the business's brand mark, exactly as it looks. Optional: show it only where a shot truly needs it, such as a laptop or phone screen showing the business's own website or page, and nowhere else. Most videos need it nowhere. If no shot needs it, never mention it and set "useBrandImage" to false`,
+          what: `the business's brand mark, exactly as it looks. Optional: show it wherever a shot needs the brand — a laptop or phone screen showing the business's own website or page, an object the moment needs branded instead of written words (a ticket, a card, a badge), or the final shot — and nowhere else. If no shot needs it, never mention it and set "useBrandImage" to false`,
           optional: true,
         }
       : null,
